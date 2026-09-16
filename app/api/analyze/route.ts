@@ -283,14 +283,32 @@ export async function POST(request: NextRequest) {
   // Stream SSE events for real-time progress
   const { signal } = request;
   const encoder = new TextEncoder();
+  // The controller can stop accepting writes for two reasons: we finished and
+  // closed it, or the client went away and the platform cancelled the stream
+  // underneath us. Either way `close()` and `enqueue()` throw
+  // "Invalid state: Controller is already closed", so every write and the close
+  // itself go through the guarded helpers below rather than touching the
+  // controller directly.
+  let streamClosed = false;
   const stream = new ReadableStream({
     async start(controller) {
       function emit(event: Record<string, unknown>) {
-        if (signal.aborted) return;
+        if (streamClosed || signal.aborted) return;
         try {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
         } catch {
           // Stream already closed
+        }
+      }
+
+      /** Close once, and never throw if the client already tore the stream down. */
+      function closeStream() {
+        if (streamClosed) return;
+        streamClosed = true;
+        try {
+          controller.close();
+        } catch {
+          // Already closed or cancelled — nothing left to do.
         }
       }
 
@@ -322,11 +340,9 @@ export async function POST(request: NextRequest) {
           expandedQueries = [topic];
         }
 
-        // Check if client disconnected before expensive AI calls
-        if (signal.aborted) {
-          controller.close();
-          return;
-        }
+        // Check if client disconnected before expensive AI calls.
+        // `finally` closes the stream — closing here too would double-close.
+        if (signal.aborted) return;
 
         // Step 2: Run all queries × all providers in parallel
         const providerNames = providers.map((p) => p.provider);
@@ -475,7 +491,6 @@ export async function POST(request: NextRequest) {
         const successCount = Object.values(responses).filter(Boolean).length;
         if (successCount === 0) {
           emit({ stage: "error", message: "All AI providers failed" });
-          controller.close();
           return;
         }
 
@@ -500,10 +515,7 @@ export async function POST(request: NextRequest) {
         };
 
         // Check if client disconnected before DB save
-        if (signal.aborted) {
-          controller.close();
-          return;
-        }
+        if (signal.aborted) return;
 
         // Save to database (retry once on failure)
         let analysisId: string | null = null;
@@ -532,24 +544,33 @@ export async function POST(request: NextRequest) {
 
         if (!analysisId) {
           emit({ stage: "error", message: "Failed to save results. Please try again." });
-          controller.close();
           return;
         }
 
         emit({ stage: "complete", id: analysisId });
       } catch (err) {
         console.error("Analysis stream error:", err);
-        reportError({
-      project: "ai-topic-explorer",
-          category: "stream_error",
-          message: err instanceof Error ? err.message : String(err),
-          rawError: err,
-          context: { topic },
-        });
+        // A client that navigates away aborts the request, which makes the
+        // in-flight work reject. That is the user leaving, not a fault worth
+        // paging on, so only report failures that happened on a live stream.
+        if (!signal.aborted) {
+          reportError({
+            project: "ai-topic-explorer",
+            category: "stream_error",
+            message: err instanceof Error ? err.message : String(err),
+            rawError: err,
+            context: { topic },
+          });
+        }
         emit({ stage: "error", message: "Analysis failed. Please try again." });
       } finally {
-        controller.close();
+        closeStream();
       }
+    },
+    cancel() {
+      // The client disconnected; the platform has already torn the stream down,
+      // so mark it closed and let the in-flight handler unwind quietly.
+      streamClosed = true;
     },
   });
 

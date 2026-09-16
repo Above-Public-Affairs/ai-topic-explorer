@@ -1,6 +1,6 @@
 # AI Topic Explorer - Project Status
 
-**Last Updated:** August 20, 2026
+**Last Updated:** September 16, 2026
 
 ## Current Status: Live in production (beta)
 
@@ -8,6 +8,22 @@ Deployed on Railway with all five providers. Ongoing work is reliability hardeni
 driven by production error reports.
 
 ### Recent reliability work
+- **Fixed the `stream_error` "Invalid state: Controller is already closed" report.**
+  Two distinct bugs in `app/api/analyze/route.ts`, both from `controller.close()`
+  being called unguarded while `controller.enqueue()` (via `emit`) was already
+  wrapped. (1) Four early-return paths — the two `signal.aborted` checks,
+  all-providers-failed, and DB-save-failed — closed the controller and then
+  returned *through* a `finally` that closed it again; a throw from `finally`
+  bypasses the sibling `catch`, so this escaped as an unhandled rejection out of
+  `start()`. (2) When a user navigates away mid-analysis Next.js cancels the
+  stream, so the handler's own tidy-up `close()` threw, was caught by the stream's
+  `catch`, and was filed as a `stream_error` — an application fault report for a
+  user simply leaving. Closing is now idempotent via a `closeStream()` helper and
+  owned solely by the `finally`; a `cancel()` handler marks the stream closed on
+  disconnect; and `reportError` is skipped when `signal.aborted`, which also
+  suppresses the wider class of disconnect noise (aborted in-flight provider work
+  rejecting). Note the user-visible impact was nil — the client returns as soon as
+  it reads the `error` event — so no in-site changelog entry was added.
 - **Fixed a provider-crashing bug found via production error reports.** A `grok`
   `provider_failure` traced back to `lib/ai-clients/shared.ts`: the model's JSON
   block is parsed and cast to the declared types with no per-item validation, so

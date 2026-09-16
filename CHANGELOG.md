@@ -2,6 +2,12 @@
 
 All notable changes to AI Topic Explorer will be documented in this file.
 
+## [2026-09-16]
+
+### Fixed
+- Guard the SSE stream's `controller.close()` the way `enqueue()` was already guarded. Four early-return paths in `app/api/analyze/route.ts` closed the controller and then returned through a `finally` that closed it again, throwing `Invalid state: Controller is already closed` out of the stream's `start()`. Closing is now idempotent and owned solely by the `finally`
+- A client that disconnects mid-analysis no longer files a bogus `stream_error` report. Next.js cancels the stream when the user navigates away, which made the handler's own `controller.close()` throw and get caught and reported as an application fault. The stream now tracks its closed state (including via a `cancel()` handler) and aborted requests are no longer reported
+
 ## [2026-08-20]
 
 ### Fixed
