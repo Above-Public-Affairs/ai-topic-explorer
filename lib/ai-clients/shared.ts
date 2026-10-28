@@ -12,7 +12,7 @@ export const REQUEST_MAX_RETRIES = 4;
 
 export const PROMPT_TEMPLATE = (topic: string) => `Analyze the topic: "${topic}"
 
-Provide a comprehensive, fact-rich analysis of this topic. Include key facts, current context, major entities involved, and important developments.
+Provide a comprehensive, fact-rich analysis of this topic. Include key facts, current context, major entities involved, and important developments. Keep the analysis to roughly 1,000-1,500 words, so the response has room for the JSON block that follows it.
 
 After your analysis, output a JSON block (and nothing else after it) in exactly this format:
 
@@ -176,6 +176,9 @@ export function parseStructuredData(
 }
 
 export function extractRawText(text: string): string {
-  // Remove the JSON code block from the text to get just the analysis
-  return text.replace(/```json[\s\S]*?```/, "").trim();
+  // Remove the JSON code block from the text to get just the analysis. A
+  // response cut off by max_tokens or the timeout leaves the block unclosed, so
+  // strip to the end of the text in that case — otherwise its keys and URLs
+  // ("entities", "https") end up in the word cloud.
+  return text.replace(/```json[\s\S]*?(?:```|$)/, "").trim();
 }

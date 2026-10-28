@@ -29,7 +29,8 @@ import type {
 
 type AnalyzeFn = (query: string, signal?: AbortSignal) => Promise<AIResponse>;
 
-// Each provider query is a full generation (up to 4096 output tokens). Under
+// Each provider query is a full generation (up to 8192 output tokens; the
+// prompt asks for ~1,000-1,500 words plus the JSON block). Under
 // load — this route fires every expanded query at every provider at once — token
 // throughput drops and a normal generation can run well past a minute, so the
 // deadline needs real headroom above the typical case or healthy requests get

@@ -7,6 +7,8 @@ const CHANGELOG: { date: string; changes: string[] }[] = [
     date: "Oct 28",
     changes: [
       "Claude's analysis now uses Claude Sonnet 5.5, and Gemini's uses Gemini 3.5 Flash",
+      "Fewer cut-off responses, so named entities, citations and themes come through more reliably",
+      "Keep stray formatting out of the word cloud when a response is cut off",
       "Clearer reasons when an AI provider is unavailable, such as a blocked API key or an exhausted quota",
     ],
   },

@@ -4,8 +4,8 @@ import { PROMPT_TEMPLATE, parseStructuredData, extractRawText } from "./shared";
 
 const MODEL = "claude-sonnet-5-5";
 
-// Sonnet 5.5 thinks by default, and thinking tokens count against max_tokens —
-// with a 4096 cap that would eat into the prose and the trailing JSON block.
+// Sonnet 5.5 thinks by default, and thinking tokens count against max_tokens,
+// where they would eat into the prose and the trailing JSON block.
 // `between_tools` is this model's thinking-off setting (`disabled` is a 400),
 // which keeps Claude comparable to the other providers (Gemini runs with
 // thinking off too). SDK 0.74's types predate the value, hence the cast.
@@ -31,7 +31,10 @@ export async function analyzeWithClaude(
   const stream = client.messages.stream(
     {
       model: MODEL,
-      max_tokens: 4096,
+      // Matches the other providers. Sonnet 5.5's tokenizer spends ~30% more
+      // tokens on the same text than Sonnet 4.5 did, and at 4096 responses
+      // routinely hit the cap and lost the JSON block emitted last.
+      max_tokens: 8192,
       thinking: THINKING_OFF,
       messages: [
         {

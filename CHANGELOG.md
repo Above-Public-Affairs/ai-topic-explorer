@@ -7,6 +7,9 @@ All notable changes to AI Topic Explorer will be documented in this file.
 ### Changed
 - Claude analysis now runs on Claude Sonnet 5.5 (`claude-sonnet-5-5`), up from Sonnet 4.5 — cheaper per token ($2 / $10 per MTok vs $3 / $15). Thinking is turned off with `thinking: {type: "between_tools"}` (Sonnet 5.5 rejects `disabled`) so thinking tokens don't eat the 4096-token cap, matching how Gemini is run
 - Gemini now runs on `gemini-3.5-flash` (thinking still off via `thinkingBudget: 0`). The rotated Gemini key lives in a new Google project, and Google no longer serves `gemini-2.5-flash` to new projects ("no longer available to new users"). `gemini-3.8-flash` is Google's suggested replacement but was timing out under high demand when tested
+- Raise Claude's `max_tokens` from 4096 to 8192, matching OpenAI, Perplexity and Grok. Sonnet 4.5 already hit the 4096 cap often, losing the trailing JSON block (entities, citations, themes), and Sonnet 5.5's tokenizer spends ~30% more tokens on the same text
+- The shared analysis prompt now asks for roughly 1,000-1,500 words of analysis, so the JSON block has room and long generations finish inside the 150s per-query timeout. This shortens Claude and Gemini, which ran ~2,000-3,000 words; OpenAI was already near this length
+- A JSON block left unclosed by a cut-off response is now stripped from the analysis text, instead of its keys and URLs feeding the word cloud
 - A Claude safety decline (`stop_reason: "refusal"`) now fails the provider with "Claude declined to analyze this topic" instead of passing through as an empty analysis
 
 ### Fixed
