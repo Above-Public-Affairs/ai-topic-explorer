@@ -1,83 +1,100 @@
 # Session Handoff — AI Topic Explorer
 
-**Last Updated:** September 16, 2026
+**Last Updated:** October 28, 2026
 
 ## Where we are
-Live in production (beta) on Railway. This session triaged one production error
-report — `stream_error` / `Invalid state: Controller is already closed`, seen once
-on 2026-09-15 — and fixed the root cause. The change is confined to the SSE stream
-plumbing in `app/api/analyze/route.ts`; no provider, analysis, or UI code was
-touched.
+Live in production (beta) on Railway. This session triaged the 2026-10-27 error
+digest. Four errors came from a single analysis, and they turned out to be
+account/key problems rather than code:
 
-The three commits from the previous session (streaming + provider-failure fixes)
-are already on `origin/main` and deployed.
+- **Anthropic:** both keys (`ANTHROPIC_API_KEY`, `ANTHROPIC_EXPANSION_API_KEY`) were
+  rejected as invalid.
+- **OpenAI:** out of quota. It returned a 429 on a single in-flight request after a
+  few seconds of quick retries.
+- **Gemini:** failed instantly, but the reason was hidden by our own error
+  formatting (see below).
+
+All four keys were rotated. They're stored in 1Password (Development vault,
+"AI Topic Explorer - …") and set on Railway, and each was checked live against its
+provider before being saved. Railway redeployed `main` with the new keys, so Claude
+and OpenAI already work in production.
+
+**Gemini is still down in production until this branch deploys.** The new key's
+Google project is new, and Google no longer serves `gemini-2.5-flash` to new
+projects. That project also needed the Gemini API enabled, which is done.
 
 ## What was built this session
-Both bugs trace to the same asymmetry: `controller.enqueue()` was wrapped in a
-try/catch inside `emit()`, but `controller.close()` was called bare in five places.
-Node throws the *identical* `TypeError: Invalid state: Controller is already
-closed` from both.
+Branch `claude/ai-topic-explorer-provider-errors-26b19e`, three commits plus these
+docs.
 
-- **Bug 1 — every early return double-closed the stream.** The handler's shape is
-  `try { … } catch { … } finally { controller.close() }`, and four paths inside the
-  `try` did `controller.close(); return;`: the `signal.aborted` checks before the
-  provider fan-out and before the DB save, the all-providers-failed branch, and the
-  DB-save-failed branch. A `return` inside `try` still runs `finally`, so each of
-  those closed twice.
-  - Because a throw from `finally` bypasses the sibling `catch`, this one escaped as
-    an unhandled rejection out of `start()` — it was never the thing being reported.
-- **Bug 2 — the one that actually got reported.** `stream_error` is only ever raised
-  from the stream's `catch`, so the reported throw had to originate *inside* the
-  `try`. When a client navigates away, Next.js cancels the ReadableStream and the
-  controller stops being closeable. The handler then notices `signal.aborted`, calls
-  `controller.close()` to be tidy, and *that* throws — caught, and filed as an
-  application fault. So the 2026-09-15 report was a user closing the tab mid-run,
-  not a defect anyone experienced. A 150s worst case makes that very plausible.
-  - **Fix:** a `streamClosed` flag plus an idempotent `closeStream()` that swallows
-    the invalid-state error; the four in-`try` `close()` calls removed so `finally`
-    is the sole owner of closing; a `cancel()` handler on the stream source so a
-    disconnect marks it closed and the in-flight handler unwinds quietly; and
-    `reportError` gated on `!signal.aborted`, which also suppresses the broader
-    class of disconnect noise (an abort makes in-flight provider work reject too).
-- `CHANGELOG.md` / `PROJECT-STATUS.md` — entries for 2026-09-16.
+- **Error classification** (`app/api/analyze/route.ts`).
+  - `categorizeError` reads the SDK's `status`, OpenAI's `code` and Gemini's
+    `errorDetails` `reason` before matching message text.
+  - Gemini errors begin with the full request URL, so the HTTP status sat past the
+    120-character display cut. The URL prefix is now stripped.
+  - OpenAI `insufficient_quota` gets its own "Quota exhausted" label.
+  - `providerErrorDetail` adds `code` and `reason` to reports.
+  - The `invalid.*key` auth check was a literal-string `includes()` and never
+    matched. It's now a regex.
+- **Claude Sonnet 5.5** (`lib/ai-clients/claude.ts`).
+  - Model is `claude-sonnet-5-5`.
+  - Thinking is off via `thinking: {type: "between_tools"}`. `disabled` is a 400 on
+    this model, and SDK 0.74's types need a cast.
+  - `stop_reason: "refusal"` now throws "Claude declined to analyze this topic"
+    instead of passing as an empty success.
+- **Gemini** (`lib/ai-clients/gemini.ts`): `gemini-3.5-flash` with
+  `thinkingBudget: 0`. Google currently serves that alias with Gemini 3.6 Flash.
+  `gemini-3.8-flash` timed out under load when tested.
+- **Truncation** (`claude.ts`, `lib/ai-clients/shared.ts`).
+  - Claude `max_tokens` is now 8192, up from 4096.
+  - The shared prompt asks for ~1,000–1,500 words of prose, which affects all five
+    providers.
+  - `extractRawText` strips an unclosed JSON block.
+- Docs: CHANGELOG, in-site changelog (`components/Footer.tsx`), PROJECT-PLAN (no
+  longer says Claude runs on Haiku), and PROJECT-STATUS.
 
 ## Verification status
-- `npx tsc --noEmit` passes (requires `npx prisma generate` first in a fresh
-  worktree — `lib/db.ts` imports the generated client).
-- `npx eslint app/api/analyze/route.ts` clean.
-- Reproduced both failure paths standalone against the real `ReadableStream`, before
-  and after: the early-return shape threw `Invalid state: Controller is already
-  closed` and now does not; the close-after-client-cancel shape reported
-  `stream_error: Invalid state: Controller is already closed` and now reports
-  nothing. Script was temporary and lives only in the session scratchpad.
-- **Not** exercised against a live analysis run — no `.env` in this worktree, and a
-  golden-path run needs live keys for all five providers plus Postgres. Shipped on
-  the strength of the static checks and the repro, with the user's okay.
+- `tsc --noEmit` and eslint pass. The only warnings are three pre-existing unused
+  imports in `openai.ts`.
+- The new error classification was run against real SDK error objects: Anthropic
+  401, OpenAI quota vs rate-limit 429, and Gemini 400/403/404.
+- `extractRawText` was checked on closed, unclosed, missing and mid-text JSON
+  blocks.
+- Live single-request checks with the new keys all passed:
+  - Sonnet 5.5 + `between_tools`
+  - GPT-4o
+  - Gemini 3.5 Flash with the app's exact safety + thinking settings
+- **Not** exercised: a full end-to-end analysis on this branch.
 
 ## Next steps
-- Confirm on Railway after deploy that `stream_error` reports with this message stop
-  appearing. Since the trigger is a user disconnecting, absence is the only signal —
-  there's nothing to actively reproduce in production.
-- Still open from the previous session: watch `provider_failure` reports for
-  `grok`/`perplexity` to confirm those fixes hold under real traffic.
-- Still open: trimming Perplexity's fan-out below the full 5 expanded queries (it
-  only contributes citations + related questions).
-- Still open: applying Claude's streaming + partial-recovery pattern to the OpenAI,
-  Gemini, Perplexity, and Grok clients.
+- After deploy, run one analysis on the live site and confirm all five providers
+  return. Check that Claude/Gemini prose lands near the new 1,000–1,500-word target
+  and that entities/citations/themes come through.
+- Delete the old Anthropic, OpenAI and Gemini keys in each console if not done yet.
+- The GitHub CLI token can't create PRs in Above-Public-Affairs. The API returns
+  404 even though the account is a repo admin, which points to the GitHub CLI
+  OAuth app not being approved for the org. Grant it at
+  github.com/settings/connections/applications if PRs are wanted.
+- Candidates:
+  - Query expansion to Claude Haiku 5.5 (needs `effort: "low"` + ~1,024
+    `max_tokens`).
+  - Move to `gemini-3.8-flash` once it's stable.
+  - Trim Perplexity's fan-out.
+  - Stream the other four providers.
 
 ## Known gotchas
-- `emit()` deliberately swallows enqueue failures, and `closeStream()` now swallows
-  close failures. That is correct for a stream whose client may vanish at any moment,
-  but it does mean a genuine bug in the write path would be silent. If SSE events
-  ever appear to go missing, this is the first place to instrument.
-- `reportError` is now skipped whenever `signal.aborted`. A real fault that happens
-  to coincide with a client disconnect will therefore go unreported. That trade was
-  made deliberately — disconnects are common and the noise was drowning real
-  reports — but it is worth remembering when a user reports a failure with no
-  corresponding error record.
-- The other four provider clients still use non-streaming calls with no
-  partial-recovery path — a timeout on them discards the full response.
-- The JSON block (entities/citations/keyThemes) is emitted *after* the prose, so any
-  truncated response loses structured data even though the prose survives.
-- The permissive JSON sanitizers in `shared.ts` coerce rather than surface errors —
-  systematic provider drift would be silently absorbed.
+- **Google model access depends on the project's age.** A newly created Gemini key
+  may not get older models that existing projects still have. Test the exact model
+  with a new key before deploying it.
+- **`between_tools` works only on Claude Sonnet 5.5.** Any retry or router that
+  re-sends the Claude request to another model must drop it.
+- **Sonnet 5.5's tokenizer spends ~30% more tokens than Sonnet 4.5** on the same
+  text. Token counts in old logs aren't comparable.
+- `emit()` and `closeStream()` swallow write/close failures on purpose. A real bug
+  in the SSE write path would therefore be silent.
+- `reportError` is skipped whenever `signal.aborted`, so a fault coinciding with a
+  disconnect goes unreported.
+- The JSON block is still emitted *after* the prose. The new length target and
+  higher cap make truncation rarer, but a 150s timeout under load can still cut
+  it off.
+- The four non-Claude clients still have no partial-recovery path on timeout.

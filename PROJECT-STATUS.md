@@ -1,6 +1,6 @@
 # AI Topic Explorer - Project Status
 
-**Last Updated:** September 16, 2026
+**Last Updated:** October 28, 2026
 
 ## Current Status: Live in production (beta)
 
@@ -8,6 +8,23 @@ Deployed on Railway with all five providers. Ongoing work is reliability hardeni
 driven by production error reports.
 
 ### Recent reliability work
+- **Rotated the Anthropic (analysis + expansion), OpenAI and Gemini keys (2026-10-28).**
+  On 2026-10-27 one analysis lost Claude (401), query expansion (401), OpenAI (429,
+  out of quota) and Gemini at once while Perplexity and Grok succeeded — account and
+  key problems, not code. New keys are stored in 1Password (Development vault,
+  "AI Topic Explorer - …") and set on Railway. The new Gemini key's Google project
+  needed the Gemini API enabled.
+- **Provider failures are now classified by the SDK's `status` / `code` / `reason`**
+  instead of message text. Gemini errors were unreadable (the URL prefix pushed the
+  status past the 120-char display cut), and OpenAI `insufficient_quota` showed as
+  "Rate limited".
+- **Models:** Claude analysis is now Claude Sonnet 5.5 (`claude-sonnet-5-5`, thinking
+  off via `between_tools`, refusal fails the provider). Gemini is now
+  `gemini-3.5-flash` — Google no longer serves `gemini-2.5-flash` to new projects.
+- **Truncation:** Claude `max_tokens` 4096 → 8192, the shared prompt targets ~1,000–
+  1,500 words of prose, and a cut-off JSON block no longer leaks into the word cloud.
+- Follow-up candidate: query expansion to Claude Haiku 5.5 (needs `effort: "low"` and
+  ~1,024 `max_tokens`, or its default thinking eats the 300-token cap).
 - **Fixed the `stream_error` "Invalid state: Controller is already closed" report.**
   Two distinct bugs in `app/api/analyze/route.ts`, both from `controller.close()`
   being called unguarded while `controller.enqueue()` (via `emit`) was already
