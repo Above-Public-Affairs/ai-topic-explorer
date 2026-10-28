@@ -2,6 +2,12 @@
 
 All notable changes to AI Topic Explorer will be documented in this file.
 
+## [2026-10-29]
+
+### Fixed
+- Gemini now retries Google's transient errors (503 "high demand", 429, 500) up to twice, waiting about 1s and then 3s with jitter. A 429 that names its own wait is honored when that wait is 8s or less. The `@google/generative-ai` SDK never retries on its own, so in the first live analysis after the 2026-10-28 deploy, 4 of Gemini's 5 queries failed on a single 503
+- When retries run out, or a 429 asks for a longer wait, the query falls back to `gemini-3.5-flash-lite` (with `thinkingLevel: "minimal"`, since Flash-Lite rejects `thinkingBudget: 0`) instead of failing. The result records the model that actually answered
+
 ## [2026-10-28]
 
 ### Changed
