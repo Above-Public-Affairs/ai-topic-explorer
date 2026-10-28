@@ -86,16 +86,58 @@ function withTimeout<T>(
   });
 }
 
+/**
+ * The structured fields the provider SDKs put on their errors. Anthropic and
+ * OpenAI errors carry `status`, `code` and the parsed body in `error`; Gemini's
+ * GoogleGenerativeAIFetchError carries `status` and `errorDetails`.
+ */
+interface ProviderErrorShape {
+  status?: unknown;
+  code?: unknown;
+  error?: unknown;
+  errorDetails?: unknown;
+}
+
+/** Gemini's machine-readable failure reason (e.g. API_KEY_INVALID), if present. */
+function geminiReason(err: ProviderErrorShape): string | null {
+  if (!Array.isArray(err.errorDetails)) return null;
+  for (const detail of err.errorDetails) {
+    const reason = (detail as { reason?: unknown } | null)?.reason;
+    if (typeof reason === "string") return reason;
+  }
+  return null;
+}
+
 /** Categorize an error into a user-friendly reason */
 function categorizeError(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err);
 
   if (message.includes("Timed out after")) return message;
+
+  // Classify on the SDK's own status and error code before falling back to
+  // message matching. Gemini prefixes every message with the full request URL,
+  // so the status sits past the 120-char display cut and was never seen.
+  const shaped = (typeof err === "object" && err !== null ? err : {}) as ProviderErrorShape;
+  const status = typeof shaped.status === "number" ? shaped.status : null;
+  const code = typeof shaped.code === "string" ? shaped.code : null;
+  const reason = geminiReason(shaped);
+
+  // A 429 for exhausted credit isn't a rate limit: it won't clear on retry and
+  // needs billing attention, so name it separately.
+  if (code === "insufficient_quota")
+    return "Quota exhausted — check the provider's billing";
+  if (status === 401 || reason === "API_KEY_INVALID")
+    return "Authentication error — invalid API key";
+  if (status === 403)
+    return "Permission denied — API key blocked or lacks access";
+  if (status === 404) return "Model not found — check the model ID";
+  if (status === 429) return "Rate limited — too many requests";
+
   if (message.includes("429") || message.toLowerCase().includes("rate limit"))
     return "Rate limited — too many requests";
   if (message.includes("529") || message.includes("overloaded"))
     return "API overloaded — try again shortly";
-  if (message.includes("401") || message.includes("authentication") || message.includes("invalid.*key"))
+  if (message.includes("401") || message.includes("authentication") || /invalid.*key/i.test(message))
     return "Authentication error — invalid API key";
   if (message.includes("403") || message.includes("permission"))
     return "Permission denied";
@@ -116,8 +158,10 @@ function categorizeError(err: unknown): string {
   )
     return "Could not process the provider's response";
 
-  // Truncate long messages
-  return message.length > 120 ? message.slice(0, 120) + "…" : message;
+  // Truncate long messages, dropping Gemini's "Error fetching from <url>:"
+  // prefix so the part that explains the failure survives the cut.
+  const trimmed = message.replace(/Error fetching from \S+: /, "");
+  return trimmed.length > 120 ? trimmed.slice(0, 120) + "…" : trimmed;
 }
 
 /**
@@ -131,13 +175,12 @@ function providerErrorDetail(err: unknown): Record<string, unknown> {
   const detail: Record<string, unknown> = {};
   if (typeof err !== "object" || err === null) return detail;
 
-  const candidate = err as {
-    status?: unknown;
-    headers?: unknown;
-    error?: unknown;
-  };
+  const candidate = err as ProviderErrorShape & { headers?: unknown };
 
   if (typeof candidate.status === "number") detail.status = candidate.status;
+  if (typeof candidate.code === "string") detail.code = candidate.code;
+  const reason = geminiReason(candidate);
+  if (reason) detail.reason = reason;
 
   // SDK errors carry a Headers instance; guard because the shape isn't declared.
   const headers = candidate.headers;
