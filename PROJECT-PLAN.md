@@ -9,7 +9,7 @@ A web application that queries multiple AI systems (Claude, GPT, Gemini) with a 
 - **Framework:** Next.js 16 (App Router, TypeScript, Tailwind CSS)
 - **Hosting:** Railway
 - **Database:** PostgreSQL (Railway) via Prisma 7
-- **AI APIs:** Claude Haiku (Anthropic), GPT-4o-mini (OpenAI), Gemini Flash (Google)
+- **AI APIs:** Claude Sonnet 5.5 for analysis + Claude Haiku 4.5 for query expansion (Anthropic), GPT-4o-mini (OpenAI), Gemini Flash (Google)
 - **Word Cloud:** @cp949/react-wordcloud (React 19 compatible)
 - **Text Analysis:** Hybrid — AI extracts entities/citations, client-side JS counts word frequency
 
@@ -21,7 +21,7 @@ A web application that queries multiple AI systems (Claude, GPT, Gemini) with a 
 - **Citations section** — AIs provide source URLs; shown as clickable links with provider badges and disclaimer
 - **Wait-for-all reveal** — progress tracker shows per-AI status, results appear only when all have responded or failed
 - **Shareable results** — stored in Postgres, accessible via unique URLs like `/results/abc123`
-- **Budget-friendly models** — Claude Haiku, GPT-4o-mini, Gemini Flash to keep costs low
+- **Budget-conscious models** — Claude Sonnet 5.5 ($2 / $10 per million input/output tokens), GPT-4o-mini, Gemini Flash; the cheaper Claude Haiku 4.5 handles query expansion
 - **Cost guardrails** — rate limiting (10/hour per IP), 1000 token cap per AI call, kill switch env var
 
 ---
@@ -48,7 +48,7 @@ A web application that queries multiple AI systems (Claude, GPT, Gemini) with a 
 ## Phase 2: AI Integration (Claude First)
 
 - Type definitions for AIResponse, AnalysisResult, entities, citations, word frequencies, token usage
-- Claude Haiku client wrapper with structured prompt requesting analysis + JSON (entities with URLs + citations)
+- Claude client wrapper (Claude Sonnet 5.5) with structured prompt requesting analysis + JSON (entities with URLs + citations)
 - **Query expansion:** Before analysis, a separate Haiku call generates 3-4 subtopic queries from the user's input, providing broader topic coverage. Uses a dedicated API key (`ANTHROPIC_EXPANSION_API_KEY`) for usage tracking.
 - API route: kill switch check → rate limit check → **query expansion** → auto-detect configured providers → parallel AI calls (all queries × all providers) via nested `Promise.allSettled` → merge subtopic results per provider → merge across providers → save to Postgres → return `{ id, ...result }`
 - Token usage logging: input/output tokens tracked per call, tagged by purpose (expansion vs. analysis), logged to console with summary
@@ -91,7 +91,7 @@ A web application that queries multiple AI systems (Claude, GPT, Gemini) with a 
 - **Token cap:** 4096 max tokens per analysis call, 300 max tokens per expansion call
 - **Kill switch:** `ANALYSIS_ENABLED` env var
 - **Separate API keys:** `ANTHROPIC_API_KEY` for analysis, `ANTHROPIC_EXPANSION_API_KEY` for query expansion (enables independent usage tracking in Anthropic console)
-- **Estimated cost:** ~$0.04-0.05 per analysis (1 expansion + 4-5 analysis calls), ~$150/month worst case
+- **Estimated cost (Claude):** ~$0.12-0.21 per analysis at Claude Sonnet 5.5 rates ($2 / $10 per million input/output tokens) — 1 Haiku 4.5 expansion call (under $0.001) + 4-5 analysis calls of ~400 input and ~3,000 to 4,096 output tokens. Monthly worst case not yet re-baselined; the earlier ~$150/month figure was set at Haiku pricing
 
 ---
 

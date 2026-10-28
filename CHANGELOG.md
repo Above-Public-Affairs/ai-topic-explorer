@@ -2,6 +2,19 @@
 
 All notable changes to AI Topic Explorer will be documented in this file.
 
+## [2026-10-28]
+
+### Changed
+- Claude analysis now runs on Claude Sonnet 5.5 (`claude-sonnet-5-5`), up from Sonnet 4.5 — cheaper per token ($2 / $10 per MTok vs $3 / $15). Thinking is turned off with `thinking: {type: "between_tools"}` (Sonnet 5.5 rejects `disabled`) so thinking tokens don't eat the 4096-token cap, matching how Gemini is run
+- Gemini now runs on `gemini-3.5-flash` (thinking still off via `thinkingBudget: 0`). The rotated Gemini key lives in a new Google project, and Google no longer serves `gemini-2.5-flash` to new projects ("no longer available to new users"). `gemini-3.8-flash` is Google's suggested replacement but was timing out under high demand when tested
+- A Claude safety decline (`stop_reason: "refusal"`) now fails the provider with "Claude declined to analyze this topic" instead of passing through as an empty analysis
+
+### Fixed
+- Classify provider failures on the SDK error's own `status` and `code` before matching message text. Gemini prefixes every error with the full request URL, so the HTTP status sat past the 120-char display cut and every Gemini failure was reported as an opaque `Error fetching from https://…gemini-2.5-flash…`. Gemini errors now read as auth / permission / model-not-found / rate-limit, and the URL prefix is stripped from any unclassified message
+- Report OpenAI `insufficient_quota` 429s as "Quota exhausted — check the provider's billing" instead of "Rate limited". A quota 429 doesn't clear on retry, so the old label pointed at traffic when the fix is billing
+- `provider_failure` reports now also carry the provider's error `code` (OpenAI) and `reason` (Gemini, e.g. `API_KEY_INVALID`)
+- The `invalid.*key` auth check was a literal-string `includes()`, so it never matched; it's now a regex
+
 ## [2026-09-16]
 
 ### Fixed

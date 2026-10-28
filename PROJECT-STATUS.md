@@ -79,7 +79,7 @@ driven by production error reports.
 
 ### Phase 2: AI Integration (Claude Only)
 - [x] TypeScript type definitions (AIResponse, AnalysisResult, entities, citations, TokenUsage)
-- [x] Claude Haiku client wrapper with structured prompt + JSON extraction
+- [x] Claude client wrapper (now Claude Sonnet 5.5) with structured prompt + JSON extraction
 - [x] API route with kill switch, rate limiting, parallel execution, DB save
 - [x] In-memory rate limiter (10/hour per IP)
 - [x] Query expansion — Haiku generates 3-4 subtopic queries before analysis for broader coverage

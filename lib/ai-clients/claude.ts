@@ -2,7 +2,16 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { AIResponse, TokenUsage } from "@/lib/types";
 import { PROMPT_TEMPLATE, parseStructuredData, extractRawText } from "./shared";
 
-const MODEL = "claude-sonnet-4-5-20250929";
+const MODEL = "claude-sonnet-5-5";
+
+// Sonnet 5.5 thinks by default, and thinking tokens count against max_tokens —
+// with a 4096 cap that would eat into the prose and the trailing JSON block.
+// `between_tools` is this model's thinking-off setting (`disabled` is a 400),
+// which keeps Claude comparable to the other providers (Gemini runs with
+// thinking off too). SDK 0.74's types predate the value, hence the cast.
+const THINKING_OFF = {
+  type: "between_tools",
+} as unknown as Anthropic.ThinkingConfigParam;
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -23,6 +32,7 @@ export async function analyzeWithClaude(
     {
       model: MODEL,
       max_tokens: 4096,
+      thinking: THINKING_OFF,
       messages: [
         {
           role: "user",
@@ -74,6 +84,12 @@ export async function analyzeWithClaude(
   console.log(
     `[Analysis: Claude] Query: "${query.slice(0, 60)}..." — Tokens — input: ${usage.inputTokens}, output: ${usage.outputTokens}${interrupted ? " (partial)" : ""}`
   );
+
+  // A safety decline is an HTTP 200 that simply stops. Without this check it
+  // would parse to an empty analysis and be counted as a success.
+  if (stopReason === "refusal") {
+    throw new Error("Claude declined to analyze this topic");
+  }
 
   if (stopReason === "max_tokens") {
     console.warn("Claude response was truncated due to max_tokens limit");

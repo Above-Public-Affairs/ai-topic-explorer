@@ -4,6 +4,13 @@ import { useState, useRef, useEffect } from "react";
 
 const CHANGELOG: { date: string; changes: string[] }[] = [
   {
+    date: "Oct 28",
+    changes: [
+      "Claude's analysis now uses Claude Sonnet 5.5, and Gemini's uses Gemini 3.5 Flash",
+      "Clearer reasons when an AI provider is unavailable, such as a blocked API key or an exhausted quota",
+    ],
+  },
+  {
     date: "Aug 20",
     changes: [
       "Fix a bug where one malformed field in an AI's response threw away that provider's entire analysis",

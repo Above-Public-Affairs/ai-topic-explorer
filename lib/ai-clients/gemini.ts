@@ -2,6 +2,11 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/ge
 import type { AIResponse, TokenUsage } from "@/lib/types";
 import { PROMPT_TEMPLATE, parseStructuredData, extractRawText } from "./shared";
 
+// gemini-2.5-flash is closed to new Google projects ("no longer available to new
+// users"), which the rotated key's project is. thinkingBudget 0 still turns
+// thinking off on the 3.x Flash models.
+const MODEL = "gemini-3.5-flash";
+
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
 export async function analyzeWithGemini(
@@ -9,7 +14,7 @@ export async function analyzeWithGemini(
   signal?: AbortSignal
 ): Promise<AIResponse> {
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash",
+    model: MODEL,
     safetySettings: [
       { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
       { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -46,7 +51,7 @@ export async function analyzeWithGemini(
     entities,
     citations,
     keyThemes,
-    model: "gemini-2.5-flash",
+    model: MODEL,
     usage: [usage],
   };
 }
