@@ -4,14 +4,9 @@ import { useState, useRef, useEffect } from "react";
 
 const CHANGELOG: { date: string; changes: string[] }[] = [
   {
-    date: "Oct 29",
-    changes: [
-      "Gemini retries when Google is busy and falls back to a lighter model, so it drops out of comparisons less often",
-    ],
-  },
-  {
     date: "Oct 28",
     changes: [
+      "Gemini retries when Google is busy and falls back to a lighter model, so it drops out of comparisons less often",
       "Claude's analysis now uses Claude Sonnet 5.5, and Gemini's uses Gemini 3.5 Flash",
       "Fewer cut-off responses, so named entities, citations and themes come through more reliably",
       "Keep stray formatting out of the word cloud when a response is cut off",

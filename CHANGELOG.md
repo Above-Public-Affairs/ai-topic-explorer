@@ -2,12 +2,6 @@
 
 All notable changes to AI Topic Explorer will be documented in this file.
 
-## [2026-10-29]
-
-### Fixed
-- Gemini now retries Google's transient errors (503 "high demand", 429, 500) up to twice, waiting about 1s and then 3s with jitter. A 429 that names its own wait is honored when that wait is 8s or less. The `@google/generative-ai` SDK never retries on its own, so in the first live analysis after the 2026-10-28 deploy, 4 of Gemini's 5 queries failed on a single 503
-- When retries run out, or a 429 asks for a longer wait, the query falls back to `gemini-3.5-flash-lite` (with `thinkingLevel: "minimal"`, since Flash-Lite rejects `thinkingBudget: 0`) instead of failing. The result records the model that actually answered
-
 ## [2026-10-28]
 
 ### Changed
@@ -19,6 +13,8 @@ All notable changes to AI Topic Explorer will be documented in this file.
 - A Claude safety decline (`stop_reason: "refusal"`) now fails the provider with "Claude declined to analyze this topic" instead of passing through as an empty analysis
 
 ### Fixed
+- Gemini now retries Google's transient errors (503 "high demand", 429, 500) up to twice, waiting about 1s and then 3s with jitter. A 429 that names its own wait is honored when that wait is 8s or less. The `@google/generative-ai` SDK never retries on its own, so in the first live analysis after the Gemini 3.5 Flash deploy, 4 of Gemini's 5 queries failed on a single 503
+- When retries run out, or a 429 asks for a longer wait, the query falls back to `gemini-3.5-flash-lite` (with `thinkingLevel: "minimal"`, since Flash-Lite rejects `thinkingBudget: 0`) instead of failing. The result records the model that actually answered
 - Classify provider failures on the SDK error's own `status` and `code` before matching message text. Gemini prefixes every error with the full request URL, so the HTTP status sat past the 120-char display cut and every Gemini failure was reported as an opaque `Error fetching from https://…gemini-2.5-flash…`. Gemini errors now read as auth / permission / model-not-found / rate-limit, and the URL prefix is stripped from any unclassified message
 - Report OpenAI `insufficient_quota` 429s as "Quota exhausted — check the provider's billing" instead of "Rate limited". A quota 429 doesn't clear on retry, so the old label pointed at traffic when the fix is billing
 - `provider_failure` reports now also carry the provider's error `code` (OpenAI) and `reason` (Gemini, e.g. `API_KEY_INVALID`)
