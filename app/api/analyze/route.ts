@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { reportError } from "canter-error-reporter";
+import { reportError } from "@above-public-affairs/error-reporter";
 import { analyzeWithClaude } from "@/lib/ai-clients/claude";
 import { analyzeWithOpenAI } from "@/lib/ai-clients/openai";
 import { analyzeWithGemini } from "@/lib/ai-clients/gemini";
