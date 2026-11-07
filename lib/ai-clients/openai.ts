@@ -10,7 +10,7 @@ import {
 // The model free ChatGPT users get by default: GPT-6 Luna since Oct 8, 2026
 // (ChatGPT release notes). Free Chat answers at Instant unless the user picks
 // Think, so reasoning is off to match.
-const MODEL = "gpt-6-luna";
+export const MODEL = "gpt-6-luna";
 
 // Built on first use, not at module load, so `next build` (which loads this
 // module to collect route config) works without API keys in the environment.

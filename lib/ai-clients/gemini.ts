@@ -14,7 +14,7 @@ import { PROMPT_TEMPLATE, parseStructuredData, extractRawText } from "./shared";
 // Google auto-routes gemini-3.5-flash to 3.6, so call 3.6 directly and record
 // the model that actually answers. thinkingBudget 0 still turns thinking off
 // on the 3.x Flash models.
-const MODEL = "gemini-3.6-flash";
+export const MODEL = "gemini-3.6-flash";
 
 // Lighter model used when MODEL stays busy after retries. It rejects
 // thinkingBudget 0; thinkingLevel MINIMAL is its lowest setting.

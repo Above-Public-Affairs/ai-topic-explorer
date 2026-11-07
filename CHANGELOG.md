@@ -23,6 +23,10 @@ All notable changes to AI Topic Explorer will be documented in this file.
 - Plan: §2B extracts how the industry and topic are framed, not named clients; §4A records the three confirmed watch items with their locations and sub-topics; §4D records the approved event-watcher categories and rules (task 4.6)
 
 ### Added
+- Provider interface for the tracker (task 2.1, not yet used by the public site): `lib/answers/` asks Claude, OpenAI, Gemini and Grok one plain question with each one's own web search on and an approximate user location. Each answer records the answering model, cited vs. looked-at sources, the searches run, token usage, location mode and cost in USD
+  - Location goes in the search tool's parameter for Claude and OpenAI, and in a system message ("by prompt") for Gemini and Grok, whose search takes none
+  - Grok moved to xAI's Responses API with web search only (task 3.3); its cost is xAI's own `cost_in_usd_ticks`. The others are priced from one table, `lib/answers/prices.ts`, with a source and date per row
+  - `scripts/ask-providers.ts` asks all four a test question as a user in Austin, Texas
 - Email sending (task 5.1), for the coming alerts and monthly report: SendGrid, the same account Above's other tools use, from AI Topic Explorer `<topic-explorer@abovepublicaffairs.com>`. `npm run email:test` sends a test email
 - Cost and abuse guards on the public site (task 1.4):
   - Topics are capped at 300 characters (form and server). Each analysis runs at most 4 queries of up to 200 characters, and the topic reaches the expansion model as quoted data, not as instructions

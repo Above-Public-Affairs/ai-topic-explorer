@@ -5,12 +5,23 @@
 ## Where we are
 Live in production (beta) on Railway with four providers: Claude, ChatGPT, Gemini
 and Grok. Phase 1 tasks 1.2, 1.3, 1.4 (cost and abuse guards) and 1.5 (stop losing results) have shipped, and task 5.1
-(email sending) is in place for the later alert and report phases. The
-app is becoming an internal topic-tracking tool.
+(email sending) is in place for the later alert and report phases. Task 2.1, the provider
+interface for the tracker, is built on `claude/provider-interface-ab8e35` and waits for
+Josh's merge approval. The app is becoming an internal topic-tracking tool.
 
 **Plan and tracker.** The roadmap is in `PROJECT-PLAN.md`. Work runs from the project
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
 Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search) and 5.1.
+
+## Provider interface (task 2.1, covers 3.3)
+- `lib/answers/types.ts`: `AnswerProvider`, `AskResult` (answer, sources with
+  cited true/false/null, search queries, answering model, usage, location mode, cost).
+- `lib/answers/{claude,openai,gemini,grok}.ts`: one plain question each, web search
+  on, approximate location. Grok now uses xAI's Responses API, web search only.
+- `lib/answers/prices.ts`: one price table, source and date per row.
+- `scripts/ask-providers.ts`: `railway run npm run ask:providers -- "question"`
+  (`--json`, `--only=claude,grok`). `tsx` added as a dev dependency.
+- The analyze flow is untouched apart from `export const MODEL` in each client.
 
 ## Stop losing results (task 1.5)
 - `app/api/analyze/route.ts`: saves even after the visitor leaves (only a leave during
@@ -48,23 +59,27 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
 - PROJECT-PLAN Phase 3 rewritten for the task 3.2 decision (web search only).
 
 ## Verification status
-- `tsc`, lint and a keyless `next build` pass after rebasing onto 1.3.
-- Locally (Postgres + `next start`): every guard checked with real requests,
-  including a rate limit surviving a server restart and a fake expansion model
-  returning 52 injected queries.
+- `tsc`, lint and a keyless `next build` pass.
+- Live run with Railway keys: Claude, OpenAI and Grok answered with search, Texas
+  location, sources, queries, tokens and cost. Gemini failed: search grounding
+  returns 429 "exceeded your current quota" on the production key (plain calls work).
 
 ## Next steps
+- **Gemini grounding quota:** check the Google AI Studio project's billing/plan, then
+  re-run `railway run npm run ask:providers -- --only=gemini`.
+- Task 2.2 (tables) and 2.3 (extraction) build on `AskResult`.
 - Compare `DailySpend` with real provider bills after a few days and tune the
   rates or the $50 default.
-- A spend-cap 503 shows the client's generic "temporarily unavailable" text.
 - Remove the unused `PERPLEXITY_API_KEY` variable from the Railway service.
-- Map a 402 to "Quota exhausted — check billing" in `categorizeError`.
-- `FloatingKeywords` uses `Math.random()` during render (hydration mismatch on `/`).
-- `components/MethodologySection.tsx` isn't imported anywhere; delete or use it.
 
 ## Known gotchas
 - **Scripts run under Node's type stripping** (`node scripts/x.ts`). Anything they
   import can't use `@/` paths, enums or constructor parameter properties.
+- **`scripts/ask-providers.ts` runs under `tsx`** (`npm run ask:providers`), not Node's type
+  stripping: it imports the `@/` paths that `lib/answers` uses.
+- **`lib/providers.ts` is display labels;** the provider interface is `lib/answers/`.
+- **Claude: keep `web_search_20250305`.** The 20260209 tool answers without citations.
+- **Gemini grounding has its own quota,** separate from plain generation.
 - **Google model access depends on the project's age.** A newly created Gemini key
   may not get older models that existing projects still have. Test the exact model
   with a new key before deploying it.
