@@ -8,8 +8,8 @@
 site stays up and gets a durability and security pass. The full plan, with the five new
 phases and what blocks each one, is in `PROJECT-PLAN.md`. Work runs from the project
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS). Done: 1.1 (plan docs),
-1.2 (platform upgrade), 1.3 (Perplexity removed, models replaced) and 3.1 (Grok
-research, not yet merged).
+1.2 (platform upgrade), 1.3 (Perplexity removed, models replaced), 1.4 (cost and
+abuse guards) and 3.1 (Grok research, not yet merged). Task 3.2 decided: no X Search.
 
 Key findings from the Nov 6 codebase review that drive phase 1:
 - Perplexity's Sonar Chat Completions API ended Sep 27, 2026. Perplexity is being
@@ -27,6 +27,18 @@ Key findings from the Nov 6 codebase review that drive phase 1:
 
 Deployed on Railway with four providers (Claude, ChatGPT, Gemini, Grok). Ongoing work is reliability hardening
 driven by production error reports.
+
+### Cost and abuse guards (task 1.4, 2026-11-06)
+- All guard logic lives in `lib/guards/*`, `lib/rate-limit.ts` and `proxy.ts`. The
+  analyze route calls `guardAnalyzeRequest()` at entry and `recordSpend()` once usage is in.
+- Topic ≤300 chars, ≤4 queries of ≤200 chars, topic passed to expansion as quoted data.
+- Postgres rate limits (`RateLimitCounter`, fixed hourly windows, hashed IPs): analyze
+  10/h, bug reports 5/h. IP from Railway's `X-Real-IP`.
+- `DAILY_SPEND_CAP_USD` (default $50, 0 = off), estimated per UTC day in `DailySpend`
+  from token usage with deliberately high per-provider rates. Analyze fails closed
+  (503) if the DB check fails; bug reports fail open.
+- `proxy.ts` 404s any POST with a `Next-Action` header. The app has no Server Actions;
+  remove it if one is ever added.
 
 ### Models (task 1.3, 2026-11-06)
 - Perplexity removed everywhere. Old saved results still render; their Perplexity

@@ -4,38 +4,37 @@
 
 ## Where we are
 Live in production (beta) on Railway with four providers: Claude, ChatGPT, Gemini
-and Grok. Phase 1 tasks 1.2 (platform upgrade) and 1.3 (Perplexity removed, models
-replaced) have shipped. The app is becoming an internal topic-tracking tool.
+and Grok. Phase 1 tasks 1.2, 1.3 and 1.4 (cost and abuse guards) have shipped. The
+app is becoming an internal topic-tracking tool.
 
 **Plan and tracker.** The roadmap is in `PROJECT-PLAN.md`. Work runs from the project
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
-Explorer — master" chat. Done: 1.1, 1.2, 1.3, and 3.1 (Grok research; its branch is
-no longer on the remote).
+Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 3.1 and 3.2 (no X Search).
 
-## What was built this session (task 1.3)
-- **Perplexity removed:** client, `components/Perplexity.tsx`, the related-questions
-  section, progress/badge entries, metadata and home-page copy. `Provider` is now the
-  four live providers; `StoredProvider` adds `"perplexity"` for saved data, and
-  `lib/providers.ts` holds the one label/color map (Perplexity kept there only so old
-  results' badges render).
-- **Models, one `MODEL` constant per client (also the stored label):** OpenAI
-  `gpt-6-luna` + `reasoning_effort: "none"` + `max_completion_tokens` (Free Chat
-  default since Oct 8, 2026, Instant); Grok `grok-4.3` + `reasoning_effort: "low"`;
-  Gemini `gemini-3.6-flash`; expansion `claude-haiku-5-5` + `effort: "low"` +
-  1,024 `max_tokens`. Claude stays `claude-sonnet-5-5`.
-- **Build cleanup:** `railway.json` deleted (pre-deploy is in service settings; see
-  `LESSONS.md`); OG image off the Edge runtime; `allowScripts` in `package.json`.
+## What was built this session (task 1.4)
+- `lib/guards/`: `limits.ts` (300-char topic, 4 queries, 200 chars each),
+  `client-ip.ts` (Railway `X-Real-IP`, right-most XFF fallback, hashed keys),
+  `spend.ts` (daily cap, `DAILY_SPEND_CAP_USD`, default $50), `analyze-request.ts`
+  (kill switch → body validation → spend cap → rate limit).
+- `lib/rate-limit.ts` is now a Postgres fixed-window counter. New migration
+  `20261106120000_cost_abuse_guards` adds `RateLimitCounter` and `DailySpend`.
+- Expansion prompt puts the topic in `<topic>` as a JSON string; `capQueries()` trims
+  whatever the model returns.
+- Bug-report route: rate limit, field caps, 8s timeout, 502/503 on failure.
+- `proxy.ts`: POST + `Next-Action` header → 404.
+- PROJECT-PLAN Phase 3 rewritten for the task 3.2 decision (web search only).
 
 ## Verification status
-- `tsc`, lint and a keyless `next build` pass.
-- Live check before shipping (prod keys via `railway run`): expansion gave 5 queries;
-  Claude, OpenAI, Gemini and Grok each returned text, entities, citations and themes
-  in 29–40s.
+- `tsc`, lint and a keyless `next build` pass after rebasing onto 1.3.
+- Locally (Postgres + `next start`): every guard checked with real requests,
+  including a rate limit surviving a server restart and a fake expansion model
+  returning 52 injected queries.
 
 ## Next steps
-- 1.4 (cost and abuse guards) rebases onto this.
+- Compare `DailySpend` with real provider bills after a few days and tune the
+  rates or the $50 default.
+- A spend-cap 503 shows the client's generic "temporarily unavailable" text.
 - Remove the unused `PERPLEXITY_API_KEY` variable from the Railway service.
-- Confirm the free grok.com model if xAI ever names it; revisit in 3.3.
 - Map a 402 to "Quota exhausted — check billing" in `categorizeError`.
 - `FloatingKeywords` uses `Math.random()` during render (hydration mismatch on `/`).
 - `components/MethodologySection.tsx` isn't imported anywhere; delete or use it.
@@ -66,3 +65,7 @@ no longer on the remote).
   higher cap make truncation rarer, but a 150s timeout under load can still cut
   it off.
 - The four non-Claude clients still have no partial-recovery path on timeout.
+- **Guards need the database.** If Postgres is down, `/api/analyze` returns 503
+  rather than running without rate limits or the spend cap.
+- **Railway's `X-Real-IP` is the client IP.** Never key anything on the left-most
+  `X-Forwarded-For` value; clients control it.

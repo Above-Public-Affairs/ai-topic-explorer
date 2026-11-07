@@ -4,6 +4,19 @@ All notable changes to AI Topic Explorer will be documented in this file.
 
 ## [2026-11-06]
 
+### Added
+- Cost and abuse guards on the public site (task 1.4):
+  - Topics are capped at 300 characters (form and server). Each analysis runs at most 4 queries of up to 200 characters, and the topic reaches the expansion model as quoted data, not as instructions
+  - Rate limits are kept in Postgres (`RateLimitCounter`), so they survive deploys and work across replicas: 10 analyses and 5 bug reports per visitor per hour. Malformed requests don't count
+  - The visitor's IP comes from Railway's `X-Real-IP` instead of the spoofable left-most `X-Forwarded-For` value
+  - Daily AI spend cap, `DAILY_SPEND_CAP_USD` (default $50; 0 turns it off), estimated from token usage in `DailySpend`. One alert the day it's crossed
+  - Bug reports: length caps on every field, an 8-second forward timeout, and an honest error when the report can't be sent
+  - Scanner POSTs with a `Next-Action` header get a 404 from `proxy.ts`, so they stop filling the error logs
+
+### Changed
+- Rate-limit hits are logged, not sent to the error digest
+- Phase 3 of the plan drops X Search (task 3.2): Grok gets web search only on the Responses API
+
 ### Removed
 - Perplexity, from the site and the backend: its client, the related-questions section, its progress entry and badge, and the in-site copy. Its Sonar API ended Sep 27, 2026. Results saved earlier still open; their Perplexity badges on entities and citations still show
 - `railway.json`. Railway ignored it for this service, so migrations never ran from it. `npx prisma migrate deploy` is now the pre-deploy command in the service settings
