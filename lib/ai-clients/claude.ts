@@ -11,9 +11,12 @@ const MODEL = "claude-sonnet-5-5";
 // thinking off too).
 const THINKING_OFF: Anthropic.ThinkingConfigParam = { type: "between_tools" };
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+// Built on first use, not at module load, so `next build` (which loads this
+// module to collect route config) works without API keys in the environment.
+let client: Anthropic | null = null;
+function getClient(): Anthropic {
+  return (client ??= new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }));
+}
 
 export async function analyzeWithClaude(
   query: string,
@@ -26,7 +29,7 @@ export async function analyzeWithClaude(
   // request — and because we accumulate text ourselves rather than waiting on
   // finalMessage(), a cancelled request still yields whatever had streamed in
   // instead of throwing everything away.
-  const stream = client.messages.stream(
+  const stream = getClient().messages.stream(
     {
       model: MODEL,
       // Matches the other providers. Sonnet 5.5's tokenizer spends ~30% more

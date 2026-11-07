@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import type { AIResponse, ExtractedEntities, Citation, KeyTheme, TokenUsage } from "@/lib/types";
+import type { AIResponse, TokenUsage } from "@/lib/types";
 import {
   PROMPT_TEMPLATE,
   parseStructuredData,
@@ -7,15 +7,18 @@ import {
   REQUEST_MAX_RETRIES,
 } from "./shared";
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Built on first use, not at module load, so `next build` (which loads this
+// module to collect route config) works without API keys in the environment.
+let client: OpenAI | null = null;
+function getClient(): OpenAI {
+  return (client ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY }));
+}
 
 export async function analyzeWithOpenAI(
   query: string,
   signal?: AbortSignal
 ): Promise<AIResponse> {
-  const completion = await client.chat.completions.create(
+  const completion = await getClient().chat.completions.create(
     {
       model: "gpt-4o",
       max_tokens: 8192,

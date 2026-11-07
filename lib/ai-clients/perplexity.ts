@@ -7,16 +7,21 @@ import {
   REQUEST_MAX_RETRIES,
 } from "./shared";
 
-const client = new OpenAI({
-  apiKey: process.env.PERPLEXITY_API_KEY,
-  baseURL: "https://api.perplexity.ai",
-});
+// Built on first use, not at module load, so `next build` (which loads this
+// module to collect route config) works without API keys in the environment.
+let client: OpenAI | null = null;
+function getClient(): OpenAI {
+  return (client ??= new OpenAI({
+    apiKey: process.env.PERPLEXITY_API_KEY,
+    baseURL: "https://api.perplexity.ai",
+  }));
+}
 
 export async function analyzeWithPerplexity(
   query: string,
   signal?: AbortSignal
 ): Promise<AIResponse> {
-  const completion = await client.chat.completions.create(
+  const completion = await getClient().chat.completions.create(
     {
       model: "sonar",
       max_tokens: 8192,

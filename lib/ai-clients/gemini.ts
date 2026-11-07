@@ -42,7 +42,12 @@ const SAFETY_SETTINGS = [
   { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
 ];
 
-const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_AI_API_KEY || "" });
+// Built on first use, not at module load, so `next build` (which loads this
+// module to collect route config) works without API keys in the environment.
+let ai: GoogleGenAI | null = null;
+function getClient(): GoogleGenAI {
+  return (ai ??= new GoogleGenAI({ apiKey: process.env.GOOGLE_AI_API_KEY || "" }));
+}
 
 /** The parsed `error` object of a Gemini API failure. */
 export interface GeminiErrorBody {
@@ -119,7 +124,7 @@ function generate(
   prompt: string,
   signal?: AbortSignal
 ): Promise<GenerateContentResponse> {
-  return ai.models.generateContent({
+  return getClient().models.generateContent({
     model: modelName,
     contents: prompt,
     config: {

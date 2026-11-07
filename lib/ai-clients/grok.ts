@@ -7,10 +7,15 @@ import {
   REQUEST_MAX_RETRIES,
 } from "./shared";
 
-const client = new OpenAI({
-  apiKey: process.env.XAI_API_KEY,
-  baseURL: "https://api.x.ai/v1",
-});
+// Built on first use, not at module load, so `next build` (which loads this
+// module to collect route config) works without API keys in the environment.
+let client: OpenAI | null = null;
+function getClient(): OpenAI {
+  return (client ??= new OpenAI({
+    apiKey: process.env.XAI_API_KEY,
+    baseURL: "https://api.x.ai/v1",
+  }));
+}
 
 function GROK_PROMPT_TEMPLATE(topic: string): string {
   return PROMPT_TEMPLATE(topic) + `\n\nIMPORTANT ADDITIONAL INSTRUCTION: Because you have unique insight into X/Twitter conversations, also include a "quotedPhrases" array in your JSON output block. These should be 8 phrases, slogans, or talking points (each roughly 10-20 words) that represent how real users discuss "${topic}" on X. Format: [{"phrase": "example phrase or talking point people express", "frequency": 5}]. The "frequency" is 1-5 (5 = viral/ubiquitous, 1 = notable but niche). Focus on actual social media language — rallying cries, common opinions, recurring arguments, memes — not academic summaries. Each phrase should be a full thought or argument, not just a few words.`;
@@ -47,7 +52,7 @@ export async function analyzeWithGrok(
   query: string,
   signal?: AbortSignal
 ): Promise<AIResponse> {
-  const completion = await client.chat.completions.create(
+  const completion = await getClient().chat.completions.create(
     {
       model: "grok-3",
       max_tokens: 8192,

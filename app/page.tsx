@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 import { useRouter } from "next/navigation";
 import FloatingKeywords from "@/components/FloatingKeywords";
 import Footer from "@/components/Footer";
@@ -223,6 +230,47 @@ function pickRandom<T>(arr: T[], count: number): T[] {
 type ProviderStatus = "pending" | "loading" | "done" | "failed";
 type Stage = "expanding" | "querying" | "merging" | "complete" | "error";
 
+/** The ?topic= query param, read from the browser URL. */
+function readTopicParam(): string | null {
+  return new URLSearchParams(window.location.search).get("topic");
+}
+
+/** The URL is read once per render; nothing needs to re-render on change. */
+function subscribeToNothing(): () => void {
+  return () => {};
+}
+
+/**
+ * A value that `next()` replaces every `intervalMs` while anything is
+ * subscribed, for useSyncExternalStore.
+ */
+function createRotatingStore(next: () => string, intervalMs: number) {
+  let value = "";
+  const listeners = new Set<() => void>();
+  let timer: ReturnType<typeof setInterval> | null = null;
+  const rotate = () => {
+    value = next();
+    listeners.forEach((listener) => listener());
+  };
+  return {
+    getSnapshot: () => value,
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      if (!timer) {
+        timer = setInterval(rotate, intervalMs);
+        rotate();
+      }
+      return () => {
+        listeners.delete(listener);
+        if (listeners.size === 0 && timer) {
+          clearInterval(timer);
+          timer = null;
+        }
+      };
+    },
+  };
+}
+
 interface ProgressState {
   active: boolean;
   stage: Stage;
@@ -247,26 +295,35 @@ export default function Home() {
     return remaining[Math.floor(Math.random() * remaining.length)];
   }, [exampleTopics]);
 
-  const [placeholder, setPlaceholder] = useState("");
+  // A fresh example topic every 5s. It's random, so it's read only on the
+  // client: the server snapshot is "" and the input shows its fixed fallback.
+  const [placeholderStore] = useState(() =>
+    createRotatingStore(getPlaceholderTopic, 5000)
+  );
+  const placeholder = useSyncExternalStore(
+    placeholderStore.subscribe,
+    placeholderStore.getSnapshot,
+    () => ""
+  );
 
-  // Pre-fill topic from ?topic= query param (e.g. from "Explore Further" links)
+  // Pre-fill topic from ?topic= query param (e.g. from "Explore Further" links).
+  // The URL is read only on the client, and copied into `topic` during render
+  // (React's "adjust state on change" pattern) so it survives the URL cleanup
+  // below.
+  const prefilledTopic = useSyncExternalStore(
+    subscribeToNothing,
+    readTopicParam,
+    () => null
+  );
+  const [appliedPrefill, setAppliedPrefill] = useState<string | null>(null);
+  if (prefilledTopic && prefilledTopic !== appliedPrefill) {
+    setAppliedPrefill(prefilledTopic);
+    setTopic(prefilledTopic);
+  }
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const prefilled = params.get("topic");
-    if (prefilled) {
-      setTopic(prefilled);
-      // Clean the URL without triggering navigation
-      window.history.replaceState({}, "", "/");
-    }
-  }, []);
-
-  useEffect(() => {
-    setPlaceholder(getPlaceholderTopic());
-    const interval = setInterval(() => {
-      setPlaceholder(getPlaceholderTopic());
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [getPlaceholderTopic]);
+    // Clean the URL without triggering navigation
+    if (prefilledTopic) window.history.replaceState({}, "", "/");
+  }, [prefilledTopic]);
 
   // Elapsed timer
   useEffect(() => {

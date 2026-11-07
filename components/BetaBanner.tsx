@@ -1,28 +1,40 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useSyncExternalStore } from "react";
 
 const STORAGE_KEY = "beta-banner-dismissed";
 
+// Dismissal lives in localStorage, so the banner is read as an external
+// store: hidden on the server, then shown on the client unless dismissed.
+// Dismissing in a storage-blocked browser still hides it for this page view.
+let dismissedThisSession = false;
+const listeners = new Set<() => void>();
+
+function isDismissed(): boolean {
+  if (dismissedThisSession) return true;
+  try {
+    return localStorage.getItem(STORAGE_KEY) !== null;
+  } catch {
+    return false;
+  }
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function dismiss() {
+  dismissedThisSession = true;
+  try {
+    localStorage.setItem(STORAGE_KEY, "1");
+  } catch {}
+  listeners.forEach((listener) => listener());
+}
+
 export default function BetaBanner() {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    try {
-      if (!localStorage.getItem(STORAGE_KEY)) {
-        setVisible(true);
-      }
-    } catch {
-      setVisible(true);
-    }
-  }, []);
-
-  const handleDismiss = () => {
-    setVisible(false);
-    try {
-      localStorage.setItem(STORAGE_KEY, "1");
-    } catch {}
-  };
+  const visible = !useSyncExternalStore(subscribe, isDismissed, () => true);
+  const handleDismiss = dismiss;
 
   if (!visible) return null;
 
