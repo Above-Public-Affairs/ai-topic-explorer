@@ -17,7 +17,9 @@ basic tool even though the skill and docs recommend the newer one.
   grounded call (generateContent and Interactions, both Flash models) got a 429 "exceeded
   your current quota". A working Gemini key doesn't prove grounding works. Gemini 3 also
   bills **each search query** the model runs, not each request, and its search takes no
-  location, so location goes in the system instruction.
+  location, so location goes in the system instruction. Its source links are expiring
+  `vertexaisearch.cloud.google.com` redirects titled with the bare domain; resolve them
+  (HEAD, no redirect follow, read `Location`) before storing.
 - **OpenAI:** omitting `user_location` doesn't mean "no location"; it defaults to the US.
   Pass `{ type: "approximate" }` alone for none. Sources the model only looked at come back
   only with `include: ["web_search_call.action.sources"]`, and they have no titles.

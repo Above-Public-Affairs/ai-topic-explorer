@@ -1,6 +1,7 @@
 /**
  * Published API prices used to compute the cost of each answer. One row per
- * price, each with its source and the date it was checked. Update a row when
+ * price, each with its source, the date it was checked, and (when a change is
+ * announced) the dates it applies. Update a row when
  * a provider changes its price; stored answers keep the ids they were priced
  * with.
  *
@@ -20,6 +21,10 @@ export interface PriceRow {
   unit: "per_1m_tokens" | "per_call";
   source: string;
   checked: string;
+  /** First day (UTC, inclusive) the price applies; open-ended when absent. */
+  from?: string;
+  /** Last day (UTC, inclusive) the price applies; open-ended when absent. */
+  until?: string;
   note?: string;
 }
 
@@ -42,10 +47,14 @@ export const PRICES: PriceRow[] = [
   { id: "gpt-6-luna:output", provider: "openai", model: "gpt-6-luna", item: "output", usd: 0.5, unit: "per_1m_tokens", source: OPENAI_PRICING, checked: "2026-11-06" },
   { id: "openai:search", provider: "openai", model: "*", item: "search", usd: 0.01, unit: "per_call", source: OPENAI_PRICING, checked: "2026-11-06", note: "Web search (all models): $10 per 1,000 calls, search content tokens billed at model rates. Counted per search action; opening or finding in a page isn't a search." },
 
-  // Gemini 3.6 Flash (prices double on Jan 1, 2027: $1.50 in / $7.50 out)
-  { id: "gemini-3.6-flash:input", provider: "gemini", model: "gemini-3.6-flash", item: "input", usd: 0.75, unit: "per_1m_tokens", source: GEMINI_PRICING, checked: "2026-11-06", note: "Through Dec 31, 2026; $1.50 from Jan 1, 2027" },
-  { id: "gemini-3.6-flash:output", provider: "gemini", model: "gemini-3.6-flash", item: "output", usd: 3.75, unit: "per_1m_tokens", source: GEMINI_PRICING, checked: "2026-11-06", note: "Includes thinking tokens. Through Dec 31, 2026; $7.50 from Jan 1, 2027" },
-  { id: "gemini:search", provider: "gemini", model: "*", item: "search", usd: 0.014, unit: "per_call", source: GEMINI_PRICING, checked: "2026-11-06", note: "$14 per 1,000 search queries after 5,000 free per month (shared across Gemini 3+ models). Each query the model runs is billed. Recorded at list price, so it overstates cost while inside the free allowance." },
+  // Gemini 3.6 Flash: token prices double on Jan 1, 2027.
+  { id: "gemini-3.6-flash:input", provider: "gemini", model: "gemini-3.6-flash", item: "input", usd: 0.75, unit: "per_1m_tokens", source: GEMINI_PRICING, checked: "2026-11-07", until: "2026-12-31" },
+  { id: "gemini-3.6-flash:cached_input", provider: "gemini", model: "gemini-3.6-flash", item: "cached_input", usd: 0.075, unit: "per_1m_tokens", source: GEMINI_PRICING, checked: "2026-11-07", until: "2026-12-31", note: "Context caching; storage billed separately" },
+  { id: "gemini-3.6-flash:output", provider: "gemini", model: "gemini-3.6-flash", item: "output", usd: 3.75, unit: "per_1m_tokens", source: GEMINI_PRICING, checked: "2026-11-07", until: "2026-12-31", note: "Includes thinking tokens" },
+  { id: "gemini-3.6-flash:input@2027", provider: "gemini", model: "gemini-3.6-flash", item: "input", usd: 1.5, unit: "per_1m_tokens", source: GEMINI_PRICING, checked: "2026-11-07", from: "2027-01-01" },
+  { id: "gemini-3.6-flash:cached_input@2027", provider: "gemini", model: "gemini-3.6-flash", item: "cached_input", usd: 0.15, unit: "per_1m_tokens", source: GEMINI_PRICING, checked: "2026-11-07", from: "2027-01-01", note: "Context caching; storage billed separately" },
+  { id: "gemini-3.6-flash:output@2027", provider: "gemini", model: "gemini-3.6-flash", item: "output", usd: 7.5, unit: "per_1m_tokens", source: GEMINI_PRICING, checked: "2026-11-07", from: "2027-01-01", note: "Includes thinking tokens" },
+  { id: "gemini:search", provider: "gemini", model: "*", item: "search", usd: 0.014, unit: "per_call", source: GEMINI_PRICING, checked: "2026-11-07", note: "Grounding with Google Search: 5,000 free requests a month (shared across Gemini 3+ models; not on the free tier), then $14 per 1,000, capped at 1,500 a day. Google charges each search query the model runs, so it's counted per query. Recorded at list price, so it overstates cost inside the free allowance." },
 
   // xAI Grok 4.3 (reference only; xAI reports the charge itself)
   { id: "grok-4.3:input", provider: "grok", model: "grok-4.3", item: "input", usd: 1.25, unit: "per_1m_tokens", source: XAI_PRICING, checked: "2026-11-06", note: "Prompts under 200k tokens" },
@@ -65,12 +74,16 @@ export const XAI_TICKS_PER_USD = 1e10;
 export function priceFor(
   provider: PriceRow["provider"],
   model: string,
-  item: PriceRow["item"]
+  item: PriceRow["item"],
+  on: Date = new Date()
 ): PriceRow {
+  const day = on.toISOString().slice(0, 10);
+  const inForce = (p: PriceRow) =>
+    (!p.from || p.from <= day) && (!p.until || day <= p.until);
   const row =
-    PRICES.find((p) => p.provider === provider && p.model === model && p.item === item) ??
-    PRICES.find((p) => p.provider === provider && p.model === "*" && p.item === item);
-  if (!row) throw new Error(`No ${item} price for ${provider} ${model} in lib/answers/prices.ts`);
+    PRICES.find((p) => p.provider === provider && p.model === model && p.item === item && inForce(p)) ??
+    PRICES.find((p) => p.provider === provider && p.model === "*" && p.item === item && inForce(p));
+  if (!row) throw new Error(`No ${item} price for ${provider} ${model} on ${day} in lib/answers/prices.ts`);
   return row;
 }
 
@@ -83,16 +96,17 @@ interface TokenCounts {
   searches: number;
 }
 
-/** Cost of one answer from token counts and the price table. */
+/** Cost of one answer from token counts and the prices in force on `on`. */
 export function computeCost(
   provider: PriceRow["provider"],
   model: string,
-  counts: TokenCounts
+  counts: TokenCounts,
+  on: Date = new Date()
 ): { usd: number; tokensUsd: number; searchUsd: number; priceIds: string[] } {
   const rows: PriceRow[] = [];
   const per1m = (item: PriceRow["item"], tokens: number) => {
     if (!tokens) return 0;
-    const row = priceFor(provider, model, item);
+    const row = priceFor(provider, model, item, on);
     rows.push(row);
     return (tokens / 1_000_000) * row.usd;
   };
@@ -103,7 +117,7 @@ export function computeCost(
     per1m("output", counts.output);
   let searchUsd = 0;
   if (counts.searches) {
-    const row = priceFor(provider, model, "search");
+    const row = priceFor(provider, model, "search", on);
     rows.push(row);
     searchUsd = counts.searches * row.usd;
   }

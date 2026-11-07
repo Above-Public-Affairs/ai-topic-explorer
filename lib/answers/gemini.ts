@@ -44,6 +44,29 @@ async function generate(
   }
 }
 
+// Grounding chunks link to vertexaisearch.cloud.google.com redirects, which
+// expire, and their title is just the domain. One HEAD request without
+// following the redirect reads the real page URL from Location. On any
+// failure the redirect link is kept.
+const GROUNDING_REDIRECT = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/";
+const RESOLVE_TIMEOUT_MS = 3_000;
+
+async function resolveGroundingUrl(url: string, signal?: AbortSignal): Promise<string> {
+  if (!url.startsWith(GROUNDING_REDIRECT)) return url;
+  try {
+    const timeout = AbortSignal.timeout(RESOLVE_TIMEOUT_MS);
+    const res = await fetch(url, {
+      method: "HEAD",
+      redirect: "manual",
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+    });
+    const location = res.headers.get("location");
+    return res.status >= 300 && res.status < 400 && location?.startsWith("http") ? location : url;
+  } catch {
+    return url;
+  }
+}
+
 async function ask(question: string, options: AskOptions = {}): Promise<AskResult> {
   const { location, signal } = options;
   const started = Date.now();
@@ -70,16 +93,20 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
   const citedIndices = new Set(
     (grounding?.groundingSupports ?? []).flatMap((s) => s.groundingChunkIndices ?? [])
   );
-  const sources: AnswerSource[] = (grounding?.groundingChunks ?? []).flatMap((chunk, i) =>
+  const chunkSources: AnswerSource[] = (grounding?.groundingChunks ?? []).flatMap((chunk, i) =>
     chunk.web?.uri
       ? [{ url: chunk.web.uri, title: chunk.web.title ?? null, cited: citedIndices.has(i) }]
       : []
   );
+  const sources = await Promise.all(
+    chunkSources.map(async (s) => ({ ...s, url: await resolveGroundingUrl(s.url, signal) }))
+  );
   const queries = uniqueQueries(grounding?.webSearchQueries ?? []);
 
   const u = response.usageMetadata;
-  // Search results come back as toolUsePromptTokenCount and are billed as
-  // input; thinking tokens are billed as output.
+  // Grounded search results aren't counted as tokens (live responses have no
+  // toolUsePromptTokenCount); it's added in case a response ever reports it.
+  // Thinking tokens are billed as output.
   const inputTokens = (u?.promptTokenCount ?? 0) + (u?.toolUsePromptTokenCount ?? 0);
   const cachedInput = u?.cachedContentTokenCount ?? 0;
   const reasoningTokens = u?.thoughtsTokenCount ?? 0;
@@ -87,9 +114,8 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
   // Gemini 3 bills each search query the model runs.
   const searches = queries.length;
   const cost = computeCost("gemini", MODEL, {
-    // No cached-input price row: implicit caching rarely applies to a one-shot
-    // question, so cached tokens are priced as input (an overstatement).
-    input: inputTokens,
+    input: inputTokens - cachedInput,
+    cachedInput,
     output: outputTokens,
     searches,
   });
@@ -117,7 +143,7 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
       breakdown: { tokensUsd: roundUsd(cost.tokensUsd), searchUsd: roundUsd(cost.searchUsd) },
       priceIds: cost.priceIds,
       note:
-        "Search priced at list ($14/1k); the first 5,000 searches a month are free, so this overstates cost inside the allowance.",
+        "Search priced at list ($14/1k, each query billed); the first 5,000 grounding requests a month are free, so this overstates cost inside the allowance.",
     },
     finishReason: candidate?.finishReason ?? null,
     latencyMs: Date.now() - started,

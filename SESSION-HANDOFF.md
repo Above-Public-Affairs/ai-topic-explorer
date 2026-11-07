@@ -1,13 +1,13 @@
 # Session Handoff — AI Topic Explorer
 
-**Last Updated:** November 6, 2026
+**Last Updated:** November 7, 2026
 
 ## Where we are
 Live in production (beta) on Railway with four providers: Claude, ChatGPT, Gemini
 and Grok. Phase 1 tasks 1.2, 1.3, 1.4 (cost and abuse guards) and 1.5 (stop losing results) have shipped, and task 5.1
 (email sending) is in place for the later alert and report phases. Task 2.1, the provider
-interface for the tracker, is built on `claude/task-2-1-provider-interface` and waits for
-Josh's merge approval. The app is becoming an internal topic-tracking tool.
+interface for the tracker, is proven live for all four providers and waits for Josh's
+merge approval. Task 1.7 (Gemini on a paid Google tier) is done. The app is becoming an internal topic-tracking tool.
 
 **Plan and tracker.** The roadmap is in `PROJECT-PLAN.md`. Work runs from the project
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
@@ -18,7 +18,10 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
   cited true/false/null, search queries, answering model, usage, location mode, cost).
 - `lib/answers/{claude,openai,gemini,grok}.ts`: one plain question each, web search
   on, approximate location. Grok now uses xAI's Responses API, web search only.
-- `lib/answers/prices.ts`: one price table, source and date per row.
+- `lib/answers/prices.ts`: one price table, source and checked date per row; optional
+  `from`/`until` dates pick the price in force (Gemini's 2027-01-01 doubling has rows).
+- Gemini grounding sources come as expiring `vertexaisearch` redirect links; `gemini.ts`
+  resolves each with a HEAD request (3s timeout, keeps the redirect on failure).
 - `lib/answers/errors.ts`: every failure becomes a typed `ProviderError` (`kind`, `status`).
   Gemini's quota 429 (no RetryInfo, "exceeded your current quota") is `quota_exhausted`
   and isn't retried.
@@ -63,14 +66,12 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
 
 ## Verification status
 - `tsc`, lint and a keyless `next build` pass.
-- Live run with Railway keys: Claude, OpenAI and Grok answered with search, Texas
-  location, sources, queries, tokens and cost. Gemini's search grounding returns 429
-  "exceeded your current quota" (plain calls work), surfaced as `quota_exhausted`.
-  Blocked on task 1.7 (paid Google tier).
+- Live run with Railway keys (2026-11-07): all four answered with search, Texas
+  location, sources, queries, tokens and cost. Gemini's figures were checked against
+  its raw response (no `toolUsePromptTokenCount`: search results aren't billed as
+  tokens; every chunk was cited).
 
 ## Next steps
-- **Gemini grounding quota:** check the Google AI Studio project's billing/plan, then
-  re-run `railway run npm run ask:providers -- --only=gemini`.
 - Task 2.2 (tables) and 2.3 (extraction) build on `AskResult`.
 - Compare `DailySpend` with real provider bills after a few days and tune the
   rates or the $50 default.
@@ -83,7 +84,8 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
   stripping: it imports the `@/` paths that `lib/answers` uses.
 - **`lib/providers.ts` is display labels;** the provider interface is `lib/answers/`.
 - **Claude: keep `web_search_20250305`.** The 20260209 tool answers without citations.
-- **Gemini grounding has its own quota,** separate from plain generation.
+- **Gemini grounding has its own quota,** separate from plain generation, and isn't on
+  the free tier.
 - **Google model access depends on the project's age.** A newly created Gemini key
   may not get older models that existing projects still have. Test the exact model
   with a new key before deploying it.

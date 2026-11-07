@@ -2,6 +2,16 @@
 
 All notable changes to AI Topic Explorer will be documented in this file.
 
+## [2026-11-07]
+
+### Fixed
+- Provider interface (task 2.1), checked against a real Gemini grounded answer now that task 1.7 moved Gemini to a paid tier:
+  - Gemini sources are the real page URLs. Google returns short-lived `vertexaisearch.cloud.google.com` redirect links; each is resolved with one HEAD request, and kept as-is if that fails
+  - Gemini cached input tokens are priced at the cached rate instead of the full input rate
+
+### Changed
+- The price table has dates: a row can say when it starts and ends, and costs use the prices in force that day. Gemini 3.6 Flash's token prices double on Jan 1, 2027 and have rows for both periods. The grounding row notes 5,000 free requests a month, then $14 per 1,000 (each query billed), capped at 1,500 a day
+
 ## [2026-11-06]
 
 ### Fixed

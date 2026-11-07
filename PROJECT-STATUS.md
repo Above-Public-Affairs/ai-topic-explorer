@@ -10,8 +10,8 @@ phases and what blocks each one, is in `PROJECT-PLAN.md`. Work runs from the pro
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS). Done: 1.1 (plan docs),
 1.2 (platform upgrade), 1.3 (Perplexity removed, models replaced), 1.4 (cost and
 abuse guards), 1.5 (stop losing results) and 3.1 (Grok research, not yet merged). Task 3.2 decided: no X Search.
-Task 2.1 (provider interface, also covering 3.3) is built and awaiting merge; Gemini's
-search grounding is blocked by a Google quota 429.
+Task 2.1 (provider interface, also covering 3.3) is built and proven live for all four
+providers, and waits for Josh's merge approval. Task 1.7 (Gemini on a paid Google tier) is done.
 
 Key findings from the Nov 6 codebase review that drive phase 1:
 - Perplexity's Sonar Chat Completions API ended Sep 27, 2026. Perplexity is being
@@ -41,12 +41,15 @@ driven by production error reports.
 - Errors: every failure is a `ProviderError` with a `kind` (`quota_exhausted`,
   `rate_limited`, `auth`, `blocked`, `unavailable`, `timeout`, `other`). Gemini's quota
   429 maps to `quota_exhausted` and isn't retried.
-- Cost: Grok from `cost_in_usd_ticks`; others from `lib/answers/prices.ts`. Gemini
-  search is priced at list ($14/1k) even inside the 5,000/month free allowance.
-- Test run (Austin, TX; "Are data centers raising electricity bills in Texas?"):
-  Claude $0.078, OpenAI $0.013, Grok $0.042. **Gemini blocked:** every grounded call
-  gets 429 "exceeded your current quota" while plain calls work. Same project that
-  showed 402 "prepayment credits depleted" earlier; needs a billing check.
+- Cost: Grok from `cost_in_usd_ticks`; others from `lib/answers/prices.ts`, whose rows
+  can carry `from`/`until` dates (Gemini 3.6 Flash token prices double 2027-01-01).
+  Gemini search is priced at list ($14/1k, per query) even inside the 5,000/month
+  free allowance.
+- Gemini sources: grounding returns expiring redirect links, resolved to the real URL
+  with one HEAD request each.
+- Test run 2026-11-07 (Austin, TX; "Are data centers raising electricity bills in
+  Texas?"): Claude $0.070 (9 cited / 8 looked at), OpenAI $0.035 (3 / 58), Gemini
+  $0.031 (11 / 0, 2 queries), Grok $0.041 (10 / 18). Total $0.176.
 
 ### Email sending (task 5.1, 2026-11-06)
 - SendGrid, as in every other Above emailer; details in `PROJECT-PLAN.md` §Email.
@@ -208,5 +211,5 @@ cost estimates:
 4. Tracking
 5. Outputs
 
-**Josh action, open now:** move the Gemini Google project to a paid tier or raise its
-quota in Google AI Studio.
+**Josh action (task 1.7): done 2026-11-07.** Production's `GOOGLE_AI_API_KEY` is on a
+paid-tier Google project, and Search grounding works.
