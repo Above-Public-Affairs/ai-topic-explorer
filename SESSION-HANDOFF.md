@@ -27,6 +27,23 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
 - Tests blank `DATABASE_URL`, so the registry uses its defaults there.
 - Public site (`lib/ai-clients/`) still has its own `MODEL` constants (Gemini 3.6 Flash,
   no longer the free default). Moving it is task 2.5.
+## Extraction and pipeline runner (task 2.3)
+- `lib/extraction/`: `schema.ts` (`EXTRACTION_MODEL` = `gpt-6-luna`, `PROMPT_VERSION`,
+  strict JSON schema; bump the version on any prompt/schema change), `extract.ts` (the
+  one call: `reasoning: none`, structured output, priced via `lib/answers/prices.ts`),
+  `parse.ts` (lenient clean-up, merges entities/themes by `normalizeName`), `map.ts`
+  (pure row mapping, tested), `store.ts` (`extractAndStore`; failures stored with
+  `errorMessage`, so every answer with text gets an `Extraction`).
+- `lib/pipeline/run.ts` `runPipeline(db, {kind, topic, questions, location, providers,
+  subTopics, watchItemId})`; `backfill.ts` `extractMissing(db)`.
+- "for"/"against" means favorable/critical toward the industry, not agreement with the
+  question; v1 of the prompt got this wrong, fixed in `2026-11-07.2`.
+- Entity names aren't resolved across answers ("ERCOT" vs "Electric Reliability Council
+  of Texas (ERCOT)" stay separate `normalized` values). Needed before phase 4 compares
+  entities.
+- Proof: prod Postgres has no public proxy, so the run used Railway's API keys and a
+  local PG17 database migrated to the same schema (`ate_task23`).
+- `EXTRACTION_MODEL` is still a constant: the 2.4 registry covers the four answering models only.
 
 ## Tracking tables (task 2.2)
 - Migration `20261107120000_tracking_tables`: 13 new tables, nothing changed on

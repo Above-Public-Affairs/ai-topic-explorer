@@ -20,6 +20,10 @@ Task 2.4 (model list) is built: `lib/answers/` reads each provider's model from 
 seeded by data migration `20261107180000_seed_model_registry`. Gemini's free default is now
 Flash-Lite (since Oct 9, 2026), so the tracker asks `gemini-3.5-flash-lite`; the public site
 still runs `gemini-3.6-flash` until task 2.5.
+Task 2.3 (extraction pass + pipeline runner) is built: `lib/extraction/` and
+`lib/pipeline/`. One real run (4 providers, Railway keys, local copy of the schema):
+4/4 answers extracted, about $0.0007 per answer with GPT-6 Luna. No provider is asked for
+a JSON block in the new pipeline; the public site still uses `lib/ai-clients` until 2.5.
 
 Key findings from the Nov 6 codebase review that drive phase 1:
 - Perplexity's Sonar Chat Completions API ended Sep 27, 2026. Perplexity is being

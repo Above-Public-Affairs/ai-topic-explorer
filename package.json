@@ -13,6 +13,7 @@
     "email:test": "node scripts/send-test-email.ts",
     "ask:providers": "tsx scripts/ask-providers.ts",
     "models:seed": "tsx scripts/seed-model-registry.ts",
+    "pipeline:run": "tsx scripts/run-pipeline.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
