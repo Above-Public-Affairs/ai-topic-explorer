@@ -3,6 +3,12 @@
 > Reusable rules this project taught us the hard way. Appended at the Compound step
 > (see `build-methodology`), newest at top. Not a changelog — the rule, not the play-by-play.
 
+## Keep logic out of Next route files so it can be tested (Nov 2026)
+
+A Next.js `route.ts` may export only route handlers and route config; exporting a helper
+fails the build's type check. So helpers defined there can't be imported by a test.
+Put any logic worth testing in `lib/` and import it into the route.
+
 ## Claude's newer web search tool drops citations: use `web_search_20250305` (Nov 2026)
 
 `web_search_20260209` (dynamic filtering) runs searches inside code execution and reads

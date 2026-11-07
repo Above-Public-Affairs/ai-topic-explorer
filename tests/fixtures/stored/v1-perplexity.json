@@ -1,0 +1,56 @@
+{
+  "topic": "Texas data centers",
+  "expandedQueries": ["texas data center water use", "", "ERCOT large loads"],
+  "responses": {
+    "claude": {
+      "provider": "claude",
+      "rawText": "Claude's analysis.",
+      "entities": {"people": [{"name": "Greg Abbott", "url": "https://en.wikipedia.org/wiki/Greg_Abbott"}], "organizations": []},
+      "citations": [{"title": "ERCOT", "url": "https://www.ercot.com"}],
+      "keyThemes": [{"phrase": "grid reliability", "relevance": 5}],
+      "model": "claude-sonnet-4-5",
+      "usage": [{"inputTokens": 100, "outputTokens": 900, "purpose": "analysis"}]
+    },
+    "openai": null,
+    "gemini": {
+      "provider": "gemini",
+      "rawText": "Gemini's analysis.",
+      "entities": {"people": [], "organizations": [{"name": "ERCOT"}]},
+      "citations": [],
+      "keyThemes": [],
+      "model": "gemini-2.5-flash"
+    },
+    "grok": {
+      "provider": "grok",
+      "rawText": "Grok's analysis.",
+      "entities": {"people": [], "organizations": []},
+      "citations": [],
+      "keyThemes": [],
+      "model": "grok-3",
+      "quotedPhrases": [
+        {"phrase": "Cheap power for them, higher bills for us", "frequency": null},
+        {"phrase": "Grid can handle it", "frequency": 4}
+      ]
+    },
+    "perplexity": {
+      "provider": "perplexity",
+      "rawText": "Perplexity's analysis.",
+      "entities": {"people": [], "organizations": []},
+      "citations": [{"title": "Perplexity source", "url": "https://example.com/p"}],
+      "keyThemes": [],
+      "model": "sonar"
+    }
+  },
+  "errors": {"openai": "Rate limited — too many requests", "perplexity": "Timed out"},
+  "combinedWordFrequencies": [{"word": "grid", "count": 12}, {"word": "water", "count": "7"}, {"word": "", "count": 3}],
+  "combinedKeyThemes": [{"phrase": "grid reliability", "relevance": 5}],
+  "combinedEntities": {
+    "people": [{"name": "Greg Abbott", "url": "https://en.wikipedia.org/wiki/Greg_Abbott", "providers": ["claude"]}],
+    "organizations": [{"name": "ERCOT", "providers": ["gemini", "perplexity"]}]
+  },
+  "combinedCitations": [
+    {"title": "ERCOT", "url": "https://www.ercot.com", "domain": "ercot.com", "providers": ["claude"]},
+    {"title": "", "url": "https://example.com/p", "domain": "example.com", "providers": ["perplexity", "bing"]}
+  ],
+  "tokenUsage": [{"inputTokens": 100, "outputTokens": 900, "purpose": "analysis"}, {"inputTokens": 20, "outputTokens": 30, "purpose": "expansion"}]
+}

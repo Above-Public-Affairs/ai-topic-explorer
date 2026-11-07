@@ -1,6 +1,6 @@
 # AI Topic Explorer - Project Status
 
-**Last Updated:** November 6, 2026
+**Last Updated:** November 7, 2026
 
 ## Current Status: Live in production (beta), new direction planned
 
@@ -29,6 +29,14 @@ Key findings from the Nov 6 codebase review that drive phase 1:
 
 Deployed on Railway with four providers (Claude, ChatGPT, Gemini, Grok). Ongoing work is reliability hardening
 driven by production error reports.
+
+### Tests and CI (task 1.6, 2026-11-07)
+- `npm test` (Vitest, `tests/`): 122 tests over parsing, merging, error labels, the
+  stored-result reader and prices. Recorded answers and error bodies live in
+  `tests/fixtures/`; SDKs are mocked, so no network or keys.
+- CI: `.github/workflows/ci.yml` runs lint, `npm run typecheck` and `npm test` on push
+  to `main` and on PRs. It runs `prisma generate` and `next typegen` first (both outputs
+  are gitignored).
 
 ### Provider interface (task 2.1, also 3.3, 2026-11-06)
 - `lib/answers/`: `AnswerProvider.ask(question, { location })` for Claude, OpenAI,

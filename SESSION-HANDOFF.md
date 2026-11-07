@@ -13,6 +13,16 @@ merge approval. Task 1.7 (Gemini on a paid Google tier) is done. The app is beco
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
 Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search) and 5.1.
 
+## Tests and CI (task 1.6)
+- `npm test` runs Vitest (`vitest.config.mts`, `@/` alias, provider keys blanked).
+  Tests in `tests/*.test.ts`; recorded answers in `tests/fixtures/answers/*.md`, Gemini
+  error bodies in `tests/fixtures/errors/`, a v1 saved result in `tests/fixtures/stored/`.
+- Analyze-flow clients are tested with their SDK mocked (`vi.mock`), Gemini keeping the
+  real `ApiError`. Error helpers in `tests/helpers/errors.ts` build real SDK errors.
+- `categorizeError`/`providerErrorDetail` now live in `lib/analysis/provider-errors.ts`,
+  `mergeProviderResponses`/`clampFrequency` in `lib/analysis/merge-provider-responses.ts`.
+- CI is `.github/workflows/ci.yml` (lint, typecheck, test). Add new checks there.
+
 ## Provider interface (task 2.1, covers 3.3)
 - `lib/answers/types.ts`: `AnswerProvider`, `AskResult` (answer, sources with
   cited true/false/null, search queries, answering model, usage, location mode, cost).

@@ -11,7 +11,9 @@
     "start": "next start",
     "lint": "eslint",
     "email:test": "node scripts/send-test-email.ts",
-    "ask:providers": "tsx scripts/ask-providers.ts"
+    "ask:providers": "tsx scripts/ask-providers.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@above-public-affairs/error-reporter": "^0.2.0",
@@ -45,7 +47,8 @@
     "eslint-config-next": "16.4.5",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.0.5"
   },
   "allowScripts": {
     "@prisma/engines": true,

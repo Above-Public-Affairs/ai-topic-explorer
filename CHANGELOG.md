@@ -4,6 +4,13 @@ All notable changes to AI Topic Explorer will be documented in this file.
 
 ## [2026-11-07]
 
+### Added
+- Test suite (task 1.6): `npm test` runs Vitest over answer parsing (`parseStructuredData` and each analyze-flow client, with recorded answers and mocked SDKs), result merging, error labels (the analyze route's and `ProviderError` kinds), the stored-result reader (including a v1 Perplexity-era result) and the dated price table. No network calls or API keys
+- GitHub Actions CI (`.github/workflows/ci.yml`): lint, typecheck and tests on every push to `main` and every PR
+
+### Changed
+- The analyze route's error labelling and per-provider merge moved, unchanged, to `lib/analysis/provider-errors.ts` and `lib/analysis/merge-provider-responses.ts` so tests can import them (a Next route file can't export helpers)
+
 ### Fixed
 - Provider interface (task 2.1), checked against a real Gemini grounded answer now that task 1.7 moved Gemini to a paid tier:
   - Gemini sources are the real page URLs. Google returns short-lived `vertexaisearch.cloud.google.com` redirect links; each is resolved with one HEAD request, and kept as-is if that fails
