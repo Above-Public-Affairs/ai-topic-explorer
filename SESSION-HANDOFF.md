@@ -10,6 +10,9 @@ interface for the tracker, is proven live for all four providers and waits for J
 merge approval. Task 1.7 (Gemini on a paid Google tier) is done. Task 2.2 (tracking tables) is built and
 proven on a copy of production. Task 2.7 (entity merging, extraction model in the model
 list) is built and proven locally. The app is becoming an internal topic-tracking tool.
+proven on a copy of production. Task 2.5 moves the public site onto the new pipeline
+(`lib/answers` + `lib/extraction` via `runPipeline`); see "Public site (task 2.5)" below.
+The app is becoming an internal topic-tracking tool.
 
 **Plan and tracker.** The roadmap is in `PROJECT-PLAN.md`. Work runs from the project
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
@@ -44,6 +47,19 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
 - Gotchas: a surname alone ("Governor Abbott") never merges without the model's full
   name; ambiguous bare acronyms join whichever full name came first.
 
+- The public site now reads its models from the registry too (task 2.5).
+
+## Public site (task 2.5)
+- `/api/analyze` → `runPipeline({ kind: "public", topic, providers })`, no location, no
+  query expansion. Saves `Analysis.result = { schemaVersion: 3, topic, runId }`.
+- `/results/[id]`: `readRunPointer` → `loadRunView` (`lib/results/run-view.ts`, pure
+  `buildRunView`) → `RunResultsContent`. v1/v2 blobs still go through `readStoredResult`.
+  Both share `components/ResultsShell.tsx`.
+- Spend: `runSpendUsd` = run cost (answers + extraction) + $0.15 per timed-out call.
+- `ANTHROPIC_EXPANSION_API_KEY` on Railway is no longer used.
+- Local proof needs a DB: prod Postgres has no public proxy. Run `next dev` under
+  `railway run` with `DATABASE_URL` pointed at a scratch local Postgres with
+  `prisma migrate deploy` applied.
 ## Extraction and pipeline runner (task 2.3)
 - `lib/extraction/`: `schema.ts` (`EXTRACTION_MODEL` = `gpt-6-luna`, `PROMPT_VERSION`,
   strict JSON schema; bump the version on any prompt/schema change), `extract.ts` (the
