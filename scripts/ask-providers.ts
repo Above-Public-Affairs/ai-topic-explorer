@@ -7,7 +7,7 @@
  * Flags: --json prints the full results as JSON; --only=claude,grok limits
  * the providers.
  */
-import { PROVIDERS, TEXAS_LOCATION, type AskResult, type ProviderId } from "@/lib/answers";
+import { PROVIDERS, ProviderError, TEXAS_LOCATION, type AskResult, type ProviderId } from "@/lib/answers";
 
 const args = process.argv.slice(2);
 const json = args.includes("--json");
@@ -49,7 +49,9 @@ async function main() {
   const results: AskResult[] = [];
   settled.forEach((s, i) => {
     if (s.status === "fulfilled") results.push(s.value);
-    else console.error(`\n=== ${ids[i]} FAILED ===\n${s.reason instanceof Error ? s.reason.stack : s.reason}`);
+    else if (s.reason instanceof ProviderError)
+      console.error(`\n=== ${ids[i]} FAILED [${s.reason.kind}] ===\n${s.reason.message}`);
+    else console.error(`\n=== ${ids[i]} FAILED (untyped) ===\n${s.reason instanceof Error ? s.reason.stack : s.reason}`);
   });
   if (json) console.log(JSON.stringify(results, null, 2));
   else results.forEach(print);

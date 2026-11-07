@@ -19,6 +19,9 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
 - `lib/answers/{claude,openai,gemini,grok}.ts`: one plain question each, web search
   on, approximate location. Grok now uses xAI's Responses API, web search only.
 - `lib/answers/prices.ts`: one price table, source and date per row.
+- `lib/answers/errors.ts`: every failure becomes a typed `ProviderError` (`kind`, `status`).
+  Gemini's quota 429 (no RetryInfo, "exceeded your current quota") is `quota_exhausted`
+  and isn't retried.
 - `scripts/ask-providers.ts`: `railway run npm run ask:providers -- "question"`
   (`--json`, `--only=claude,grok`). `tsx` added as a dev dependency.
 - The analyze flow is untouched apart from `export const MODEL` in each client.
@@ -61,8 +64,9 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
 ## Verification status
 - `tsc`, lint and a keyless `next build` pass.
 - Live run with Railway keys: Claude, OpenAI and Grok answered with search, Texas
-  location, sources, queries, tokens and cost. Gemini failed: search grounding
-  returns 429 "exceeded your current quota" on the production key (plain calls work).
+  location, sources, queries, tokens and cost. Gemini's search grounding returns 429
+  "exceeded your current quota" (plain calls work), surfaced as `quota_exhausted`.
+  Blocked on task 1.7 (paid Google tier).
 
 ## Next steps
 - **Gemini grounding quota:** check the Google AI Studio project's billing/plan, then

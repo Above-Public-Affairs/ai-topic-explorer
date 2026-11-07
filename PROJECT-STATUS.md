@@ -38,6 +38,9 @@ driven by production error reports.
   Responses `web_search`, Gemini Google Search grounding, Grok Responses `web_search`.
 - Location: tool parameter for Claude and OpenAI; system message (`by_prompt`) for
   Gemini and Grok.
+- Errors: every failure is a `ProviderError` with a `kind` (`quota_exhausted`,
+  `rate_limited`, `auth`, `blocked`, `unavailable`, `timeout`, `other`). Gemini's quota
+  429 maps to `quota_exhausted` and isn't retried.
 - Cost: Grok from `cost_in_usd_ticks`; others from `lib/answers/prices.ts`. Gemini
   search is priced at list ($14/1k) even inside the 5,000/month free allowance.
 - Test run (Austin, TX; "Are data centers raising electricity bills in Texas?"):

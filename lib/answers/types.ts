@@ -90,3 +90,44 @@ export interface AnswerProvider {
   model: string;
   ask(question: string, options?: AskOptions): Promise<AskResult>;
 }
+
+/**
+ * Why a provider couldn't answer.
+ * - `quota_exhausted`: billing or quota; won't clear by retrying.
+ * - `rate_limited`: too many requests; clears on its own.
+ * - `auth`: bad key or no access to the model.
+ * - `blocked`: a safety filter or refusal.
+ * - `unavailable`: the provider's servers (5xx, overloaded).
+ * - `timeout`: aborted or timed out.
+ * - `other`: anything else, including bugs.
+ */
+export type ProviderErrorKind =
+  | "quota_exhausted"
+  | "rate_limited"
+  | "auth"
+  | "blocked"
+  | "unavailable"
+  | "timeout"
+  | "other";
+
+/** Every failure from `AnswerProvider.ask` is one of these. */
+export class ProviderError extends Error {
+  readonly provider: ProviderId;
+  readonly kind: ProviderErrorKind;
+  /** HTTP status, when the failure was an HTTP error. */
+  readonly status: number | null;
+
+  constructor(
+    provider: ProviderId,
+    kind: ProviderErrorKind,
+    message: string,
+    status: number | null = null,
+    options?: { cause?: unknown }
+  ) {
+    super(message, options);
+    this.name = "ProviderError";
+    this.provider = provider;
+    this.kind = kind;
+    this.status = status;
+  }
+}

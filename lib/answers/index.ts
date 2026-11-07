@@ -10,22 +10,38 @@ import { claudeProvider } from "./claude";
 import { geminiProvider } from "./gemini";
 import { grokProvider } from "./grok";
 import { openaiProvider } from "./openai";
-import type { AnswerProvider, AskOptions, AskResult, ProviderId } from "./types";
+import { toProviderError } from "./errors";
+import type { AnswerProvider, AskOptions, AskResult, ProviderError, ProviderId } from "./types";
 
 export * from "./types";
+export { toProviderError } from "./errors";
 export { TEXAS_LOCATION } from "./shared";
 export { PRICES } from "./prices";
 
+/** A provider whose every failure is a typed ProviderError. */
+function withTypedErrors(provider: AnswerProvider): AnswerProvider {
+  return {
+    ...provider,
+    async ask(question, options) {
+      try {
+        return await provider.ask(question, options);
+      } catch (err) {
+        throw toProviderError(provider.id, err);
+      }
+    },
+  };
+}
+
 export const PROVIDERS: Record<ProviderId, AnswerProvider> = {
-  claude: claudeProvider,
-  openai: openaiProvider,
-  gemini: geminiProvider,
-  grok: grokProvider,
+  claude: withTypedErrors(claudeProvider),
+  openai: withTypedErrors(openaiProvider),
+  gemini: withTypedErrors(geminiProvider),
+  grok: withTypedErrors(grokProvider),
 };
 
 export type AskAllResult =
   | { provider: ProviderId; ok: true; result: AskResult }
-  | { provider: ProviderId; ok: false; error: string };
+  | { provider: ProviderId; ok: false; error: ProviderError };
 
 /** Ask every provider the same question in parallel. One failure doesn't sink the rest. */
 export async function askAll(question: string, options: AskOptions = {}): Promise<AskAllResult[]> {
@@ -34,10 +50,6 @@ export async function askAll(question: string, options: AskOptions = {}): Promis
   return settled.map((s, i) =>
     s.status === "fulfilled"
       ? { provider: ids[i], ok: true, result: s.value }
-      : {
-          provider: ids[i],
-          ok: false,
-          error: s.reason instanceof Error ? s.reason.message : String(s.reason),
-        }
+      : { provider: ids[i], ok: false, error: toProviderError(ids[i], s.reason) }
   );
 }

@@ -1,5 +1,6 @@
 import { ApiError, GoogleGenAI, type GenerateContentResponse } from "@google/genai";
 import { MODEL } from "@/lib/ai-clients/gemini";
+import { isGeminiQuotaExhausted } from "./errors";
 import { computeCost } from "./prices";
 import { locationSystemMessage, mergeSources, roundUsd, uniqueQueries } from "./shared";
 import type { AnswerProvider, AnswerSource, AskOptions, AskResult } from "./types";
@@ -34,7 +35,9 @@ async function generate(
         },
       });
     } catch (err) {
-      const retryable = err instanceof ApiError && RETRYABLE_STATUSES.has(err.status);
+      // An exhausted quota won't clear in seconds, so don't retry it.
+      const retryable =
+        err instanceof ApiError && RETRYABLE_STATUSES.has(err.status) && !isGeminiQuotaExhausted(err);
       if (!retryable || attempt >= RETRY_DELAYS_MS.length || signal?.aborted) throw err;
       await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
     }
