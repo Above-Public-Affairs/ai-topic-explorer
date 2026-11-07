@@ -19,7 +19,7 @@ export default function KeyThemes({ themes, onThemeClick }: Props) {
   if (themes.length === 0) {
     return (
       <div className="glass-tier-2 rounded-2xl p-8 text-center">
-        <p className="text-[--text-tertiary]">No key themes identified.</p>
+        <p className="text-(--text-tertiary)">No key themes identified.</p>
       </div>
     );
   }
@@ -37,7 +37,7 @@ export default function KeyThemes({ themes, onThemeClick }: Props) {
           </button>
         ))}
       </div>
-      <p className="mt-3 text-xs text-[--text-tertiary] text-center">
+      <p className="mt-3 text-xs text-(--text-tertiary) text-center">
         Click any theme to see it in context
       </p>
     </div>

@@ -11,13 +11,13 @@ export default function UnreadableResult({ topic }: { topic: string }) {
     <div className="min-h-screen flex flex-col">
       <main className="flex-1 flex items-center justify-center px-4 py-16">
         <div className="max-w-md w-full text-center">
-          <p className="text-xs font-semibold text-[--text-tertiary] uppercase tracking-wider mb-3">
+          <p className="text-xs font-semibold text-(--text-tertiary) uppercase tracking-wider mb-3">
             Saved result
           </p>
-          <h1 className="text-2xl font-bold text-[--text-primary] text-balance mb-3">
+          <h1 className="text-2xl font-bold text-(--text-primary) text-balance mb-3">
             {topic ? `“${topic}” can’t be shown` : "This result can’t be shown"}
           </h1>
-          <p className="text-sm text-[--text-secondary] text-pretty mb-8">
+          <p className="text-sm text-(--text-secondary) text-pretty mb-8">
             It was saved by an older version of the site, or saved incomplete. Run
             the topic again to get a fresh comparison.
           </p>

@@ -10,6 +10,7 @@ import type { Provider } from "@/lib/types";
 import type { ProviderErrorKind } from "@/lib/answers/types";
 import { providerErrorLabel } from "@/lib/answers/errors";
 import { domainOf } from "@/lib/extraction/map";
+import { cleanTitle, cleanUrl, orderByFirstLink, stripSearchPreamble, urlKey } from "@/lib/results/sources";
 
 /** Order the AIs are shown in. */
 export const PROVIDER_ORDER: Provider[] = ["claude", "openai", "gemini", "grok"];
@@ -56,8 +57,12 @@ export interface AnswerView {
   status: "done" | "failed";
   /** The model that answered, or the one asked for when the call failed. */
   model: string;
+  /** The answer as written, minus any leading "I'll search for…" narration. */
   text: string;
-  /** Sources the answer cites (falls back to every source when the API doesn't mark which were cited). */
+  /**
+   * Sources the answer cites (falls back to every source when the API doesn't
+   * mark which were cited), in the order the answer first links them.
+   */
   sources: AnswerSourceView[];
   tone: string | null;
   framing: string | null;
@@ -117,17 +122,6 @@ function byProviderOrder(a: Provider, b: Provider) {
   return PROVIDER_ORDER.indexOf(a) - PROVIDER_ORDER.indexOf(b);
 }
 
-/** A URL reduced to a key for de-duplication: no fragment, no trailing slash. */
-function urlKey(url: string): string {
-  try {
-    const u = new URL(url);
-    u.hash = "";
-    return u.toString().replace(/\/$/, "").toLowerCase();
-  } catch {
-    return url.toLowerCase();
-  }
-}
-
 /** Lower-cased words only, so near-identical argument sentences merge. */
 function textKey(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -138,7 +132,7 @@ function errorReason(kind: string | null): string {
   return providerErrorLabel(kinds.includes(kind as ProviderErrorKind) ? (kind as ProviderErrorKind) : "other");
 }
 
-function answerSources(citations: RunRows["answers"][number]["citations"]): AnswerSourceView[] {
+function answerSources(citations: RunRows["answers"][number]["citations"], text: string): AnswerSourceView[] {
   const ordered = [...citations].sort((a, b) => a.position - b.position);
   // Providers that say which sources were cited: show those. Providers that
   // don't (cited null) or only report what they looked at: show everything.
@@ -150,11 +144,11 @@ function answerSources(citations: RunRows["answers"][number]["citations"]): Answ
     const key = urlKey(c.url);
     if (seen.has(key)) continue;
     seen.add(key);
-    // Some titles arrive with Markdown heading marks ("# Title").
-    const title = c.title?.replace(/^#+\s*/, "").trim();
-    out.push({ url: c.url, title: title || c.domain, domain: c.domain || domainOf(c.url) || c.url });
+    const domain = c.domain || domainOf(c.url) || c.url;
+    out.push({ url: cleanUrl(c.url), title: cleanTitle(c.title, c.url, domain), domain });
   }
-  return out;
+  // Numbered in the order the answer links them, so inline markers line up.
+  return orderByFirstLink(out, text);
 }
 
 export function buildRunView(run: RunRows): RunView {
@@ -178,12 +172,12 @@ export function buildRunView(run: RunRows): RunView {
       });
       continue;
     }
-    const sources = answerSources(row.citations);
+    const sources = answerSources(row.citations, text);
     answers.push({
       provider,
       status: "done",
       model: row.model ?? row.requestedModel,
-      text,
+      text: stripSearchPreamble(text),
       sources,
       tone: row.extraction?.errorMessage ? null : (row.extraction?.tone ?? null),
       framing: row.extraction?.errorMessage ? null : (row.extraction?.framing ?? null),

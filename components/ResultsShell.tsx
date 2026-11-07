@@ -25,6 +25,11 @@ interface Props {
   children: React.ReactNode;
 }
 
+/** Topics are stored as typed; show them with a capital first letter. */
+export function displayTopic(topic: string): string {
+  return topic.charAt(0).toUpperCase() + topic.slice(1);
+}
+
 /** The results page frame: sticky header on mobile, sidebar on desktop, share and new-topic actions. */
 export default function ResultsShell({
   topic,
@@ -58,24 +63,25 @@ export default function ResultsShell({
   return (
     <div className="min-h-screen flex flex-col">
       {/* ── Mobile header (visible below lg) ── */}
-      <div className="lg:hidden sticky top-0 z-40 bg-[--bg-base]/80 backdrop-blur-xl border-b border-black/6">
+      <header className="results-mobile-header lg:hidden sticky top-0 z-40 bg-(--bg-base)/85 backdrop-blur-xl border-b border-black/6">
         <div className="px-4 py-3">
           {/* Topic + actions */}
-          <div className="flex items-center justify-between mb-2">
-            <h1 className="text-lg font-bold text-[--text-primary] truncate mr-3">
-              {topic}
-            </h1>
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <p className="text-base font-bold text-(--text-primary) truncate min-w-0">
+              {displayTopic(topic)}
+            </p>
             <div className="flex items-center gap-2 shrink-0">
               <button
+                type="button"
                 onClick={handleShare}
-                className="pill-interactive px-3 py-1.5 rounded-full text-xs font-medium"
+                className="pill-interactive px-3.5 py-2 rounded-full text-xs font-medium active:scale-[0.96]"
               >
-                {copied ? "Copied!" : "Share"}
+                {copied ? "Copied" : "Share"}
               </button>
               <Link
                 href="/"
                 onClick={() => trackEvent({ action: "new_topic_from_results" })}
-                className="btn-primary px-3 py-1.5 rounded-full text-xs"
+                className="btn-primary px-3.5 py-2 rounded-full text-xs active:scale-[0.96]"
               >
                 New Topic
               </Link>
@@ -86,17 +92,17 @@ export default function ResultsShell({
           <ProgressTracker providers={providerStatuses} layout="horizontal" />
 
           {/* Section jump links */}
-          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs">
+          <nav aria-label="Sections" className="flex flex-wrap gap-x-4 mt-1 -mb-1 text-xs">
             {sections.map((s) => (
               <a
                 key={s.id}
                 href={`#${s.id}`}
-                className="text-[--text-tertiary] hover:text-[--accent-cyan] transition-colors"
+                className="py-2 text-(--text-secondary) hover:text-(--accent-cyan) transition-colors"
               >
                 {s.label}
               </a>
             ))}
-          </div>
+          </nav>
 
           {/* Partial failure banner */}
           {partialFailureMessage && (
@@ -105,22 +111,22 @@ export default function ResultsShell({
             </div>
           )}
         </div>
-      </div>
+      </header>
 
       {/* ── Desktop layout ── */}
       <div className="flex-1 flex">
         {/* Sidebar (visible at lg+) */}
         <aside className="hidden lg:flex flex-col w-[272px] shrink-0 sidebar-sticky bg-white/30 backdrop-blur-sm border-r border-black/6 px-6 py-8">
           {/* Topic */}
-          <h1 className="text-xl font-bold text-[--text-primary] mb-1">
-            {topic}
-          </h1>
-          <p className="text-xs text-[--text-tertiary] mb-6">{subtitle}</p>
+          <p className="text-xl font-bold text-(--text-primary) text-balance mb-1">
+            {displayTopic(topic)}
+          </p>
+          <p className="text-xs text-(--text-tertiary) mb-6">{subtitle}</p>
 
           {/* Sources */}
           <div className="mb-6">
-            <p className="text-xs font-semibold text-[--text-secondary] uppercase tracking-wider mb-3">
-              Sources
+            <p className="text-xs font-semibold text-(--text-secondary) uppercase tracking-wider mb-3">
+              AIs
             </p>
             <ProgressTracker providers={providerStatuses} layout="vertical" />
           </div>
@@ -134,15 +140,15 @@ export default function ResultsShell({
 
           {/* Section nav */}
           <div className="mb-6">
-            <p className="text-xs font-semibold text-[--text-secondary] uppercase tracking-wider mb-3">
+            <p className="text-xs font-semibold text-(--text-secondary) uppercase tracking-wider mb-3">
               Sections
             </p>
-            <nav className="flex flex-col gap-1">
+            <nav aria-label="Sections" className="flex flex-col gap-1">
               {sections.map((s) => (
                 <a
                   key={s.id}
                   href={`#${s.id}`}
-                  className="sidebar-nav-link text-sm text-[--text-secondary] hover:text-[--accent-cyan] py-1.5"
+                  className="sidebar-nav-link text-sm text-(--text-secondary) hover:text-(--accent-cyan) py-1.5"
                 >
                   {s.label}
                 </a>
@@ -156,15 +162,16 @@ export default function ResultsShell({
           {/* Actions */}
           <div className="flex flex-col gap-2 mb-4">
             <button
+              type="button"
               onClick={handleShare}
-              className="pill-interactive w-full px-4 py-2.5 rounded-xl text-sm font-medium text-center"
+              className="pill-interactive w-full px-4 py-2.5 rounded-xl text-sm font-medium text-center active:scale-[0.96]"
             >
               {copied ? "Link copied!" : "Share results"}
             </button>
             <Link
               href="/"
               onClick={() => trackEvent({ action: "new_topic_from_results" })}
-              className="btn-primary w-full px-4 py-2.5 rounded-xl text-sm text-center"
+              className="btn-primary w-full px-4 py-2.5 rounded-xl text-sm text-center active:scale-[0.96]"
             >
               New Topic
             </Link>
@@ -173,18 +180,20 @@ export default function ResultsShell({
           <Footer hideChangelog />
         </aside>
 
-        {/* Main content */}
-        <div className="flex-1 py-8 px-4 sm:px-8 lg:px-12 min-w-0 overflow-hidden break-words">
+        {/* Main content. Extra bottom room on mobile so the floating bug button never covers the last line. */}
+        <main id="content" tabIndex={-1} className="flex-1 pt-6 pb-24 lg:py-8 px-4 sm:px-8 lg:px-12 min-w-0 overflow-hidden break-words outline-none">
           <div className="max-w-4xl mx-auto">
             {children}
           </div>
-        </div>
+        </main>
       </div>
 
       {/* Mobile footer */}
       <div className="lg:hidden border-t border-black/6 px-4 py-4">
         <Footer hideChangelog />
       </div>
+
+      <span role="status" className="sr-only">{copied ? "Link copied" : ""}</span>
 
       {overlay}
     </div>

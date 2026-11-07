@@ -16,7 +16,7 @@ export default function EntityList({ entities }: Props) {
   if (!hasAny) {
     return (
       <div className="glass-tier-2 rounded-2xl p-8 text-center">
-        <p className="text-[--text-tertiary]">No named entities identified.</p>
+        <p className="text-(--text-tertiary)">No named entities identified.</p>
       </div>
     );
   }
@@ -26,18 +26,18 @@ export default function EntityList({ entities }: Props) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {CATEGORIES.map(({ key, label }) => (
           <div key={key}>
-            <h4 className="font-semibold text-[--accent-cyan] mb-3">{label}</h4>
+            <h4 className="font-semibold text-(--accent-cyan) mb-3">{label}</h4>
             {entities[key].length > 0 ? (
               <ul className="space-y-1.5">
                 {entities[key].map((entity, idx) => (
-                  <li key={idx} className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-[--text-secondary]">
+                  <li key={idx} className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-(--text-secondary)">
                     <span className="break-words min-w-0">
                       {entity.url ? (
                         <a
                           href={entity.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="underline decoration-black/15 hover:text-[--accent-cyan] hover:decoration-[--accent-cyan]/40 transition-colors"
+                          className="underline decoration-black/15 hover:text-(--accent-cyan) hover:decoration-(--accent-cyan)/40 transition-colors"
                         >
                           {entity.name}
                         </a>
@@ -50,7 +50,7 @@ export default function EntityList({ entities }: Props) {
                         {entity.providers.map((provider) => (
                           <span
                             key={provider}
-                            className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${PROVIDER_COLORS[provider]}`}
+                            className={`inline-block px-1.5 py-0.5 rounded text-[11px] font-medium ${PROVIDER_COLORS[provider]}`}
                           >
                             {PROVIDER_LABELS[provider]}
                           </span>
@@ -61,7 +61,7 @@ export default function EntityList({ entities }: Props) {
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-[--text-tertiary] italic">None identified</p>
+              <p className="text-sm text-(--text-tertiary) italic">None identified</p>
             )}
           </div>
         ))}

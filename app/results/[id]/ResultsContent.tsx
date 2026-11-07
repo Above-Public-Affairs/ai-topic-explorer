@@ -7,7 +7,8 @@ import QuotedPhrases from "@/components/QuotedPhrases";
 import WordContextModal from "@/components/WordContextModal";
 import EntityList from "@/components/EntityList";
 import CitationList from "@/components/CitationList";
-import ResultsShell, { type ProviderStatusItem } from "@/components/ResultsShell";
+import ResultsShell, { displayTopic, type ProviderStatusItem } from "@/components/ResultsShell";
+import Link from "next/link";
 import { findWordContext, type WordContextMatch } from "@/lib/analysis/word-context";
 import { trackEvent } from "@/lib/analytics";
 import type {
@@ -89,16 +90,25 @@ export default function ResultsContent({
         )
       }
     >
-            {/* Desktop topic heading (hidden on mobile since it's in the header) */}
-            <div className="hidden lg:block mb-8">
-              <h2 className="text-3xl font-bold text-[--text-primary]">
-                {topic}
-              </h2>
+            <div className="mb-8">
+              <h1 className="text-2xl lg:text-3xl font-bold text-(--text-primary) text-balance">
+                {displayTopic(topic)}
+              </h1>
+              <p className="mt-2 text-sm text-(--text-secondary) text-pretty">
+                Saved with an earlier version of AI Topic Explorer.{" "}
+                <Link
+                  href={`/?topic=${encodeURIComponent(topic)}`}
+                  className="font-medium text-(--accent-cyan) underline underline-offset-2 hover:text-(--accent-violet) transition-colors"
+                >
+                  Run this topic again
+                </Link>{" "}
+                to see each AI&rsquo;s full answer and the sources it cited.
+              </p>
             </div>
 
             {/* Key Themes */}
-            <section id="key-themes" className="mb-10 scroll-mt-20">
-              <h2 className="text-xl font-bold text-[--text-primary] mb-4">
+            <section id="key-themes" className="mb-10 scroll-mt-4 lg:scroll-mt-8">
+              <h2 className="text-xl font-bold text-(--text-primary) mb-4">
                 Key Themes
               </h2>
               {keyThemes.length > 0 ? (
@@ -109,22 +119,22 @@ export default function ResultsContent({
             </section>
 
             {/* Entities */}
-            <section id="entities" className="mb-10 scroll-mt-20">
-              <h2 className="text-xl font-bold text-[--text-primary] mb-1">
+            <section id="entities" className="mb-10 scroll-mt-4 lg:scroll-mt-8">
+              <h2 className="text-xl font-bold text-(--text-primary) mb-1">
                 Named Entities
               </h2>
-              <p className="text-sm text-[--text-tertiary] mb-4">
+              <p className="text-sm text-(--text-tertiary) mb-4">
                 People and organizations mentioned across AI responses, listed by number of mentions. Capped at 15 per category.
               </p>
               <EntityList entities={entities} />
             </section>
 
             {/* Citations */}
-            <section id="citations" className="mb-10 scroll-mt-20">
-              <h2 className="text-xl font-bold text-[--text-primary] mb-1">
+            <section id="citations" className="mb-10 scroll-mt-4 lg:scroll-mt-8">
+              <h2 className="text-xl font-bold text-(--text-primary) mb-1">
                 Citations
               </h2>
-              <p className="text-sm text-[--text-tertiary] mb-4">
+              <p className="text-sm text-(--text-tertiary) mb-4">
                 Top 10 sources ranked by AI model agreement. Additional pages from the same domain are grouped below.
               </p>
               <CitationList citations={citations} />
@@ -132,16 +142,16 @@ export default function ResultsContent({
 
             {/* X Perspective */}
             {grokQuotedPhrases && grokQuotedPhrases.length > 0 && (
-              <section id="x-perspective" className="mb-10 scroll-mt-20">
+              <section id="x-perspective" className="mb-10 scroll-mt-4 lg:scroll-mt-8">
                 <div className="flex items-center gap-2 mb-1">
-                  <h2 className="text-xl font-bold text-[--text-primary]">
+                  <h2 className="text-xl font-bold text-(--text-primary)">
                     X Perspective
                   </h2>
-                  <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-400">
+                  <span className="inline-block px-1.5 py-0.5 rounded text-[11px] font-medium bg-red-50 text-red-700">
                     Grok
                   </span>
                 </div>
-                <p className="text-sm text-[--text-tertiary] mb-4">
+                <p className="text-sm text-(--text-tertiary) mb-4">
                   These are phrases, slogans, or talking points generated from X/Twitter.
                 </p>
                 <QuotedPhrases phrases={grokQuotedPhrases} />

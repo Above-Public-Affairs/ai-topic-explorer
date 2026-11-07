@@ -17,6 +17,32 @@ The app is becoming an internal topic-tracking tool.
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
 Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search) and 5.1.
 
+## Public-site review fixes (task 6.7)
+- Reviews: `docs/reviews/accessibility-2026-11.md` (6.3), `speed-2026-11.md` (6.4),
+  `design-2026-11.md` + screenshots (6.5). 6.7 fixed accessibility 0–9 (+10, 11, 13, 14,
+  16, 19, 18 partly), design 1–9 (+13, 14, 15, 17 sidebar label) and speed 1–3 (+7).
+- Tailwind v4: write CSS-variable classes as `text-(--text-secondary)`, never
+  `text-[--x]` (compiles to nothing). Tokens were darkened to pass AA.
+- Sources display: `lib/results/sources.ts` (URL de-dup, title fallback, order by first
+  link, Claude search-preamble strip). View only; stored answers are untouched.
+- Modals: use `components/Dialog.tsx` (native `<dialog>`), not a hand-rolled overlay.
+- Local check without production data: seed a scratch Postgres from the public results
+  pages' RSC payload (the props carry the full view); prod has no public DB URL.
+- **Left for 6.6:**
+  - Speed 2 (second half): render `AnswerProse` on the server so the Markdown renderer
+    never ships to new-layout results (~50 KB gz). Needs `AnswerTabs` to take rendered
+    panels as props.
+  - Speed 4 (send less data to the browser: on-demand word context), 5 (cache saved
+    results), 6 (inline CSS), 8 (polyfills), 9 (Footer changelog out of the JS bundle).
+  - Accessibility 12 partly (mobile header doesn't collapse on scroll), 15 (theme chips
+    still truncate), 17 (some text links are 32px tall, under the 44px house guidance),
+    20 (mobile sticky bar truncates the topic; the full topic is now the page `<h1>`),
+    21 (new-tab notice only on source lists and citation pills, not every link).
+  - Design P2/P3: 10 (Answers first / sticky tabs on mobile), 11 (per-AI "reading"
+    progress, hero jump when the panel appears), 12 (near-duplicate themes, an extraction
+    fix), 16 (entity grid dead space). Dark theme not started.
+  - A real VoiceOver pass over the dialogs and progress announcements (DOM checked only).
+
 ## Measured cost (task 2.6)
 - Real cost per answer and the monthly figure (~$83 vs the $60 estimate) are in
   `PROJECT-PLAN.md` under "Measured cost". Rerun with

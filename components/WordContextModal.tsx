@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useId } from "react";
+import Dialog from "@/components/Dialog";
+import CloseButton from "@/components/CloseButton";
 import type { WordContextMatch } from "@/lib/analysis/word-context";
 import { providerColor } from "@/lib/providers";
 
@@ -27,7 +29,7 @@ function highlightWord(text: string, word: string): React.ReactNode[] {
   const parts = text.split(regex);
   return parts.map((part, i) =>
     regex.test(part) ? (
-      <mark key={i} className="bg-[--accent-cyan-muted] text-[--accent-cyan] rounded px-0.5 font-medium">
+      <mark key={i} className="bg-cyan-100 text-(--text-primary) rounded px-0.5 font-medium">
         {part}
       </mark>
     ) : (
@@ -36,44 +38,34 @@ function highlightWord(text: string, word: string): React.ReactNode[] {
   );
 }
 
-export default function WordContextModal({ word, matches, onClose }: Props) {
-  const overlayRef = useRef<HTMLDivElement>(null);
+// Excerpts are cut from the raw answer Markdown; show them as plain text.
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/(\*\*|__)/g, "")
+    .replace(/^\s*(?:[-*+]|#{1,6}|\d+\.)\s+/, "")
+    .replace(/(^|\s)\*(\S[^*]*\S)\*(?=\s|$)/g, "$1$2")
+    .trim();
+}
 
-  useEffect(() => {
-    function handleEscape(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [onClose]);
+export default function WordContextModal({ word, matches, onClose }: Props) {
+  const headingId = useId();
 
   return (
-    <div
-      ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-      onClick={(e) => {
-        if (e.target === overlayRef.current) onClose();
-      }}
-    >
-      <div className="glass-tier-3 rounded-2xl shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+    <Dialog labelledBy={headingId} onClose={onClose} className="max-w-2xl">
+      <div className="flex flex-col max-h-[80vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-black/5">
-          <h3 className="text-lg font-bold text-[--text-primary]">
+        <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-black/5">
+          <h2 id={headingId} className="text-lg font-bold text-(--text-primary) text-pretty">
             &ldquo;{word}&rdquo; in context
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-[--text-tertiary] hover:text-[--text-primary] transition-colors text-2xl leading-none"
-            aria-label="Close"
-          >
-            &times;
-          </button>
+          </h2>
+          <CloseButton onClick={onClose} />
         </div>
 
         {/* Body */}
         <div className="overflow-y-auto px-6 py-4 space-y-6">
           {matches.length === 0 ? (
-            <p className="text-[--text-tertiary] text-sm text-center py-4">
+            <p className="text-(--text-tertiary) text-sm text-center py-4">
               No context found for this word.
             </p>
           ) : (
@@ -90,9 +82,9 @@ export default function WordContextModal({ word, matches, onClose }: Props) {
                   {match.excerpts.map((excerpt, i) => (
                     <li
                       key={i}
-                      className="text-sm text-[--text-secondary] leading-relaxed pl-3 border-l-2 border-[--accent-cyan]/30 break-words"
+                      className="text-sm text-(--text-secondary) leading-relaxed pl-3 border-l-2 border-(--accent-cyan)/30 break-words"
                     >
-                      {highlightWord(excerpt, word)}
+                      {highlightWord(stripMarkdown(excerpt), word)}
                     </li>
                   ))}
                 </ul>
@@ -101,6 +93,6 @@ export default function WordContextModal({ word, matches, onClose }: Props) {
           )}
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 }

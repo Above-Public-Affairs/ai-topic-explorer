@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 
 interface ThemeGroup {
   id: string;
@@ -251,7 +251,13 @@ function generateWords(): FloatingWord[] {
 
 const subscribeNoop = () => () => {};
 
-export default function FloatingKeywords() {
+/**
+ * Decorative drifting topic pills. Hidden from screen readers; still under
+ * reduced motion; paused by the visitor's button or while `paused` is set
+ * (e.g. during an analysis run).
+ */
+export default function FloatingKeywords({ paused = false }: { paused?: boolean }) {
+  const [userPaused, setUserPaused] = useState(false);
   // The words are random, so the server's render and the browser's would never
   // match (a hydration error). Render none on the server and pick them once in
   // the browser; each pill's drift animation starts at opacity 0, so they fade
@@ -259,9 +265,11 @@ export default function FloatingKeywords() {
   const isClient = useSyncExternalStore(subscribeNoop, () => true, () => false);
   const words = useMemo(() => (isClient ? generateWords() : []), [isClient]);
 
+  const isPaused = paused || userPaused;
+
   return (
     <div className="relative w-full h-full overflow-hidden">
-      {/* Floating keyword pills */}
+      <div aria-hidden="true" data-paused={isPaused || undefined} className="floating-keywords absolute inset-0">
       {words.map((w) => (
         <div
           key={w.text}
@@ -285,6 +293,20 @@ export default function FloatingKeywords() {
           {w.text}
         </div>
       ))}
+      </div>
+      {words.length > 0 && !paused && (
+        <button
+          type="button"
+          onClick={() => setUserPaused((p) => !p)}
+          aria-pressed={userPaused}
+          className="motion-reduce:hidden absolute top-4 right-6 z-10 inline-flex items-center gap-1.5 rounded-full glass-tier-2 px-3 py-2 text-xs font-medium text-(--text-secondary) hover:text-(--text-primary) transition-colors active:scale-[0.96]"
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            {userPaused ? <path d="M4 2.5v11l9-5.5z" /> : <path d="M4 2h3v12H4zM9 2h3v12H9z" />}
+          </svg>
+          {userPaused ? "Play animation" : "Pause animation"}
+        </button>
+      )}
     </div>
   );
 }

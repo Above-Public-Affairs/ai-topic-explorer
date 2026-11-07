@@ -37,7 +37,7 @@ export default function WordCloud({ words, onWordClick }: Props) {
   if (words.length === 0) {
     return (
       <div className="glass-tier-2 rounded-2xl p-8 text-center">
-        <p className="text-[--text-tertiary]">No word frequency data available.</p>
+        <p className="text-(--text-tertiary)">No word frequency data available.</p>
       </div>
     );
   }
@@ -75,7 +75,7 @@ export default function WordCloud({ words, onWordClick }: Props) {
           </button>
         ))}
       </div>
-      <p className="mt-3 text-xs text-[--text-tertiary] text-center">
+      <p className="mt-3 text-xs text-(--text-tertiary) text-center">
         Click any term to see it in context
       </p>
     </div>

@@ -19,16 +19,16 @@ export default function QuotedPhrases({ phrases }: Props) {
 
   return (
     <div className="glass-tier-2 rounded-2xl p-6">
-      <h4 className="text-xs font-semibold text-blue-500 uppercase tracking-wider mb-4">
+      <h3 className="text-xs font-semibold text-blue-700 uppercase tracking-wider mb-4">
         Common Talking Points
-      </h4>
+      </h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         {phrases.map((q) => (
           <div
             key={q.phrase}
             className={`relative px-4 py-3 rounded-xl bg-blue-50/60 border border-blue-100/80 ${frequencyOpacity[q.frequency] || "opacity-85"}`}
           >
-            <span className="absolute top-1 left-2 text-blue-200 text-2xl leading-none font-serif select-none">
+            <span aria-hidden="true" className="absolute top-1 left-2 text-blue-200 text-2xl leading-none font-serif select-none">
               &ldquo;
             </span>
             <p className="text-sm text-blue-900 font-medium pl-3">

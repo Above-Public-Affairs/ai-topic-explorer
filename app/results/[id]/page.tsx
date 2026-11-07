@@ -1,3 +1,5 @@
+import { cache } from "react";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { toWordCloudData, topicToWords } from "@/lib/analysis/word-frequency";
@@ -7,20 +9,28 @@ import { PROVIDER_LABELS } from "@/lib/providers";
 import { readRunPointer, readStoredResult } from "@/lib/results/stored-result";
 import { loadRunView, type RunView } from "@/lib/results/run-view";
 import type { ProviderStatusItem } from "@/components/ResultsShell";
-import ResultsContent from "./ResultsContent";
-import RunResultsContent from "./RunResultsContent";
 import UnreadableResult from "./UnreadableResult";
+import { ResultsContent, RunResultsContent } from "./layouts";
 
 interface Props {
   params: Promise<{ id: string }>;
 }
 
+// Shared by the page and its metadata, so the row is read once per request.
+const findAnalysis = cache((id: string) => prisma.analysis.findUnique({ where: { id } }));
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params;
+  const analysis = await findAnalysis(id);
+  if (!analysis) return {};
+  const topic = analysis.topic.charAt(0).toUpperCase() + analysis.topic.slice(1);
+  return { title: topic, openGraph: { title: `${topic} – AI Topic Explorer` } };
+}
+
 export default async function ResultsPage({ params }: Props) {
   const { id } = await params;
 
-  const analysis = await prisma.analysis.findUnique({
-    where: { id },
-  });
+  const analysis = await findAnalysis(id);
 
   if (!analysis) {
     notFound();

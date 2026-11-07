@@ -4,6 +4,11 @@
 
 ## Current Status: Live in production (beta), new direction planned
 
+**Task 6.7 (public-site review fixes, Nov 7):** the critical/high accessibility findings
+(6.3), the design P0s and P1s (6.5) and speed fixes 1–3 (6.4) are fixed; reviews are in
+`docs/reviews/`. What's left for 6.6 is listed in `SESSION-HANDOFF.md` under "Public-site
+review fixes (task 6.7)".
+
 **Nov 6, 2026:** the project is pivoting to an internal topic-tracking tool. The public
 site stays up and gets a durability and security pass. The full plan, with the five new
 phases and what blocks each one, is in `PROJECT-PLAN.md`. Work runs from the project

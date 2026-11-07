@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useId, useState } from "react";
+import Dialog from "@/components/Dialog";
+import CloseButton from "@/components/CloseButton";
 import { trackEvent } from "@/lib/analytics";
 
 export default function BugReportButton() {
@@ -9,16 +11,8 @@ export default function BugReportButton() {
   const [status, setStatus] = useState<
     "idle" | "submitting" | "success" | "error"
   >("idle");
-  const overlayRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function handleEscape(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [open]);
+  const headingId = useId();
+  const close = () => setOpen(false);
 
   const handleOpen = () => {
     setOpen(true);
@@ -63,9 +57,11 @@ export default function BugReportButton() {
     <>
       {/* Floating pill button */}
       <button
+        type="button"
         onClick={handleOpen}
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-2.5 rounded-full glass-tier-2 text-sm font-medium text-[--text-secondary] hover:text-[--accent-cyan] hover:border-[--accent-cyan]/30 shadow-lg hover:shadow-xl transition-all duration-200"
-        aria-label="Report a Bug"
+        // An icon-only 44px circle below lg, so it doesn't sit over the text.
+        className="fixed bottom-4 right-4 lg:bottom-6 lg:right-6 z-40 flex size-11 lg:size-auto items-center justify-center gap-2 lg:px-4 lg:py-2.5 rounded-full glass-tier-3 text-sm font-medium text-(--text-secondary) hover:text-(--accent-cyan) hover:border-(--accent-cyan)/30 shadow-lg hover:shadow-xl transition-[color,border-color,box-shadow,scale] duration-200 active:scale-[0.96]"
+        aria-label="Report a bug"
       >
         <svg
           width="16"
@@ -82,44 +78,29 @@ export default function BugReportButton() {
           <path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 014-4h4a4 4 0 014 4v3c0 3.3-2.7 6-6 6z" />
           <path d="M12 20v2M6 13H2M22 13h-4M6 17H3.5M20.5 17H18M6 9H3.5M20.5 9H18" />
         </svg>
-        Report a Bug
+        <span className="hidden lg:inline" aria-hidden="true">Report a Bug</span>
       </button>
 
       {/* Modal */}
       {open && (
-        <div
-          ref={overlayRef}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          onClick={(e) => {
-            if (e.target === overlayRef.current) setOpen(false);
-          }}
-        >
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-          <div
-            className="relative glass-tier-3 max-w-md w-full p-6 sm:p-8 rounded-2xl shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setOpen(false)}
-              className="absolute top-4 right-4 text-[--text-tertiary] hover:text-[--text-primary] transition-colors text-xl leading-none"
-              aria-label="Close"
-            >
-              &times;
-            </button>
-
-            <h2 className="text-xl font-bold text-[--text-primary] mb-2">
-              Report a Bug
-            </h2>
-            <p className="text-sm text-[--text-secondary] mb-4">
+        <Dialog labelledBy={headingId} onClose={close} className="max-w-md">
+          <div className="p-6 sm:p-8">
+            <div className="flex items-start justify-between gap-4 mb-2">
+              <h2 id={headingId} className="text-xl font-bold text-(--text-primary)">
+                Report a Bug
+              </h2>
+              <CloseButton onClick={close} className="-mt-2" />
+            </div>
+            <p className="text-sm text-(--text-secondary) mb-4">
               Describe what went wrong and we&apos;ll look into it.
             </p>
 
             {status === "success" ? (
-              <div className="text-center py-6">
-                <p className="text-[--accent-cyan] font-semibold">
+              <div className="text-center py-6" role="status">
+                <p className="text-(--accent-cyan) font-semibold">
                   Thank you!
                 </p>
-                <p className="text-sm text-[--text-tertiary] mt-1">
+                <p className="text-sm text-(--text-tertiary) mt-1">
                   Your report has been submitted.
                 </p>
               </div>
@@ -131,21 +112,21 @@ export default function BugReportButton() {
                   placeholder="What happened? What did you expect?"
                   maxLength={2000}
                   rows={4}
-                  className="w-full px-4 py-3 text-sm rounded-xl bg-white/80 border border-black/12 text-[--text-primary] placeholder-[--text-tertiary] focus:outline-none focus:border-[--accent-cyan]/50 focus:ring-2 focus:ring-[--accent-cyan]/15 focus:bg-white/90 backdrop-blur-xl transition-all duration-300 resize-none"
+                  className="w-full px-4 py-3 text-sm rounded-xl bg-white/80 border border-black/12 text-(--text-primary) placeholder-(--text-tertiary) focus:outline-none focus-visible:border-(--accent-cyan) focus-visible:ring-2 focus-visible:ring-(--accent-cyan) focus-visible:ring-offset-2 focus-visible:ring-offset-white focus:bg-white/90 backdrop-blur-xl transition-[background-color,border-color,box-shadow] duration-200 resize-none"
                   disabled={status === "submitting"}
                   aria-label="Bug description"
                 />
                 <div className="flex items-center justify-between mt-1 mb-4">
-                  <p className="text-xs text-[--text-tertiary]">
+                  <p className="text-xs text-(--text-tertiary)">
                     Page URL and browser info included automatically.
                   </p>
-                  <span className="text-xs text-[--text-tertiary]">
+                  <span className="text-xs text-(--text-tertiary)">
                     {description.length}/2000
                   </span>
                 </div>
 
                 {status === "error" && (
-                  <p className="text-sm text-red-500 mb-3">
+                  <p className="text-sm text-red-700 mb-3" role="alert">
                     Failed to submit. Please try again.
                   </p>
                 )}
@@ -160,7 +141,7 @@ export default function BugReportButton() {
               </>
             )}
           </div>
-        </div>
+        </Dialog>
       )}
     </>
   );

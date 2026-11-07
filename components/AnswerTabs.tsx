@@ -20,6 +20,22 @@ const DOT_COLORS: Record<string, string> = {
   grok: "bg-red-400",
 };
 
+/** "claude-sonnet-5-5" → "Claude Sonnet 5.5"; the raw id stays in the title tooltip. */
+function modelName(id: string): string {
+  const parts = id.split("-");
+  const out: string[] = [];
+  for (const part of parts) {
+    const prev = out.at(-1);
+    // Join version digits: "5", "5" → "5.5"; leave dates and long numbers alone.
+    if (prev && /^\d$/.test(part) && /^\d+(\.\d+)?$/.test(prev) && !prev.includes(".")) {
+      out[out.length - 1] = `${prev}.${part}`;
+    } else {
+      out.push(/^[a-z]/.test(part) ? part.charAt(0).toUpperCase() + part.slice(1) : part);
+    }
+  }
+  return out.join(" ").replace(/^Gpt\b/, "GPT");
+}
+
 /** Answers taller than this start collapsed. */
 const COLLAPSED_PX = 480;
 /** Fades the last lines of a collapsed answer; a mask works on the glass background. */
@@ -43,8 +59,8 @@ function AnswerPanel({ answer }: { answer: AnswerView }) {
   if (answer.status === "failed") {
     return (
       <div className="py-10 text-center">
-        <p className="text-sm font-medium text-[--text-primary]">{PROVIDER_LABELS[answer.provider]} couldn&rsquo;t answer this time</p>
-        {answer.errorReason && <p className="mt-1 text-sm text-[--text-tertiary]">{answer.errorReason}</p>}
+        <p className="text-sm font-medium text-(--text-primary)">{PROVIDER_LABELS[answer.provider]} couldn&rsquo;t answer this time</p>
+        {answer.errorReason && <p className="mt-1 text-sm text-(--text-tertiary)">{answer.errorReason}</p>}
       </div>
     );
   }
@@ -54,7 +70,7 @@ function AnswerPanel({ answer }: { answer: AnswerView }) {
     <div>
       {/* Model, tone and framing */}
       <div className="mb-5 flex flex-wrap items-center gap-2 text-xs">
-        <span className="font-mono text-[--text-tertiary]">{answer.model}</span>
+        <span className="text-(--text-tertiary)" title={answer.model}>{modelName(answer.model)}</span>
         {answer.tone && (
           <span className={`rounded-full px-2 py-0.5 font-medium ${TONE_STYLES[answer.tone] ?? TONE_STYLES.neutral}`}>
             Tone: {answer.tone}
@@ -62,8 +78,8 @@ function AnswerPanel({ answer }: { answer: AnswerView }) {
         )}
       </div>
       {answer.framing && (
-        <p className="mb-6 border-l-2 border-[--accent-cyan]/40 pl-4 text-sm leading-6 text-[--text-secondary] text-pretty">
-          <span className="font-semibold text-[--text-primary]">How it frames the topic: </span>
+        <p className="mb-6 max-w-[68ch] border-l-2 border-(--accent-cyan)/40 pl-4 text-sm leading-6 text-(--text-secondary) text-pretty">
+          <span className="font-semibold text-(--text-primary)">How it frames the topic: </span>
           {answer.framing}
         </p>
       )}
@@ -71,10 +87,14 @@ function AnswerPanel({ answer }: { answer: AnswerView }) {
       {/* The answer as written */}
       <div
         ref={bodyRef}
+        // Tabbing into the faded or clipped part opens the answer, so focus is never hidden.
+        onFocusCapture={() => {
+          if (collapsed) setExpanded(true);
+        }}
         className="overflow-hidden"
         style={collapsed ? { maxHeight: COLLAPSED_PX, maskImage: FADE, WebkitMaskImage: FADE } : undefined}
       >
-        <AnswerProse text={answer.text} />
+        <AnswerProse text={answer.text} sources={answer.sources} />
       </div>
       {overflows && (
         <button
@@ -91,31 +111,33 @@ function AnswerPanel({ answer }: { answer: AnswerView }) {
       )}
 
       {/* Its sources */}
-      <div className="mt-8 border-t border-black/6 pt-5">
-        <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[--text-secondary]">
-          Sources it cited <span className="tabular-nums font-normal text-[--text-tertiary]">({answer.sources.length})</span>
-        </h4>
+      <div className="mt-8 max-w-[68ch] border-t border-black/6 pt-5">
+        <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-(--text-secondary)">
+          Sources it cited <span className="tabular-nums font-normal text-(--text-tertiary)">({answer.sources.length})</span>
+        </h3>
         {answer.sources.length > 0 ? (
-          <ol className="space-y-2">
+          <ol className="space-y-3">
             {answer.sources.map((s, i) => (
               <li key={s.url} className="flex gap-3 text-sm">
-                <span className="w-5 shrink-0 text-right tabular-nums text-[--text-tertiary]">{i + 1}</span>
+                <span className="w-5 shrink-0 pt-px text-right tabular-nums text-(--text-tertiary)" aria-hidden="true">{i + 1}</span>
                 <span className="min-w-0">
+                  <span className="sr-only">{i + 1}. </span>
                   <a
                     href={s.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-medium text-[--text-primary] underline decoration-black/15 underline-offset-2 hover:text-[--accent-cyan] hover:decoration-[--accent-cyan]/40 transition-colors break-words"
+                    className="font-medium text-(--text-primary) underline decoration-black/15 underline-offset-2 hover:text-(--accent-cyan) hover:decoration-(--accent-cyan)/40 transition-colors break-words text-pretty"
                   >
                     {s.title}
+                    <span className="sr-only"> (opens in a new tab)</span>
                   </a>
-                  {s.domain !== s.title && <span className="ml-2 text-xs text-[--text-tertiary]">{s.domain}</span>}
+                  <span className="block text-xs text-(--text-tertiary)">{s.domain}</span>
                 </span>
               </li>
             ))}
           </ol>
         ) : (
-          <p className="text-sm text-[--text-tertiary]">This answer didn&rsquo;t cite any sources.</p>
+          <p className="text-sm text-(--text-tertiary)">This answer didn&rsquo;t cite any sources.</p>
         )}
       </div>
     </div>
@@ -175,8 +197,8 @@ export default function AnswerTabs({ answers }: { answers: AnswerView[] }) {
               onClick={() => select(i)}
               className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-[13px] font-medium sm:flex-none sm:gap-2 sm:px-4 sm:text-sm transition-[background-color,color,transform] duration-150 active:scale-[0.96] ${
                 selected
-                  ? "bg-white text-[--text-primary] shadow-[0_1px_2px_rgba(0,0,0,0.06),0_0_0_1px_rgba(0,0,0,0.04)]"
-                  : "text-[--text-secondary] hover:bg-black/[0.03] hover:text-[--text-primary]"
+                  ? "bg-white text-(--text-primary) shadow-[0_1px_2px_rgba(0,0,0,0.06),0_0_0_1px_rgba(0,0,0,0.04)]"
+                  : "text-(--text-secondary) hover:bg-black/[0.03] hover:text-(--text-primary)"
               }`}
             >
               <span

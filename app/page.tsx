@@ -11,6 +11,8 @@ import {
 import { useRouter } from "next/navigation";
 import FloatingKeywords from "@/components/FloatingKeywords";
 import Footer from "@/components/Footer";
+import Dialog from "@/components/Dialog";
+import CloseButton from "@/components/CloseButton";
 import AnalysisProgressPanel from "@/components/AnalysisProgressPanel";
 import { trackEvent } from "@/lib/analytics";
 import { MAX_TOPIC_LENGTH } from "@/lib/guards/limits";
@@ -292,6 +294,7 @@ export default function Home() {
   const [showMethodology, setShowMethodology] = useState(false);
   const [progress, setProgress] = useState<ProgressState | null>(null);
   const router = useRouter();
+  const closeMethodology = useCallback(() => setShowMethodology(false), []);
   // Random examples can't be rendered on the server: its pick and the
   // browser's would differ (a hydration error). The server renders the first
   // five, hidden so they hold the row's height, and the browser swaps in a
@@ -360,6 +363,7 @@ export default function Home() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setError("");
 
     const trimmedTopic = topic.trim();
@@ -513,14 +517,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <main className="flex-1 flex flex-col">
+      <main id="content" tabIndex={-1} className="flex-1 flex flex-col outline-none">
         {/* Split hero section */}
         <div className="flex-1 flex items-center relative">
 
-          {/* RIGHT — Floating Keywords Visual (full right half of viewport) */}
-          <div className="hidden md:block absolute top-0 right-0 w-1/2 h-full overflow-hidden">
-            <FloatingKeywords />
-          </div>
 
           <div className="relative z-10 w-full max-w-7xl mx-auto px-6 md:px-10 md:min-h-[calc(100vh-80px)] md:flex md:items-center pointer-events-none">
             {/* LEFT — Search */}
@@ -536,28 +536,36 @@ export default function Home() {
               >
                 AI Topic Explorer
               </h1>
-              <p className="text-lg text-[--text-secondary] mb-10 max-w-lg leading-relaxed">
-                Enter any topic and see what AI knows about it. We query
-                multiple models and combine their responses into key themes,
-                entities, and citations.
+              <p className="text-lg text-(--text-secondary) mb-10 max-w-lg leading-relaxed text-pretty">
+                Ask Claude, ChatGPT, Gemini and Grok the same question and read
+                their full answers side by side, with the sources they cite and
+                where they agree and disagree.
               </p>
 
               {/* Input Form */}
-              <form onSubmit={handleSubmit} className="mb-8">
+              <form onSubmit={handleSubmit} className="mb-8" noValidate>
+                <label htmlFor="topic" className="sr-only">
+                  Topic to explore
+                </label>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <input
+                    id="topic"
                     type="text"
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? "topic-error" : undefined}
                     value={topic}
                     onChange={(e) => setTopic(e.target.value)}
                     maxLength={MAX_TOPIC_LENGTH}
                     placeholder={placeholder ? `e.g. "${placeholder}"` : 'e.g. "oil and gas in New Mexico"'}
-                    className="flex-1 px-5 py-3.5 text-base rounded-2xl bg-white/80 border border-black/12 shadow-sm text-[--text-primary] placeholder-[--text-tertiary] focus:outline-none focus:border-[--accent-cyan]/50 focus:ring-2 focus:ring-[--accent-cyan]/15 focus:bg-white/90 backdrop-blur-xl transition-all duration-300"
-                    disabled={isLoading}
+                    className="flex-1 min-w-0 px-5 py-3.5 text-base rounded-2xl bg-white/80 border border-black/12 shadow-sm text-(--text-primary) placeholder-(--text-tertiary) outline-none focus-visible:border-(--accent-cyan) focus-visible:ring-2 focus-visible:ring-(--accent-cyan) focus-visible:ring-offset-2 focus-visible:ring-offset-(--bg-base) focus:bg-white/90 backdrop-blur-xl transition-[background-color,border-color,box-shadow] duration-200 read-only:text-(--text-secondary)"
+                    // Read-only rather than disabled while a run is going, so
+                    // keyboard focus stays here instead of dropping to the page.
+                    readOnly={isLoading}
                   />
                   <button
                     type="submit"
-                    disabled={isLoading}
-                    className="btn-primary px-8 py-3.5 text-base rounded-2xl whitespace-nowrap"
+                    aria-disabled={isLoading || undefined}
+                    className={`btn-primary px-8 py-3.5 text-base rounded-2xl whitespace-nowrap active:scale-[0.96] ${isLoading ? "cursor-progress" : ""}`}
                   >
                     {isLoading ? (
                       <span className="flex items-center justify-center gap-2">
@@ -569,9 +577,9 @@ export default function Home() {
                     )}
                   </button>
                 </div>
-                {error && (
-                  <p className="mt-4 text-red-500 font-medium text-sm">{error}</p>
-                )}
+                <p id="topic-error" role="alert" className="mt-4 text-red-700 font-medium text-sm empty:hidden">
+                  {error}
+                </p>
               </form>
 
               {/* Analysis Progress Panel */}
@@ -587,7 +595,7 @@ export default function Home() {
 
               {/* Example Topics */}
               {!progress && (
-                <div className="text-sm text-[--text-secondary]">
+                <div className="text-sm text-(--text-secondary)">
                   <p className="mb-3">Try an example:</p>
                   <div className="flex flex-wrap gap-2">
                     {exampleTopics.map((example, i) => (
@@ -600,7 +608,8 @@ export default function Home() {
                           setTopic(example);
                           trackEvent({ action: "example_topic_clicked", params: { topic: example } });
                         }}
-                        className={`pill-interactive px-4 py-2 rounded-full text-sm ${isClient ? "animate-fade-in" : "invisible"}`}
+                        type="button"
+                        className={`pill-interactive px-4 py-2 rounded-full text-sm active:scale-[0.96] ${isClient ? "animate-fade-in" : "invisible"}`}
                         disabled={isLoading}
                       >
                         {example}
@@ -612,7 +621,8 @@ export default function Home() {
                       setShowMethodology(true);
                       trackEvent({ action: "methodology_opened" });
                     }}
-                    className="mt-4 text-[--accent-cyan] hover:text-[--accent-violet] transition-colors underline underline-offset-2"
+                    type="button"
+                    className="mt-3 py-2 text-(--accent-cyan) hover:text-(--accent-violet) transition-colors underline underline-offset-2"
                   >
                     How does this work?
                   </button>
@@ -621,6 +631,12 @@ export default function Home() {
             </div>
 
           </div>
+
+          {/* RIGHT — Floating Keywords Visual (full right half of viewport).
+              After the form in the DOM so its pause button comes after it in tab order. */}
+          <div className="hidden md:block absolute top-0 right-0 w-1/2 h-full overflow-hidden">
+            <FloatingKeywords paused={!!progress} />
+          </div>
         </div>
       </main>
 
@@ -628,29 +644,18 @@ export default function Home() {
 
       {/* Methodology Modal */}
       {showMethodology && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          onClick={() => setShowMethodology(false)}
-        >
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-          <div
-            className="relative glass-tier-3 max-w-lg w-full max-h-[80vh] overflow-y-auto p-6 sm:p-8 rounded-2xl shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setShowMethodology(false)}
-              className="absolute top-4 right-4 text-[--text-tertiary] hover:text-[--text-primary] transition-colors text-xl leading-none"
-            >
-              &times;
-            </button>
+        <Dialog labelledBy="how-it-works-title" onClose={closeMethodology} className="max-w-lg">
+          <div className="p-6 sm:p-8 overflow-y-auto max-h-[80vh]">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <h2 id="how-it-works-title" className="text-xl font-bold text-(--text-primary)">
+                How It Works
+              </h2>
+              <CloseButton onClick={closeMethodology} className="-mt-2" />
+            </div>
 
-            <h2 className="text-xl font-bold text-[--text-primary] mb-4">
-              How It Works
-            </h2>
-
-            <div className="space-y-4 text-sm text-[--text-secondary] leading-relaxed">
+            <div className="space-y-4 text-sm text-(--text-secondary) leading-relaxed">
               <div>
-                <h3 className="font-semibold text-[--text-primary] mb-1">1. Asked like a person would ask</h3>
+                <h3 className="font-semibold text-(--text-primary) mb-1">1. Asked like a person would ask</h3>
                 <p>
                   Your topic goes to Claude, ChatGPT, Gemini and Grok in parallel, word for word,
                   with each AI&rsquo;s own web search turned on. Each runs the model its free
@@ -659,7 +664,7 @@ export default function Home() {
               </div>
 
               <div>
-                <h3 className="font-semibold text-[--text-primary] mb-1">2. Answers as written</h3>
+                <h3 className="font-semibold text-(--text-primary) mb-1">2. Answers as written</h3>
                 <p>
                   Each answer is shown in full, at whatever length the AI chose, with the sources
                   it cited. Nothing is rewritten.
@@ -667,7 +672,7 @@ export default function Home() {
               </div>
 
               <div>
-                <h3 className="font-semibold text-[--text-primary] mb-1">3. One reading of every answer</h3>
+                <h3 className="font-semibold text-(--text-primary) mb-1">3. One reading of every answer</h3>
                 <p>
                   A separate AI then reads each answer the same way and pulls out its themes, the
                   arguments it makes for and against, the people, organizations, places and laws it
@@ -676,7 +681,7 @@ export default function Home() {
               </div>
 
               <div>
-                <h3 className="font-semibold text-[--text-primary] mb-1">4. Compared across AIs</h3>
+                <h3 className="font-semibold text-(--text-primary) mb-1">4. Compared across AIs</h3>
                 <p>
                   Themes, arguments, names and sources are combined across the AIs and ranked by
                   how many of them raised each one, so cross-model agreement stands out.
@@ -684,7 +689,7 @@ export default function Home() {
               </div>
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

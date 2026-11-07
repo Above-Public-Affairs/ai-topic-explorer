@@ -14,11 +14,11 @@ export const PROVIDER_LABELS: Record<StoredProvider, string> = {
 };
 
 export const PROVIDER_COLORS: Record<StoredProvider, string> = {
-  claude: "bg-orange-50 text-orange-400",
-  openai: "bg-emerald-50 text-emerald-400",
-  gemini: "bg-blue-50 text-blue-400",
-  grok: "bg-red-50 text-red-400",
-  perplexity: "bg-purple-50 text-purple-400",
+  claude: "bg-orange-50 text-orange-700",
+  openai: "bg-emerald-50 text-emerald-700",
+  gemini: "bg-blue-50 text-blue-700",
+  grok: "bg-red-50 text-red-700",
+  perplexity: "bg-purple-50 text-purple-700",
 };
 
 /** Label for a provider name read from stored data, which may be unknown. */
@@ -28,5 +28,5 @@ export function providerLabel(provider: string): string {
 
 /** Badge color for a provider name read from stored data. */
 export function providerColor(provider: string): string {
-  return PROVIDER_COLORS[provider as StoredProvider] ?? "bg-gray-50 text-gray-400";
+  return PROVIDER_COLORS[provider as StoredProvider] ?? "bg-gray-50 text-gray-700";
 }

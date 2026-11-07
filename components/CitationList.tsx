@@ -32,7 +32,7 @@ export default function CitationList({
   if (citations.length === 0) {
     return (
       <div className="glass-tier-2 rounded-2xl p-8 text-center">
-        <p className="text-[--text-tertiary]">No citations suggested.</p>
+        <p className="text-(--text-tertiary)">No citations suggested.</p>
       </div>
     );
   }
@@ -46,7 +46,7 @@ export default function CitationList({
           // A domain can come back as a later group, so the index keeps keys unique.
           <div key={`${groupIdx}-${group.domain}`}>
             {group.items.length > 1 && (
-              <p className="text-[11px] font-medium text-[--text-tertiary] uppercase tracking-wide mb-2">
+              <p className="text-[11px] font-medium text-(--text-tertiary) uppercase tracking-wide mb-2">
                 {group.domain}
               </p>
             )}
@@ -57,7 +57,7 @@ export default function CitationList({
                     href={citation.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[--text-primary] underline decoration-black/15 hover:text-[--accent-cyan] hover:decoration-[--accent-cyan]/40 text-sm font-medium leading-snug transition-colors break-words min-w-0"
+                    className="text-(--text-primary) underline decoration-black/15 hover:text-(--accent-cyan) hover:decoration-(--accent-cyan)/40 text-sm font-medium leading-snug transition-colors break-words min-w-0"
                   >
                     {citation.title}
                   </a>
@@ -65,7 +65,7 @@ export default function CitationList({
                     {citation.providers.map((provider) => (
                       <span
                         key={provider}
-                        className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${PROVIDER_COLORS[provider]}`}
+                        className={`inline-block px-1.5 py-0.5 rounded text-[11px] font-medium ${PROVIDER_COLORS[provider]}`}
                       >
                         {PROVIDER_LABELS[provider]}
                       </span>
@@ -79,19 +79,19 @@ export default function CitationList({
       </div>
 
       {/* Disclaimer */}
-      <p className="mt-6 text-xs text-[--text-tertiary] border-t border-black/5 pt-4">
+      <p className="mt-6 text-xs text-(--text-tertiary) border-t border-black/5 pt-4">
         {disclaimer}
       </p>
 
       {/* AEO Checker callout */}
-      <div className="mt-4 bg-[--accent-cyan-muted] border border-[color:var(--accent-cyan)]/15 rounded-2xl p-4 text-center">
-        <p className="text-sm text-[--text-secondary]">
+      <div className="mt-4 bg-(--accent-cyan-muted) border border-[color:var(--accent-cyan)]/15 rounded-2xl p-4 text-center">
+        <p className="text-sm text-(--text-secondary)">
           Want your website cited by AI?{" "}
           <a
             href="https://aeochecker.app"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-semibold text-[--accent-cyan] underline hover:text-[--text-primary] transition-colors"
+            className="font-semibold text-(--accent-cyan) underline hover:text-(--text-primary) transition-colors"
           >
             Check out AEO Checker
           </a>

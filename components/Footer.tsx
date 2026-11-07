@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useId, useState } from "react";
+import Dialog from "@/components/Dialog";
+import CloseButton from "@/components/CloseButton";
 
 const CHANGELOG: { date: string; changes: string[] }[] = [
   {
@@ -13,7 +15,14 @@ const CHANGELOG: { date: string; changes: string[] }[] = [
       "Each answer shows its overall tone and how it frames the topic",
       "Each AI runs the model its free version uses by default, updated as that changes. Gemini now uses Gemini Flash-Lite",
       "Topics are no longer split into subtopics first, so results come back sooner",
-      "Older saved results still open as they were",
+      "Older saved results still open as they were, with a note that they come from an earlier version and a link to run the topic again",
+      "Grok's numbered citations now point to the matching source in its list, and every AI's sources are listed in the order its answer cites them",
+      "Sources are tidier: the same page linked with tracking codes is listed once, and unreadable titles are replaced with readable ones",
+      "Answers are set for easier reading: larger text, shorter lines, and no \"I'll search for…\" line at the top of Claude's answer",
+      "Easier to read and use with a keyboard or screen reader: stronger text contrast, visible focus, a skip link, pop-ups that hold and return focus and close with Escape, progress and errors that are announced, and AI status shown with icons as well as color",
+      "The floating words on the home page can be paused, stop while an analysis runs, and stay still if you've asked your device to reduce motion",
+      "Results pages are named after their topic in your browser tab, and load faster",
+      "The Report a Bug button is a small icon on phones, so it no longer covers the text",
     ],
   },
   {
@@ -117,36 +126,30 @@ const CHANGELOG: { date: string; changes: string[] }[] = [
 
 export default function Footer({ hideChangelog = false }: { hideChangelog?: boolean } = {}) {
   const [showChangelog, setShowChangelog] = useState(false);
-  const overlayRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!showChangelog) return;
-    function handleEscape(e: KeyboardEvent) {
-      if (e.key === "Escape") setShowChangelog(false);
-    }
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [showChangelog]);
+  const headingId = useId();
+  const close = () => setShowChangelog(false);
 
   return (
     <>
       <footer className="py-8 px-8 border-t border-black/5 text-center">
-        <p className="text-xs text-[--text-tertiary]">
+        <p className="text-xs text-(--text-tertiary)">
           Built by{" "}
           <a
-            href="https://www.linkedin.com/in/joshuacanter/"
+            href="https://abovepublicaffairs.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-medium hover:text-[--accent-cyan] transition-colors"
+            className="inline-block py-2 font-medium hover:text-(--accent-cyan) transition-colors"
           >
-            The Canter Company
+            Above Public Affairs
+            <span className="sr-only"> (opens in a new tab)</span>
           </a>
           {!hideChangelog && (
             <>
               <span className="mx-1.5">&middot;</span>
               <button
+                type="button"
                 onClick={() => setShowChangelog(true)}
-                className="hover:text-[--accent-cyan] transition-colors underline underline-offset-2"
+                className="py-2 hover:text-(--accent-cyan) transition-colors underline underline-offset-2"
               >
                 Changelog
               </button>
@@ -156,41 +159,26 @@ export default function Footer({ hideChangelog = false }: { hideChangelog?: bool
       </footer>
 
       {showChangelog && (
-        <div
-          ref={overlayRef}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          onClick={(e) => {
-            if (e.target === overlayRef.current) setShowChangelog(false);
-          }}
-        >
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-          <div
-            className="relative glass-tier-3 max-w-md w-full max-h-[80vh] overflow-y-auto p-6 sm:p-8 rounded-2xl shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setShowChangelog(false)}
-              className="absolute top-4 right-4 text-[--text-tertiary] hover:text-[--text-primary] transition-colors text-xl leading-none"
-              aria-label="Close"
-            >
-              &times;
-            </button>
-
-            <h2 className="text-xl font-bold text-[--text-primary] mb-5">
-              Changelog
-            </h2>
+        <Dialog labelledBy={headingId} onClose={close} className="max-w-md">
+          <div className="p-6 sm:p-8 overflow-y-auto max-h-[80vh]">
+            <div className="flex items-start justify-between gap-4 mb-5">
+              <h2 id={headingId} className="text-xl font-bold text-(--text-primary)">
+                Changelog
+              </h2>
+              <CloseButton onClick={close} className="-mt-2" />
+            </div>
 
             <div className="space-y-5">
               {CHANGELOG.slice(0, 5).map((day, i) => (
                 <div key={i}>
-                  <p className="text-xs font-semibold text-[--accent-cyan] mb-1.5">
+                  <p className="text-xs font-semibold text-(--accent-cyan) mb-1.5">
                     {day.date}
                   </p>
                   <ul className="space-y-1 pl-3">
                     {day.changes.map((change, j) => (
                       <li
                         key={j}
-                        className="text-sm text-[--text-secondary] leading-relaxed list-disc"
+                        className="text-sm text-(--text-secondary) leading-relaxed list-disc"
                       >
                         {change}
                       </li>
@@ -200,7 +188,7 @@ export default function Footer({ hideChangelog = false }: { hideChangelog?: bool
               ))}
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
     </>
   );
