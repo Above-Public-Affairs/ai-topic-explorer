@@ -9,8 +9,7 @@ and Grok. Phase 1 tasks 1.2, 1.3, 1.4 (cost and abuse guards) and 1.5 (stop losi
 interface for the tracker, is proven live for all four providers and waits for Josh's
 merge approval. Task 1.7 (Gemini on a paid Google tier) is done. Task 2.2 (tracking tables) is built and
 proven on a copy of production. Task 2.7 (entity merging, extraction model in the model
-list) is built and proven locally. The app is becoming an internal topic-tracking tool.
-proven on a copy of production. Task 2.5 moves the public site onto the new pipeline
+list) is built and proven locally. Task 2.5 moves the public site onto the new pipeline
 (`lib/answers` + `lib/extraction` via `runPipeline`); see "Public site (task 2.5)" below.
 The app is becoming an internal topic-tracking tool.
 
