@@ -4,6 +4,13 @@ import { useState, useRef, useEffect } from "react";
 
 const CHANGELOG: { date: string; changes: string[] }[] = [
   {
+    date: "Nov 6",
+    changes: [
+      "Topics can be up to 300 characters",
+      "Bug reports now tell you if they couldn't be sent",
+    ],
+  },
+  {
     date: "Oct 28",
     changes: [
       "Gemini retries when Google is busy and falls back to a lighter model, so it drops out of comparisons less often",

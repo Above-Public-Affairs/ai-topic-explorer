@@ -1,55 +1,73 @@
-const WINDOW_MS = 60 * 60 * 1000; // 1 hour
-const MAX_REQUESTS = 10;
-const CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+import { prisma } from "@/lib/db";
+import { hashIp } from "@/lib/guards/client-ip";
 
-const ipRequestMap = new Map<string, number[]>();
-let lastCleanup = Date.now();
-
-// Lazy cleanup: runs during checkRateLimit calls instead of a leaked setInterval
-function cleanupIfNeeded() {
-  const now = Date.now();
-  if (now - lastCleanup < CLEANUP_INTERVAL_MS) return;
-  lastCleanup = now;
-
-  for (const [ip, timestamps] of ipRequestMap.entries()) {
-    const valid = timestamps.filter((t) => now - t < WINDOW_MS);
-    if (valid.length === 0) {
-      ipRequestMap.delete(ip);
-    } else {
-      ipRequestMap.set(ip, valid);
-    }
-  }
+export interface RateLimitRule {
+  /** Separates counters for different endpoints. */
+  bucket: string;
+  max: number;
+  windowMs: number;
 }
 
-export function checkRateLimit(ip: string): {
+export const ANALYZE_LIMIT: RateLimitRule = {
+  bucket: "analyze",
+  max: 10,
+  windowMs: 60 * 60 * 1000,
+};
+
+export const BUG_REPORT_LIMIT: RateLimitRule = {
+  bucket: "bug-report",
+  max: 5,
+  windowMs: 60 * 60 * 1000,
+};
+
+/** Counters older than this are deleted now and then. */
+const RETENTION_MS = 24 * 60 * 60 * 1000;
+const CLEANUP_PROBABILITY = 0.02;
+
+export interface RateLimitResult {
   allowed: boolean;
   remaining: number;
   retryAfterMs?: number;
-} {
-  cleanupIfNeeded();
+}
 
+/**
+ * Count one request against `rule` for this IP. Counts live in Postgres
+ * (fixed windows), so they survive deploys and are shared across replicas.
+ * The upsert is a single atomic statement, so concurrent requests can't
+ * both read the same count.
+ *
+ * Throws if the database is unreachable; callers decide whether to fail open
+ * or closed.
+ */
+export async function checkRateLimit(
+  ip: string,
+  rule: RateLimitRule
+): Promise<RateLimitResult> {
   const now = Date.now();
-  const timestamps = ipRequestMap.get(ip) || [];
+  const windowStart = new Date(Math.floor(now / rule.windowMs) * rule.windowMs);
+  const key = hashIp(ip);
 
-  // Filter to only timestamps within the window
-  const validTimestamps = timestamps.filter((t) => now - t < WINDOW_MS);
+  const rows = await prisma.$queryRaw<{ count: number }[]>`
+    INSERT INTO "RateLimitCounter" ("bucket", "key", "windowStart", "count")
+    VALUES (${rule.bucket}, ${key}, ${windowStart}, 1)
+    ON CONFLICT ("bucket", "key", "windowStart")
+    DO UPDATE SET "count" = "RateLimitCounter"."count" + 1
+    RETURNING "count"
+  `;
+  const count = Number(rows[0]?.count ?? 1);
 
-  if (validTimestamps.length >= MAX_REQUESTS) {
-    const oldestInWindow = validTimestamps[0];
-    const retryAfterMs = WINDOW_MS - (now - oldestInWindow);
+  if (Math.random() < CLEANUP_PROBABILITY) {
+    prisma.rateLimitCounter
+      .deleteMany({ where: { windowStart: { lt: new Date(now - RETENTION_MS) } } })
+      .catch((e) => console.warn("[Rate limit] Cleanup failed:", e));
+  }
+
+  if (count > rule.max) {
     return {
       allowed: false,
       remaining: 0,
-      retryAfterMs,
+      retryAfterMs: windowStart.getTime() + rule.windowMs - now,
     };
   }
-
-  // Record this request
-  validTimestamps.push(now);
-  ipRequestMap.set(ip, validTimestamps);
-
-  return {
-    allowed: true,
-    remaining: MAX_REQUESTS - validTimestamps.length,
-  };
+  return { allowed: true, remaining: rule.max - count };
 }

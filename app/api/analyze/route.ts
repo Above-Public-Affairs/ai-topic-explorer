@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { guardAnalyzeRequest } from "@/lib/guards/analyze-request";
+import { estimateAnalysisCost, recordSpend } from "@/lib/guards/spend";
 import { reportError } from "@above-public-affairs/error-reporter";
 import { analyzeWithClaude } from "@/lib/ai-clients/claude";
 import { analyzeWithOpenAI } from "@/lib/ai-clients/openai";
@@ -265,56 +266,10 @@ function mergeProviderResponses(responses: AIResponse[]): AIResponse {
 }
 
 export async function POST(request: NextRequest) {
-  // Kill switch
-  if (process.env.ANALYSIS_ENABLED === "false") {
-    return NextResponse.json(
-      { error: "Analysis is temporarily unavailable" },
-      { status: 503 }
-    );
-  }
-
-  // Rate limiting
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    request.headers.get("x-real-ip") ||
-    "unknown";
-
-  const rateLimit = checkRateLimit(ip);
-  if (!rateLimit.allowed) {
-    const retryMinutes = Math.ceil((rateLimit.retryAfterMs || 0) / 60000);
-    reportError({
-      project: "ai-topic-explorer",
-      category: "rate_limit",
-      message: `Rate limit hit: ${retryMinutes} min retry`,
-    });
-    return NextResponse.json(
-      {
-        error: `You've reached the analysis limit. Try again in ${retryMinutes} minute${retryMinutes === 1 ? "" : "s"}.`,
-      },
-      { status: 429 }
-    );
-  }
-
-  // Parse and validate input
-  let topic: string;
-  try {
-    const body = await request.json();
-    topic = body.topic;
-  } catch {
-    return NextResponse.json(
-      { error: "Invalid request body" },
-      { status: 400 }
-    );
-  }
-
-  if (!topic || typeof topic !== "string" || topic.trim().length === 0) {
-    return NextResponse.json(
-      { error: "Please provide a topic to analyze" },
-      { status: 400 }
-    );
-  }
-
-  topic = topic.trim();
+  // Kill switch, input caps, daily spend cap and rate limit (lib/guards)
+  const guard = await guardAnalyzeRequest(request);
+  if (!guard.ok) return guard.response;
+  const topic = guard.topic;
 
   // Get configured providers
   const providers = getConfiguredProviders();
@@ -520,6 +475,9 @@ export async function POST(request: NextRequest) {
             errors[provider] = categorizeError(result.reason);
           }
         }
+
+        // Count this run against the daily spend cap, before any early return.
+        await recordSpend(estimateAnalysisCost(responses, allUsage));
 
         // Log total usage
         const totalInput = allUsage.reduce((sum, u) => sum + u.inputTokens, 0);
