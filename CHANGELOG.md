@@ -5,6 +5,7 @@ All notable changes to AI Topic Explorer will be documented in this file.
 ## [2026-11-06]
 
 ### Changed
+- New project plan: AI Topic Explorer becomes an internal tool that tracks how AI describes Above's issues over time. The public site stays up and gets a durability pass (see `PROJECT-PLAN.md`); a `LESSONS.md` file was added
 - Security upgrade: Next.js 16.1.6 → 16.4.5 and Prisma 7.4 → 7.10.1, plus `npm audit fix`. `npm audit --omit=dev` goes from 22 vulnerabilities (1 critical, 19 high) to 0
 - AI SDKs brought current: `@anthropic-ai/sdk` 0.74 → 1.6 (sends API version 2026-10-21; the `between_tools` cast is no longer needed) and `openai` 6 → 7. Models and behavior are unchanged
 - Gemini moved from the deprecated `@google/generative-ai` to `@google/genai`. Same models, retries, Flash-Lite fallback, safety and thinking settings. Error details are parsed from the new SDK's `ApiError`, and a blocked response still fails the provider

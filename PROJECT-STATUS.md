@@ -6,7 +6,9 @@
 
 **Nov 6, 2026:** the project is pivoting to an internal topic-tracking tool. The public
 site stays up and gets a durability and security pass. The full plan, with the five new
-phases and what blocks each one, is in `PROJECT-PLAN.md`. Nothing from it is built yet.
+phases and what blocks each one, is in `PROJECT-PLAN.md`. Work runs from the project
+tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS). Done: 1.1 (plan docs),
+1.2 (platform upgrade) and 3.1 (Grok research, not yet merged).
 
 Key findings from the Nov 6 codebase review that drive phase 1:
 - Perplexity's Sonar Chat Completions API ended Sep 27, 2026. Perplexity is being
