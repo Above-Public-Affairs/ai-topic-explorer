@@ -6,7 +6,7 @@
 Live in production (beta) on Railway with four providers: Claude, ChatGPT, Gemini
 and Grok. Phase 1 tasks 1.2, 1.3, 1.4 (cost and abuse guards) and 1.5 (stop losing results) have shipped, and task 5.1
 (email sending) is in place for the later alert and report phases. Task 2.1, the provider
-interface for the tracker, is built on `claude/provider-interface-ab8e35` and waits for
+interface for the tracker, is built on `claude/task-2-1-provider-interface` and waits for
 Josh's merge approval. The app is becoming an internal topic-tracking tool.
 
 **Plan and tracker.** The roadmap is in `PROJECT-PLAN.md`. Work runs from the project
