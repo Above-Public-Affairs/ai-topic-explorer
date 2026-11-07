@@ -28,6 +28,12 @@ Key findings from the Nov 6 codebase review that drive phase 1:
 Deployed on Railway with four providers (Claude, ChatGPT, Gemini, Grok). Ongoing work is reliability hardening
 driven by production error reports.
 
+### Email sending (task 5.1, 2026-11-06)
+- SendGrid, as in every other Above emailer; details in `PROJECT-PLAN.md` §Email.
+  `lib/email/send.ts` exports `sendEmail()`; `scripts/send-test-email.ts` is the test.
+- Railway vars `SENDGRID_API_KEY`, `SENDGRID_FROM`, `SENDGRID_FROM_NAME` are set. A test
+  email was accepted by SendGrid on 2026-11-07 07:14 UTC.
+
 ### Cost and abuse guards (task 1.4, 2026-11-06)
 - All guard logic lives in `lib/guards/*`, `lib/rate-limit.ts` and `proxy.ts`. The
   analyze route calls `guardAnalyzeRequest()` at entry and `recordSpend()` once usage is in.

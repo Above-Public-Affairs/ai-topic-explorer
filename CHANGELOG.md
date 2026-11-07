@@ -5,6 +5,7 @@ All notable changes to AI Topic Explorer will be documented in this file.
 ## [2026-11-06]
 
 ### Added
+- Email sending (task 5.1), for the coming alerts and monthly report: SendGrid, the same account Above's other tools use, from AI Topic Explorer `<topic-explorer@abovepublicaffairs.com>`. `npm run email:test` sends a test email
 - Cost and abuse guards on the public site (task 1.4):
   - Topics are capped at 300 characters (form and server). Each analysis runs at most 4 queries of up to 200 characters, and the topic reaches the expansion model as quoted data, not as instructions
   - Rate limits are kept in Postgres (`RateLimitCounter`), so they survive deploys and work across replicas: 10 analyses and 5 bug reports per visitor per hour. Malformed requests don't count

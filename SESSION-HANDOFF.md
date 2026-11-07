@@ -4,14 +4,22 @@
 
 ## Where we are
 Live in production (beta) on Railway with four providers: Claude, ChatGPT, Gemini
-and Grok. Phase 1 tasks 1.2, 1.3 and 1.4 (cost and abuse guards) have shipped. The
+and Grok. Phase 1 tasks 1.2, 1.3 and 1.4 (cost and abuse guards) have shipped, and task 5.1
+(email sending) is in place for the later alert and report phases. The
 app is becoming an internal topic-tracking tool.
 
 **Plan and tracker.** The roadmap is in `PROJECT-PLAN.md`. Work runs from the project
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
-Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 3.1 and 3.2 (no X Search).
+Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 3.1, 3.2 (no X Search) and 5.1.
 
-## What was built this session (task 1.4)
+## Email (task 5.1)
+- `lib/email/send.ts`: `sendEmail({ to, subject, text, html? })` over SendGrid v3,
+  30s timeout, `email_error` reports (counts only, no addresses). Throws
+  `SendRejectedError` when SendGrid refuses; a plain Error means the outcome is unknown.
+- Sender AI Topic Explorer `<topic-explorer@abovepublicaffairs.com>`, replies to Josh.
+- Test: `railway run npm run email:test` (`TEST_EMAIL_TO` overrides the recipient).
+
+## What was built earlier (task 1.4)
 - `lib/guards/`: `limits.ts` (300-char topic, 4 queries, 200 chars each),
   `client-ip.ts` (Railway `X-Real-IP`, right-most XFF fallback, hashed keys),
   `spend.ts` (daily cap, `DAILY_SPEND_CAP_USD`, default $50), `analyze-request.ts`
@@ -40,6 +48,8 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 3.1 and 3.2 (no X Search).
 - `components/MethodologySection.tsx` isn't imported anywhere; delete or use it.
 
 ## Known gotchas
+- **Scripts run under Node's type stripping** (`node scripts/x.ts`). Anything they
+  import can't use `@/` paths, enums or constructor parameter properties.
 - **Google model access depends on the project's age.** A newly created Gemini key
   may not get older models that existing projects still have. Test the exact model
   with a new key before deploying it.
