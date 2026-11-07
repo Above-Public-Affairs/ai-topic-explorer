@@ -7,11 +7,26 @@ Live in production (beta) on Railway with four providers: Claude, ChatGPT, Gemin
 and Grok. Phase 1 tasks 1.2, 1.3, 1.4 (cost and abuse guards) and 1.5 (stop losing results) have shipped, and task 5.1
 (email sending) is in place for the later alert and report phases. Task 2.1, the provider
 interface for the tracker, is proven live for all four providers and waits for Josh's
-merge approval. Task 1.7 (Gemini on a paid Google tier) is done. The app is becoming an internal topic-tracking tool.
+merge approval. Task 1.7 (Gemini on a paid Google tier) is done. Task 2.2 (tracking tables) is built and
+proven on a copy of production. The app is becoming an internal topic-tracking tool.
 
 **Plan and tracker.** The roadmap is in `PROJECT-PLAN.md`. Work runs from the project
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
 Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search) and 5.1.
+
+## Tracking tables (task 2.2)
+- Migration `20261107120000_tracking_tables`: 13 new tables, nothing changed on
+  `Analysis`, `RateLimitCounter` or `DailySpend`. Railway's pre-deploy applies it.
+- `Run` → `Answer` (every `AskResult` field as columns; failed calls keep `errorKind`)
+  → `Citation` (`origin` provider/extracted) and one `Extraction` (model,
+  `promptVersion`, tone, own cost) → `Entity`, `Theme` (optional `SubTopic`), `Argument`.
+- `WatchItem` (topic, geography, ask city) → `SubTopic`, `QuestionSet`
+  (anchor/promoted/fresh; a fresh set links to its run) → `Question` (retire, never edit).
+- `ModelRegistry`: add a row and set `retiredAt` on the old one; answers point at the row.
+- `Event`: category, status, source, `triggerAt`, linked `runId`.
+- Copying prod: its Postgres has no public proxy. Dump over `railway ssh --service Postgres`
+  (pg_dump | gzip | base64), restore into a local Postgres 17. Prod has an
+  `add_error_log` migration row not in the repo; `migrate deploy` ignores it.
 
 ## Tests and CI (task 1.6)
 - `npm test` runs Vitest (`vitest.config.mts`, `@/` alias, provider keys blanked).

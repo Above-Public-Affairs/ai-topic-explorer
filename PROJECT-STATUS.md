@@ -12,6 +12,10 @@ tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS). Done: 1.1 (plan doc
 abuse guards), 1.5 (stop losing results) and 3.1 (Grok research, not yet merged). Task 3.2 decided: no X Search.
 Task 2.1 (provider interface, also covering 3.3) is built and proven live for all four
 providers, and waits for Josh's merge approval. Task 1.7 (Gemini on a paid Google tier) is done.
+Task 2.2 (tracking tables) is built: migration `20261107120000_tracking_tables` adds 13
+tables beside the public site's. Proven on a copy of production (Postgres 17.11 dump over
+`railway ssh`): migration applied, no schema drift, all 122 saved results still render. Prod also
+records a `20260215120000_add_error_log` migration that isn't in the repo; `migrate deploy` ignores it.
 
 Key findings from the Nov 6 codebase review that drive phase 1:
 - Perplexity's Sonar Chat Completions API ended Sep 27, 2026. Perplexity is being

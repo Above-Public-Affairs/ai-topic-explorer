@@ -7,6 +7,11 @@ All notable changes to AI Topic Explorer will be documented in this file.
 ### Added
 - Test suite (task 1.6): `npm test` runs Vitest over answer parsing (`parseStructuredData` and each analyze-flow client, with recorded answers and mocked SDKs), result merging, error labels (the analyze route's and `ProviderError` kinds), the stored-result reader (including a v1 Perplexity-era result) and the dated price table. No network calls or API keys
 - GitHub Actions CI (`.github/workflows/ci.yml`): lint, typecheck and tests on every push to `main` and every PR
+- Tables for the tracking pipeline (task 2.2), migration `20261107120000_tracking_tables`. Additive only: `Analysis`, `RateLimitCounter` and `DailySpend` are untouched, so saved results load as before.
+  - `Run` (a snapshot or public-site run), `Answer` (one provider's answer: text, model asked for and answered, search queries, usage, location and how it was sent, cost with source and price ids, or the typed error), `Citation` (cited vs. only looked at, by domain)
+  - `Extraction` (the one extraction pass: model, prompt version, tone, own cost) with `Entity`, `Theme` (optionally tied to a sub-topic) and `Argument` (for/against)
+  - `WatchItem` (topic, geography, the city it's asked from) with `SubTopic`, `QuestionSet` (anchor, promoted, fresh) and `Question` (retired, never edited)
+  - `ModelRegistry` (provider, model, effort, search setting, location mode, date confirmed, whether it's a guess) and `Event` (category, source, trigger time, linked snapshot)
 
 ### Changed
 - The analyze route's error labelling and per-provider merge moved, unchanged, to `lib/analysis/provider-errors.ts` and `lib/analysis/merge-provider-responses.ts` so tests can import them (a Next route file can't export helpers)

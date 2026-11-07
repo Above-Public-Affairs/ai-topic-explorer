@@ -35,3 +35,429 @@ model DailySpend {
   capAlerted Boolean  @default(false)
   updatedAt  DateTime @updatedAt
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tracking pipeline (PROJECT-PLAN §2B, §2C, §4A–4D). Additive: the public
+// site's `Analysis` rows above are untouched and keep loading as before.
+//
+// We track industries and topics, not clients: nothing here names a client or
+// an opponent. Framing lives on `Extraction` (tone), `Theme`, `Argument` and
+// `Citation`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AiProvider {
+  claude
+  openai
+  gemini
+  grok
+}
+
+/// How the user location reached the provider (lib/answers/types.ts LocationMode).
+enum LocationMode {
+  parameter
+  by_prompt
+  none
+}
+
+/// `provider`: the provider reported the charge. `computed`: from usage × price table.
+enum CostSource {
+  provider
+  computed
+}
+
+/// Free-tier default models, one row per provider/model/settings combination
+/// (§2C). A new row is added when the default changes; the old one gets
+/// `retiredAt`, so every answer can point at the exact registry row it ran on.
+model ModelRegistry {
+  id            String       @id @default(cuid())
+  provider      AiProvider
+  model         String
+  /// Reasoning/effort level sent with the request, when the API has one.
+  effortLevel   String?
+  /// Search tool and settings used, e.g. "web_search_20250305".
+  searchSetting String?
+  locationMode  LocationMode
+  /// When a person or the model watcher last confirmed this is the free-tier default.
+  confirmedAt   DateTime
+  /// true when no official page says what free users get (xAI), so it's a best guess.
+  isGuess       Boolean      @default(false)
+  /// Where the confirmation came from (help page URL).
+  sourceUrl     String?
+  note          String?
+  activeFrom    DateTime     @default(now())
+  /// Set when the free-tier default moved on. Null = current.
+  retiredAt     DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  answers Answer[]
+  events  Event[]
+
+  @@index([provider, retiredAt])
+}
+
+/// A topic tracked over time (§4A): topic + optional geography + the place it's
+/// asked from. Sub-topics live inside it (`SubTopic`), not as separate items.
+model WatchItem {
+  id          String    @id @default(cuid())
+  /// Short label, e.g. "Data centers in Texas".
+  name        String
+  topic       String
+  /// Geography the topic is about ("Texas"). Null = national/none.
+  geography   String?
+  /// Optional sub-sector, e.g. "renewables".
+  subSector   String?
+  /// The user location every question is asked from (UserLocation).
+  askCity     String
+  askRegion   String
+  askCountry  String    @default("US")
+  askTimezone String?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  retiredAt   DateTime?
+
+  subTopics    SubTopic[]
+  questionSets QuestionSet[]
+  runs         Run[]
+  events       Event[]
+}
+
+/// A sub-topic inside a watch item (e.g. power generation, water use, noise).
+model SubTopic {
+  id          String    @id @default(cuid())
+  watchItemId String
+  name        String
+  createdAt   DateTime  @default(now())
+  retiredAt   DateTime?
+
+  watchItem WatchItem  @relation(fields: [watchItemId], references: [id])
+  questions Question[]
+  themes    Theme[]
+
+  @@unique([watchItemId, name])
+}
+
+/// anchor: locked, re-asked every snapshot (set 1). promoted: a recurring fresh
+/// question moved into its own locked set. fresh: generated new for one snapshot.
+enum QuestionSetKind {
+  anchor
+  promoted
+  fresh
+}
+
+/// A set of questions for a watch item (§4B). Anchor and promoted sets are
+/// locked: questions are retired, never edited.
+model QuestionSet {
+  id          String          @id @default(cuid())
+  watchItemId String
+  kind        QuestionSetKind
+  /// Set number as shown in reports ("1" for the anchor set, "2", "3", … for fresh sets).
+  number      Int
+  /// When the set's questions were fixed; promoted sets compare from here.
+  startedAt   DateTime        @default(now())
+  lockedAt    DateTime?
+  /// Fresh sets belong to the one snapshot that generated them.
+  runId       String?         @unique
+  createdAt   DateTime        @default(now())
+
+  watchItem WatchItem  @relation(fields: [watchItemId], references: [id])
+  run       Run?       @relation(fields: [runId], references: [id])
+  questions Question[]
+
+  @@unique([watchItemId, number])
+}
+
+/// One question, written the way a voter would ask it. Text never changes
+/// after creation; a stale question gets `retiredAt` instead.
+model Question {
+  id             String    @id @default(cuid())
+  setId          String
+  /// Position in the set: 1.1, 1.2, … is set 1 position 1, 2.
+  position       Int
+  text           String
+  subTopicId     String?
+  /// For a promoted question: the fresh question it came from.
+  promotedFromId String?
+  createdAt      DateTime  @default(now())
+  retiredAt      DateTime?
+
+  set          QuestionSet @relation(fields: [setId], references: [id])
+  subTopic     SubTopic?   @relation(fields: [subTopicId], references: [id])
+  promotedFrom Question?   @relation("Promotion", fields: [promotedFromId], references: [id])
+  promotedTo   Question[]  @relation("Promotion")
+  answers      Answer[]
+
+  @@unique([setId, position])
+}
+
+/// weekly / event / model_switch: tracking snapshots of a watch item.
+/// manual: run by hand. public: a public-site analysis on the new pipeline (§2D).
+enum RunKind {
+  weekly
+  event
+  model_switch
+  manual
+  public
+}
+
+enum RunStatus {
+  running
+  complete
+  partial
+  failed
+}
+
+/// One run of the pipeline. A tracking snapshot is a run with a watch item.
+model Run {
+  id          String    @id @default(cuid())
+  kind        RunKind
+  status      RunStatus @default(running)
+  watchItemId String?
+  /// Public-site topic, or the watch item topic at the time of the run.
+  topic       String
+  /// The location asked from for this run (copied, so later edits to the watch item don't rewrite history).
+  askCity     String?
+  askRegion   String?
+  askCountry  String?
+  askTimezone String?
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
+  /// Sum of answer + extraction costs, filled when the run finishes.
+  costUsd     Float?
+  /// The run's noise band and other run-level stats (§4C), shape owned by phase 4.
+  stats       Json?
+  note        String?
+
+  watchItem WatchItem?   @relation(fields: [watchItemId], references: [id])
+  freshSet  QuestionSet?
+  answers   Answer[]
+  /// The event(s) that triggered this run, for kind = event.
+  events    Event[]
+
+  @@index([watchItemId, startedAt])
+  @@index([kind, startedAt])
+}
+
+/// One provider's answer to one question in one run (AskResult). Anchor
+/// questions are asked 2–3 times per snapshot; `repeat` tells the calls apart.
+/// Failed calls are stored too (answer null, error fields set).
+model Answer {
+  id              String     @id @default(cuid())
+  runId           String
+  /// Null for public-site runs, whose questions aren't in a question set.
+  questionId      String?
+  /// The text actually sent, word for word.
+  question        String
+  repeat          Int        @default(1)
+  provider        AiProvider
+  modelRegistryId String?
+  /// The model asked for (the provider's MODEL constant).
+  requestedModel  String
+  /// The model that answered, as the response names it. Null when the call failed.
+  model           String?
+  answer          String?
+  finishReason    String?
+  latencyMs       Int?
+  /// Search queries the provider ran, in order.
+  searchQueries   String[]   @default([])
+
+  /// Location (UserLocation) and how it was sent.
+  locationCity     String?
+  locationRegion   String?
+  locationCountry  String?
+  locationTimezone String?
+  locationMode     LocationMode
+
+  /// Usage (AnswerUsage).
+  inputTokens       Int @default(0)
+  cachedInputTokens Int @default(0)
+  outputTokens      Int @default(0)
+  reasoningTokens   Int @default(0)
+  searchCalls       Int @default(0)
+
+  /// Cost per answer (AnswerCost).
+  costUsd       Float       @default(0)
+  costSource    CostSource?
+  costTokensUsd Float?
+  costSearchUsd Float?
+  /// Price-table rows (lib/answers/prices.ts) the cost was computed from.
+  priceIds      String[]    @default([])
+  costNote      String?
+
+  /// ProviderErrorKind when the call failed; null on success.
+  errorKind    String?
+  errorStatus  Int?
+  errorMessage String?
+
+  createdAt DateTime @default(now())
+
+  run           Run            @relation(fields: [runId], references: [id], onDelete: Cascade)
+  questionRef   Question?      @relation(fields: [questionId], references: [id])
+  modelRegistry ModelRegistry? @relation(fields: [modelRegistryId], references: [id])
+  citations     Citation[]
+  extraction    Extraction?
+
+  @@index([runId])
+  @@index([questionId, createdAt])
+  @@index([provider, createdAt])
+}
+
+/// A source attached to an answer. `origin = provider` rows come straight from
+/// the provider's response (AnswerSource); `extracted` rows are sources the
+/// extraction pass found named in the answer text.
+model Citation {
+  id       String   @id @default(cuid())
+  answerId String
+  url      String
+  /// Hostname without "www.", for grouping citation shifts by outlet.
+  domain   String
+  title    String?
+  /// true: cited in the answer. false: only looked at. null: the API doesn't say.
+  cited    Boolean?
+  /// "provider" or "extracted".
+  origin   String   @default("provider")
+  /// Order in the provider's response.
+  position Int
+
+  answer Answer @relation(fields: [answerId], references: [id], onDelete: Cascade)
+
+  @@index([answerId])
+  @@index([domain])
+}
+
+/// The one fixed extraction pass over an answer (§2B), with its own model,
+/// prompt version and cost. Tone is the answer's overall framing.
+model Extraction {
+  id            String   @id @default(cuid())
+  answerId      String   @unique
+  model         String
+  /// Bumped whenever the extraction prompt changes, so results stay comparable.
+  promptVersion String
+  /// Overall tone toward the industry/topic, e.g. "positive", "mixed", "critical".
+  tone          String?
+  /// Short note on how the answer frames the topic.
+  framing       String?
+  inputTokens   Int      @default(0)
+  outputTokens  Int      @default(0)
+  costUsd       Float    @default(0)
+  priceIds      String[] @default([])
+  /// Full structured output, kept for re-parsing.
+  raw           Json?
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+
+  answer    Answer     @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  entities  Entity[]
+  themes    Theme[]
+  arguments Argument[]
+}
+
+/// A person, organization, place, law or other named thing in an answer.
+model Entity {
+  id           String  @id @default(cuid())
+  extractionId String
+  name         String
+  /// Lower-cased, punctuation-stripped name used to match across answers.
+  normalized   String
+  /// "person", "organization", "place", "legislation", "other".
+  type         String
+  mentions     Int     @default(1)
+  url          String?
+
+  extraction Extraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+
+  @@index([extractionId])
+  @@index([normalized])
+}
+
+/// A theme in an answer, optionally tied to one of the watch item's sub-topics.
+model Theme {
+  id           String  @id @default(cuid())
+  extractionId String
+  label        String
+  normalized   String
+  subTopicId   String?
+  /// How the theme is framed: "positive", "negative", "neutral", "mixed".
+  sentiment    String?
+  /// 0–1 share of the answer about this theme.
+  weight       Float?
+
+  extraction Extraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+  subTopic   SubTopic?  @relation(fields: [subTopicId], references: [id])
+
+  @@index([extractionId])
+  @@index([normalized])
+}
+
+enum ArgumentSide {
+  for
+  against
+}
+
+/// An argument for or against the industry/topic as the answer presents it.
+model Argument {
+  id           String       @id @default(cuid())
+  extractionId String
+  side         ArgumentSide
+  text         String
+  /// Source the answer attributes it to, when it does.
+  sourceUrl    String?
+
+  extraction Extraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+
+  @@index([extractionId])
+}
+
+/// Approved event categories (§4D, task 4.6).
+enum EventCategory {
+  new_model
+  model_policy
+  crawler_change
+  election
+  legislative_session
+  major_news
+}
+
+enum EventStatus {
+  /// Found by the watcher; waiting for the trigger time or approval.
+  pending
+  /// Triggered (or will trigger) a snapshot.
+  approved
+  /// Logged but not acted on (cap reached, out of scope, rejected).
+  ignored
+}
+
+/// Something that may move AI answers. Every trigger is logged with its source.
+model Event {
+  id              String        @id @default(cuid())
+  category        EventCategory
+  status          EventStatus   @default(pending)
+  title           String
+  summary         String?
+  sourceUrl       String?
+  sourceName      String?
+  /// true for calendar events (election days, session dates).
+  scheduled       Boolean       @default(false)
+  /// When the event happened (or will).
+  occurredAt      DateTime
+  detectedAt      DateTime      @default(now())
+  /// When its snapshot should run (about 24h after the event).
+  triggerAt       DateTime?
+  /// Geography it applies to; null for national/provider-wide events.
+  geography       String?
+  watchItemId     String?
+  /// For new_model events: the registry row that became the default.
+  modelRegistryId String?
+  /// The snapshot it triggered.
+  runId           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  watchItem     WatchItem?     @relation(fields: [watchItemId], references: [id])
+  modelRegistry ModelRegistry? @relation(fields: [modelRegistryId], references: [id])
+  run           Run?           @relation(fields: [runId], references: [id])
+
+  @@index([status, triggerAt])
+  @@index([category, occurredAt])
+}
