@@ -8,8 +8,34 @@ import type { AnalysisResult } from "@/lib/types";
  * v1: Feb–Nov 2026. May carry a Perplexity response, `NaN`-turned-null Grok
  *     frequencies, or fields missing from early runs.
  * v2: Nov 2026. Adds `schemaVersion`; `model` can list several models.
+ * v3: Nov 2026, the new pipeline (§2D). Only `{ schemaVersion, topic, runId }`:
+ *     the answers, sources and extraction live in the Run tables and are read
+ *     by lib/results/run-view.ts. Read with `readRunPointer`.
  */
-export const RESULT_SCHEMA_VERSION = 2;
+export const RESULT_SCHEMA_VERSION = 3;
+
+/** The last version stored as one JSON blob (the `AnalysisResult` shape). */
+export const LEGACY_RESULT_SCHEMA_VERSION = 2;
+
+/** What a v3 result stores: a pointer to its pipeline run. */
+export interface RunPointer {
+  schemaVersion: 3;
+  topic: string;
+  runId: string;
+}
+
+export function runPointer(topic: string, runId: string): RunPointer {
+  return { schemaVersion: RESULT_SCHEMA_VERSION, topic, runId };
+}
+
+/** The run a saved result points to, or null for a v1/v2 blob. */
+export function readRunPointer(raw: unknown): RunPointer | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const { schemaVersion, topic, runId } = raw as Record<string, unknown>;
+  if (typeof schemaVersion !== "number" || schemaVersion < 3) return null;
+  if (typeof runId !== "string" || !runId) return null;
+  return { schemaVersion: 3, topic: typeof topic === "string" ? topic : "", runId };
+}
 
 const STORED_PROVIDERS = ["claude", "openai", "gemini", "grok", "perplexity"] as const;
 

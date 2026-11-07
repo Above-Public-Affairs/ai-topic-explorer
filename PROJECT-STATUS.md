@@ -30,6 +30,12 @@ and `EntityAlias` (migration `20261107200000_entity_merge_and_extraction_model`)
 distinct names, 29 entities after merging (30 by rules alone, without the model's
 `canonicalName`). After deploy, run `npm run entities:merge` on Railway once to merge
 entities stored before 2.7 (there are none in production yet unless the pipeline has run).
+Task 2.5 (public site on the new pipeline) is built: `/api/analyze` runs `runPipeline` (kind
+`public`, no location, topic asked once with no subtopic expansion) and saves a v3 `Analysis`
+row that points at its `Run`. The results page reads v3 results from the run tables
+(`lib/results/run-view.ts`) and v1/v2 blobs as before. `lib/ai-clients/` and the JSON
+parse/merge code are gone. Spend cap counts real answer + extraction cost, plus $0.15 per
+call cut off by the deadline. Local proof: 4/4 answered and extracted in ~40s, $0.15 total.
 
 Key findings from the Nov 6 codebase review that drive phase 1:
 - Perplexity's Sonar Chat Completions API ended Sep 27, 2026. Perplexity is being

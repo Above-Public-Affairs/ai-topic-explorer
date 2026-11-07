@@ -4,8 +4,11 @@ import { toWordCloudData, topicToWords } from "@/lib/analysis/word-frequency";
 import { reportError } from "@above-public-affairs/error-reporter";
 import type { KeyTheme, Provider } from "@/lib/types";
 import { PROVIDER_LABELS } from "@/lib/providers";
-import { readStoredResult } from "@/lib/results/stored-result";
+import { readRunPointer, readStoredResult } from "@/lib/results/stored-result";
+import { loadRunView, type RunView } from "@/lib/results/run-view";
+import type { ProviderStatusItem } from "@/components/ResultsShell";
 import ResultsContent from "./ResultsContent";
+import RunResultsContent from "./RunResultsContent";
 import UnreadableResult from "./UnreadableResult";
 
 interface Props {
@@ -21,6 +24,23 @@ export default async function ResultsPage({ params }: Props) {
 
   if (!analysis) {
     notFound();
+  }
+
+  // Results from the new pipeline (v3) point to their run.
+  const pointer = readRunPointer(analysis.result);
+  if (pointer) {
+    const view = await loadRunView(pointer.runId);
+    if (!view || !view.answers.some((a) => a.status === "done")) {
+      reportError({
+        project: "ai-topic-explorer",
+        category: "stored_result_unreadable",
+        level: "warning",
+        message: `Saved result can't be shown (${view ? "no answers" : "run missing"})`,
+        context: { analysisId: id, runId: pointer.runId },
+      });
+      return <UnreadableResult topic={analysis.topic} />;
+    }
+    return <RunResults view={view} analysisId={id} />;
   }
 
   // Saved results span every version of the app, so read them through a
@@ -112,6 +132,30 @@ export default async function ResultsPage({ params }: Props) {
       analysisId={id}
       providerTexts={providerTexts}
       grokQuotedPhrases={grokQuotedPhrases}
+    />
+  );
+}
+
+function RunResults({ view, analysisId }: { view: RunView; analysisId: string }) {
+  const statuses: ProviderStatusItem[] = view.answers.map((a) => ({
+    provider: a.provider,
+    status: a.status,
+    errorReason: a.errorReason,
+  }));
+  const failed = view.answers.filter((a) => a.status === "failed");
+  const done = view.answers.filter((a) => a.status === "done");
+  const partialFailureMessage =
+    failed.length > 0
+      ? `${failed
+          .map((a) => (a.errorReason ? `${PROVIDER_LABELS[a.provider]} (${a.errorReason})` : PROVIDER_LABELS[a.provider]))
+          .join(", ")} unavailable — showing results from ${done.map((a) => PROVIDER_LABELS[a.provider]).join(" and ")}`
+      : null;
+  return (
+    <RunResultsContent
+      view={view}
+      analysisId={analysisId}
+      providerStatuses={statuses}
+      partialFailureMessage={partialFailureMessage}
     />
   );
 }

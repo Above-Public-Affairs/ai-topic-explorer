@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RESULT_SCHEMA_VERSION, readStoredResult } from "@/lib/results/stored-result";
+import { LEGACY_RESULT_SCHEMA_VERSION, RESULT_SCHEMA_VERSION, readRunPointer, readStoredResult, runPointer } from "@/lib/results/stored-result";
 import { json } from "./helpers/fixtures";
 
 function read(raw: unknown) {
@@ -48,9 +48,9 @@ describe("readStoredResult", () => {
     expect(result.tokenUsage).toHaveLength(2);
   });
 
-  it("round-trips a current result", () => {
+  it("round-trips a v2 result", () => {
     const current = {
-      schemaVersion: RESULT_SCHEMA_VERSION,
+      schemaVersion: LEGACY_RESULT_SCHEMA_VERSION,
       topic: "water",
       expandedQueries: ["water"],
       responses: {
@@ -123,5 +123,23 @@ describe("readStoredResult", () => {
     [{ topic: "t" }, "no provider responses"],
   ])("rejects %j: %s", (raw, reason) => {
     expect(readStoredResult(raw)).toEqual({ ok: false, reason });
+  });
+});
+
+describe("readRunPointer", () => {
+  it("reads a v3 result as a pointer to its run", () => {
+    const stored = runPointer("water", "run_1");
+    expect(stored.schemaVersion).toBe(RESULT_SCHEMA_VERSION);
+    expect(readRunPointer(JSON.parse(JSON.stringify(stored)))).toEqual({ schemaVersion: 3, topic: "water", runId: "run_1" });
+  });
+
+  it.each([
+    [null],
+    ["text"],
+    [{ topic: "water", responses: {} }],
+    [{ schemaVersion: 2, topic: "water", runId: "run_1" }],
+    [{ schemaVersion: 3, topic: "water" }],
+  ])("leaves %j to the v1/v2 reader", (raw) => {
+    expect(readRunPointer(raw)).toBeNull();
   });
 });

@@ -1,10 +1,11 @@
 import { prisma } from "@/lib/db";
 import { reportError } from "@above-public-affairs/error-reporter";
-import type { AIResponse, TokenUsage } from "@/lib/types";
+import type { RunPipelineResult } from "@/lib/pipeline/run";
 
 /**
- * Daily AI spend cap. Spend is an estimate from token usage, recorded after
- * each analysis and summed per UTC day in Postgres. Once the day's estimate
+ * Daily AI spend cap. Spend is each analysis's cost (answers plus
+ * extraction, from token usage and the price table), recorded after the
+ * analysis and summed per UTC day in Postgres. Once the day's estimate
  * reaches the cap, new analyses are refused until midnight UTC.
  *
  * Set `DAILY_SPEND_CAP_USD` on the service to change the cap; `0` disables it.
@@ -21,43 +22,23 @@ export function dailySpendCapUsd(): number {
 }
 
 /**
- * USD per million tokens. Deliberately on the high side of each provider's
- * list price for the models we call, so the cap trips early rather than late.
- * Keyed by provider rather than model so a model swap doesn't silently fall
- * through to zero.
+ * A provider call cut off by the deadline is still billed for what it
+ * generated, but reports no cost. Counted at roughly a long Claude answer
+ * with searches, so the cap errs early rather than late.
  */
-const RATES: Record<string, { input: number; output: number }> = {
-  claude: { input: 3, output: 15 },
-  openai: { input: 2.5, output: 15 },
-  gemini: { input: 0.5, output: 3 },
-  grok: { input: 3, output: 15 },
-  expansion: { input: 1, output: 5 },
-};
-const FALLBACK_RATE = { input: 3, output: 15 };
-/** Web search/grounding fees per provider query (every provider searches). */
-const SEARCH_FEE_PER_QUERY_USD = 0.035;
+export const ABORTED_CALL_ESTIMATE_USD = 0.15;
 
-function tokenCost(rateKey: string, u: TokenUsage): number {
-  const rate = RATES[rateKey] ?? FALLBACK_RATE;
-  return (u.inputTokens * rate.input + u.outputTokens * rate.output) / 1_000_000;
-}
+/** Counted for a run that failed partway, whose real cost is unknown. */
+export const UNMETERED_RUN_ESTIMATE_USD = 1;
 
-/** Estimated USD cost of one analysis. */
-export function estimateAnalysisCost(
-  responses: Partial<Record<string, AIResponse | null>>,
-  allUsage: TokenUsage[]
-): number {
-  let cost = 0;
-  for (const u of allUsage) {
-    if (u.purpose === "expansion") cost += tokenCost("expansion", u);
-  }
-  for (const [provider, response] of Object.entries(responses)) {
-    for (const u of response?.usage ?? []) {
-      if (u.purpose !== "analysis") continue;
-      cost += tokenCost(provider, u) + SEARCH_FEE_PER_QUERY_USD;
-    }
-  }
-  return cost;
+/**
+ * Spend to count for one pipeline run: each answer's cost and each
+ * extraction's cost (computed from usage and lib/answers/prices.ts), plus an
+ * estimate for calls the deadline cut off.
+ */
+export function runSpendUsd(run: Pick<RunPipelineResult, "costUsd" | "answers">): number {
+  const aborted = run.answers.filter((a) => !a.ok && a.errorKind === "timeout").length;
+  return run.costUsd + aborted * ABORTED_CALL_ESTIMATE_USD;
 }
 
 function utcDay(now = new Date()): Date {

@@ -1,5 +1,13 @@
 import type { AnswerSource, LocationMode, UserLocation } from "./types";
 
+/**
+ * Retry budget for a single provider request, on top of the SDK default of 2.
+ * The OpenAI-compatible SDKs retry 429/5xx with exponential backoff and honor
+ * the response's `retry-after`. The caller's signal aborts mid-retry, so this
+ * can't extend a request past its deadline.
+ */
+export const REQUEST_MAX_RETRIES = 4;
+
 /** The location the tracker asks from unless told otherwise. */
 export const TEXAS_LOCATION: UserLocation = {
   city: "Austin",

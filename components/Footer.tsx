@@ -4,6 +4,19 @@ import { useState, useRef, useEffect } from "react";
 
 const CHANGELOG: { date: string; changes: string[] }[] = [
   {
+    date: "Nov 7",
+    changes: [
+      "Each AI is now asked your topic the way a person would ask it, with its own web search on, and its full answer is shown as written",
+      "See the sources each AI actually cited, beside its answer",
+      "New Arguments section: the case for and against that the answers make, and which AIs made it",
+      "Named entities now include places and laws, not just people and organizations",
+      "Each answer shows its overall tone and how it frames the topic",
+      "Each AI runs the model its free version uses by default, updated as that changes. Gemini now uses Gemini Flash-Lite",
+      "Topics are no longer split into subtopics first, so results come back sooner",
+      "Older saved results still open as they were",
+    ],
+  },
+  {
     date: "Nov 6",
     changes: [
       "Compare four AI models: Claude, ChatGPT, Gemini and Grok. Perplexity has been removed",

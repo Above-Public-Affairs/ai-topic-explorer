@@ -229,7 +229,7 @@ function pickRandom<T>(arr: T[], count: number): T[] {
 }
 
 type ProviderStatus = "pending" | "loading" | "done" | "failed";
-type Stage = "expanding" | "querying" | "merging" | "complete" | "error";
+type Stage = "querying" | "merging" | "complete" | "error";
 
 /** The ?topic= query param, read from the browser URL. */
 function readTopicParam(): string | null {
@@ -371,7 +371,7 @@ export default function Home() {
     setIsLoading(true);
     setProgress({
       active: true,
-      stage: "expanding",
+      stage: "querying",
       providers: {},
       providerErrors: {},
       elapsedSeconds: 0,
@@ -429,12 +429,6 @@ export default function Home() {
           const event = JSON.parse(line.slice(6));
 
           switch (event.stage) {
-            case "expanding":
-              setProgress((prev) =>
-                prev ? { ...prev, stage: "expanding" } : prev
-              );
-              break;
-
             case "querying": {
               const providerMap: Record<string, ProviderStatus> = {};
               for (const p of event.providers) providerMap[p] = "loading";
@@ -656,46 +650,36 @@ export default function Home() {
 
             <div className="space-y-4 text-sm text-[--text-secondary] leading-relaxed">
               <div>
-                <h3 className="font-semibold text-[--text-primary] mb-1">1. Query Expansion</h3>
+                <h3 className="font-semibold text-[--text-primary] mb-1">1. Asked like a person would ask</h3>
                 <p>
-                  Your topic is expanded into 3–4 distinct subtopic queries using AI, covering
-                  different angles like history, current state, and key players. This ensures
-                  comprehensive coverage rather than a single narrow perspective.
+                  Your topic goes to Claude, ChatGPT, Gemini and Grok in parallel, word for word,
+                  with each AI&rsquo;s own web search turned on. Each runs the model its free
+                  version uses by default, so you see what an ordinary user sees.
                 </p>
               </div>
 
               <div>
-                <h3 className="font-semibold text-[--text-primary] mb-1">2. Multi-Model Analysis</h3>
+                <h3 className="font-semibold text-[--text-primary] mb-1">2. Answers as written</h3>
                 <p>
-                  Each subtopic is sent to multiple AI models (Claude, ChatGPT, Gemini, Grok) in parallel.
-                  Each model independently generates a detailed response about the topic.
-                </p>
-              </div>
-
-
-              <div>
-                <h3 className="font-semibold text-[--text-primary] mb-1">3. Key Theme Extraction</h3>
-                <p>
-                  AI identifies the most important themes from its analysis as short, meaningful
-                  phrases. These are displayed as clickable pills — tap any theme to see the
-                  exact sentences where it appears in context.
+                  Each answer is shown in full, at whatever length the AI chose, with the sources
+                  it cited. Nothing is rewritten.
                 </p>
               </div>
 
               <div>
-                <h3 className="font-semibold text-[--text-primary] mb-1">4. Entity Extraction</h3>
+                <h3 className="font-semibold text-[--text-primary] mb-1">3. One reading of every answer</h3>
                 <p>
-                  People and organizations mentioned across all responses are extracted and
-                  deduplicated. When available, reference URLs are included.
+                  A separate AI then reads each answer the same way and pulls out its themes, the
+                  arguments it makes for and against, the people, organizations, places and laws it
+                  names, and its overall tone. Tap any theme to see the sentences where it appears.
                 </p>
               </div>
 
               <div>
-                <h3 className="font-semibold text-[--text-primary] mb-1">5. Citation Merging</h3>
+                <h3 className="font-semibold text-[--text-primary] mb-1">4. Compared across AIs</h3>
                 <p>
-                  Recommended sources from each model are merged and ranked by how many
-                  models independently cited them — giving higher weight to sources with
-                  cross-model agreement.
+                  Themes, arguments, names and sources are combined across the AIs and ranked by
+                  how many of them raised each one, so cross-model agreement stands out.
                 </p>
               </div>
             </div>

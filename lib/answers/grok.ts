@@ -1,8 +1,7 @@
 import OpenAI from "openai";
-import { REQUEST_MAX_RETRIES } from "@/lib/ai-clients/shared";
 import { XAI_TICKS_PER_USD } from "./prices";
 import { getModel } from "./registry";
-import { mergeSources, planLocation, roundUsd, uniqueQueries } from "./shared";
+import { REQUEST_MAX_RETRIES, mergeSources, planLocation, roundUsd, uniqueQueries } from "./shared";
 import type { AnswerProvider, AnswerSource, AskOptions, AskResult } from "./types";
 
 // Server-side web search only runs on xAI's Responses API (/v1/responses),

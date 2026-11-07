@@ -4,11 +4,18 @@
  * the one extraction pass over every answer (lib/extraction).
  *
  * No provider is asked for a JSON block; structured output belongs only to
- * the extraction model. The public site still runs on lib/ai-clients until
- * task 2.5.
+ * the extraction model. Used by the tracker and the public site.
  */
 import type { PrismaClient, RunKind, RunStatus } from "@/app/generated/prisma/client";
-import { PROVIDERS, getModels, toProviderError, type AskResult, type ProviderId, type UserLocation } from "@/lib/answers";
+import {
+  PROVIDERS,
+  getModels,
+  toProviderError,
+  type AskResult,
+  type ProviderError,
+  type ProviderId,
+  type UserLocation,
+} from "@/lib/answers";
 import { answerCreateData, extractAndStore, failedAnswerCreateData, providerCitationRows } from "@/lib/extraction";
 import type { ResponsesClient } from "@/lib/extraction";
 
@@ -27,10 +34,19 @@ export interface RunPipelineOptions {
   note?: string;
   /** Answers extracted at once. */
   extractionConcurrency?: number;
+  /** Aborts the provider calls (an aborted call is stored as a timeout). */
   signal?: AbortSignal;
+  /** Aborts extractions. Defaults to `signal`; set it later to leave extraction time after a deadline. */
+  extractionSignal?: AbortSignal;
+  /** Called as each provider call lands, before its extraction. */
+  onAnswer?: (event: AnswerEvent) => void;
   /** Test seam for the extraction client. */
   extractionClient?: ResponsesClient;
 }
+
+export type AnswerEvent =
+  | { provider: ProviderId; question: string; ok: true; result: AskResult }
+  | { provider: ProviderId; question: string; ok: false; error: ProviderError };
 
 export interface RunPipelineResult {
   runId: string;
@@ -43,26 +59,41 @@ export interface RunPipelineResult {
     answerCostUsd: number;
     extraction?: { extractionId: string; ok: boolean; costUsd: number; error?: string };
     error?: string;
+    /** Why the provider call failed, when it did. */
+    errorKind?: ProviderError["kind"];
   }[];
   costUsd: number;
 }
 
-/** Run `task` over `items` with at most `limit` running at once. */
-async function mapLimit<T, R>(items: T[], limit: number, task: (item: T) => Promise<R>): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let next = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) {
-      const i = next++;
-      results[i] = await task(items[i]);
+/** Run at most `limit` tasks at once; later calls wait for a free slot. */
+function limiter(limit: number) {
+  let active = 0;
+  const queue: (() => void)[] = [];
+  return async function run<R>(task: () => Promise<R>): Promise<R> {
+    if (active >= limit) await new Promise<void>((resolve) => queue.push(resolve));
+    active++;
+    try {
+      return await task();
+    } finally {
+      active--;
+      queue.shift()?.();
     }
-  });
-  await Promise.all(workers);
-  return results;
+  };
+}
+
+/** Swallow a callback's error so it can't fail the run. */
+function safely(fn: () => void) {
+  try {
+    fn();
+  } catch (err) {
+    console.error("[Pipeline] onAnswer callback failed:", err);
+  }
 }
 
 export async function runPipeline(db: PrismaClient, options: RunPipelineOptions): Promise<RunPipelineResult> {
   const { topic, location, signal } = options;
+  const extractionSignal = options.extractionSignal ?? signal;
+  const extractSlot = limiter(options.extractionConcurrency ?? 4);
   const providerIds = options.providers ?? (Object.keys(PROVIDERS) as ProviderId[]);
   const questions = options.questions?.length ? options.questions : [{ text: topic }];
   const subTopicIds = Object.fromEntries((options.subTopics ?? []).map((s) => [s.name, s.id]));
@@ -84,8 +115,9 @@ export async function runPipeline(db: PrismaClient, options: RunPipelineOptions)
   // Each provider's current model from the registry (task 2.4), read once per run.
   const models = await getModels();
 
-  // 1. Ask every provider every question, in parallel; store each answer
-  //    (or failure) with the provider's citations as it lands.
+  // Ask every provider every question, in parallel; store each answer (or
+  // failure) with the provider's citations as it lands, then run the one
+  // extraction pass over it straight away rather than waiting for the rest.
   type Stored = RunPipelineResult["answers"][number] & {
     answerText?: string;
     providerUrls: string[];
@@ -100,6 +132,7 @@ export async function runPipeline(db: PrismaClient, options: RunPipelineOptions)
         result = await PROVIDERS[provider].ask(q.text, { location, signal, settings: models[provider] });
       } catch (err) {
         const error = toProviderError(provider, err);
+        safely(() => options.onAnswer?.({ provider, question: q.text, ok: false, error }));
         const row = await db.answer.create({
           data: failedAnswerCreateData(ctx, models[provider], error, location ?? null),
           select: { id: true },
@@ -111,16 +144,18 @@ export async function runPipeline(db: PrismaClient, options: RunPipelineOptions)
           ok: false,
           answerCostUsd: 0,
           error: `${error.kind}: ${error.message}`,
+          errorKind: error.kind,
           providerUrls: [],
           citationCount: 0,
         };
       }
+      safely(() => options.onAnswer?.({ provider, question: q.text, ok: true, result }));
       const citations = providerCitationRows(result.sources);
       const row = await db.answer.create({
         data: { ...answerCreateData(ctx, result), citations: { create: citations } },
         select: { id: true },
       });
-      return {
+      const s: Stored = {
         answerId: row.id,
         provider,
         question: q.text,
@@ -130,21 +165,18 @@ export async function runPipeline(db: PrismaClient, options: RunPipelineOptions)
         providerUrls: citations.map((c) => c.url),
         citationCount: citations.length,
       };
+      if (s.answerText) {
+        s.extraction = await extractSlot(() =>
+          extractAndStore(
+            db,
+            { id: s.answerId, answer: s.answerText!, providerUrls: s.providerUrls, nextCitationPosition: s.citationCount },
+            { topic, question: s.question, subTopics: options.subTopics?.map((t) => t.name) },
+            { subTopicIds, client: options.extractionClient, signal: extractionSignal }
+          )
+        );
+      }
+      return s;
     })
-  );
-
-  // 2. One extraction pass over every answer that has text.
-  await mapLimit(
-    stored.filter((s) => s.ok && s.answerText),
-    options.extractionConcurrency ?? 4,
-    async (s) => {
-      s.extraction = await extractAndStore(
-        db,
-        { id: s.answerId, answer: s.answerText!, providerUrls: s.providerUrls, nextCitationPosition: s.citationCount },
-        { topic, question: s.question, subTopics: options.subTopics?.map((t) => t.name) },
-        { subTopicIds, client: options.extractionClient, signal }
-      );
-    }
   );
 
   const answered = stored.filter((s) => s.ok).length;
@@ -169,6 +201,7 @@ export async function runPipeline(db: PrismaClient, options: RunPipelineOptions)
       answerCostUsd: s.answerCostUsd,
       extraction: s.extraction,
       error: s.error,
+      errorKind: s.errorKind,
     })),
   };
 }

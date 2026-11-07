@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { categorizeError, providerErrorDetail } from "@/lib/analysis/provider-errors";
-import { isGeminiQuotaExhausted, toProviderError } from "@/lib/answers/errors";
+import { geminiErrorBody, isGeminiQuotaExhausted, providerErrorLabel, toProviderError } from "@/lib/answers/errors";
 import { ProviderError } from "@/lib/answers/types";
 import { anthropicError, geminiError, openaiError } from "./helpers/errors";
-
-const QUOTA = "Quota exhausted — check the provider's billing";
-const RATE = "Rate limited — too many requests";
-const AUTH = "Authentication error — invalid API key";
 
 const openaiQuota = () =>
   openaiError(429, {
@@ -21,90 +16,6 @@ const xaiCredits = () =>
     code: "Some resource has been exhausted",
     error: "Your team has either used all available credits or reached its monthly spending limit.",
   });
-
-describe("categorizeError (analyze flow)", () => {
-  it.each([
-    ["OpenAI insufficient_quota 429", openaiQuota(), QUOTA],
-    ["xAI 402 out of credits", xaiCredits(), QUOTA],
-    ["a 'credits are depleted' message", new Error("Your prepaid credits are depleted"), QUOTA],
-    ["OpenAI plain 429", openaiError(429, { error: { message: "Rate limit reached", code: "rate_limit_exceeded" } }), RATE],
-    ["Anthropic 401", anthropicError(401, "authentication_error", "invalid x-api-key"), AUTH],
-    ["Gemini API_KEY_INVALID (a 400)", geminiError(400, "gemini-400-bad-key"), AUTH],
-    ["Anthropic 403", anthropicError(403, "permission_error", "nope"), "Permission denied — API key blocked or lacks access"],
-    ["Gemini 403", geminiError(403, "gemini-403"), "Permission denied — API key blocked or lacks access"],
-    ["OpenAI 404", openaiError(404, { error: { message: "The model `gpt-x` does not exist" } }), "Model not found — check the model ID"],
-    ["Gemini 429 with RetryInfo", geminiError(429, "gemini-429-rate"), RATE],
-    // The analyze flow has no grounding, so it doesn't split Gemini's quota 429 out.
-    ["Gemini 429 quota (no RetryInfo)", geminiError(429, "gemini-429-quota"), RATE],
-    ["Anthropic 529 overloaded", anthropicError(529, "overloaded_error", "Overloaded"), "API overloaded — try again shortly"],
-    ["Anthropic 500", anthropicError(500, "api_error", "Internal server error"), "Provider API internal error"],
-    ["Gemini prompt blocked", new Error("Gemini returned no text (prompt blocked: SAFETY)"), "Blocked by the provider's safety filter"],
-    ["Gemini SAFETY finish", new Error("Gemini returned no text (finish reason: SAFETY)"), "Blocked by the provider's safety filter"],
-    ["Claude refusal", new Error("Claude declined to analyze this topic"), "Blocked by the provider's safety filter"],
-    ["empty answer", new Error("openai returned an empty answer"), "Empty answer — possibly filtered by the provider"],
-    ["fetch failed", new TypeError("fetch failed"), "Network error — could not reach provider"],
-    ["ENOTFOUND", new Error("getaddrinfo ENOTFOUND api.x.ai"), "Network error — could not reach provider"],
-    ["all subtopics failed", new Error("All 4 subtopic queries failed"), "All subtopic queries failed"],
-    ["our own TypeError", new TypeError("Cannot read properties of undefined (reading 'url')"), "Could not process the provider's response"],
-  ])("%s", (_label, err, expected) => {
-    expect(categorizeError(err)).toBe(expected);
-  });
-
-  it("passes a timeout message through as-is", () => {
-    expect(categorizeError(new Error("Timed out after 150s (claude: water)"))).toBe("Timed out after 150s (claude: water)");
-  });
-
-  it("shows Gemini's own message, not its JSON body, for an unclassified error", () => {
-    expect(categorizeError(geminiError(400, "gemini-400-invalid"))).toBe(
-      "* GenerateContentRequest.contents: contents is not specified"
-    );
-  });
-
-  it("labels Gemini's 503 overload from its message", () => {
-    expect(categorizeError(geminiError(503, "gemini-503"))).toBe("API overloaded — try again shortly");
-  });
-
-  it("cuts long messages to 120 characters", () => {
-    const label = categorizeError(new Error("x".repeat(500)));
-    expect(label).toBe("x".repeat(120) + "…");
-  });
-
-  it("handles non-Error throws", () => {
-    expect(categorizeError("rate limit hit")).toBe(RATE);
-  });
-});
-
-describe("providerErrorDetail", () => {
-  it("pulls status, code, retry-after and the provider's message off an OpenAI error", () => {
-    const err = openaiError(
-      429,
-      { error: { message: "Rate limit reached for gpt-6-luna", code: "rate_limit_exceeded" } },
-      { "retry-after": "20" }
-    );
-    expect(providerErrorDetail(err)).toEqual({
-      status: 429,
-      code: "rate_limit_exceeded",
-      retryAfter: "20",
-      providerMessage: "Rate limit reached for gpt-6-luna",
-    });
-  });
-
-  it("reads Gemini's reason and message out of its JSON body", () => {
-    expect(providerErrorDetail(geminiError(400, "gemini-400-bad-key", { stream: true }))).toEqual({
-      status: 400,
-      reason: "API_KEY_INVALID",
-      providerMessage: "API key not valid. Please pass a valid API key.",
-    });
-  });
-
-  it("keeps xAI's string error body", () => {
-    expect(providerErrorDetail(xaiCredits()).providerMessage).toMatch(/used all available credits/);
-  });
-
-  it("returns nothing for a non-object", () => {
-    expect(providerErrorDetail("boom")).toEqual({});
-  });
-});
 
 describe("toProviderError (provider interface)", () => {
   it.each([
@@ -164,5 +75,27 @@ describe("isGeminiQuotaExhausted", () => {
   });
   it("is false for a non-Gemini error", () => {
     expect(isGeminiQuotaExhausted(new Error("You exceeded your current quota"))).toBe(false);
+  });
+});
+
+describe("geminiErrorBody", () => {
+  it("reads the body out of a plain or stream error message", () => {
+    expect(geminiErrorBody(geminiError(400, "gemini-400-bad-key", { stream: true }))?.message).toBe(
+      "API key not valid. Please pass a valid API key."
+    );
+    expect(geminiErrorBody(geminiError(403, "gemini-403"))?.status).toBe("PERMISSION_DENIED");
+  });
+  it("is null for a non-Gemini error", () => {
+    expect(geminiErrorBody(new Error("{}"))).toBeNull();
+  });
+});
+
+describe("providerErrorLabel (shown on the public site)", () => {
+  it.each([
+    ["timeout", "Timed out"],
+    ["rate_limited", "Rate limited — too many requests"],
+    ["blocked", "Blocked by the provider's safety filter"],
+  ] as const)("%s → %s", (kind, label) => {
+    expect(providerErrorLabel(kind)).toBe(label);
   });
 });

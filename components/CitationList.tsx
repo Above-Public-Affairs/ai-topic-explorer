@@ -3,6 +3,8 @@ import { PROVIDER_COLORS, PROVIDER_LABELS } from "@/lib/providers";
 
 interface Props {
   citations: CombinedCitation[];
+  /** Note under the list. Older results' sources were written by the AIs themselves, so they carry a warning. */
+  disclaimer?: string;
 }
 
 /** Group consecutive citations that share the same domain. */
@@ -23,7 +25,10 @@ function groupByDomain(
   return groups;
 }
 
-export default function CitationList({ citations }: Props) {
+export default function CitationList({
+  citations,
+  disclaimer = "Sources suggested by AI models — links may not be accurate.",
+}: Props) {
   if (citations.length === 0) {
     return (
       <div className="glass-tier-2 rounded-2xl p-8 text-center">
@@ -37,8 +42,9 @@ export default function CitationList({ citations }: Props) {
   return (
     <div className="glass-tier-2 rounded-2xl p-6">
       <div className="space-y-5">
-        {groups.map((group) => (
-          <div key={group.domain}>
+        {groups.map((group, groupIdx) => (
+          // A domain can come back as a later group, so the index keeps keys unique.
+          <div key={`${groupIdx}-${group.domain}`}>
             {group.items.length > 1 && (
               <p className="text-[11px] font-medium text-[--text-tertiary] uppercase tracking-wide mb-2">
                 {group.domain}
@@ -74,7 +80,7 @@ export default function CitationList({ citations }: Props) {
 
       {/* Disclaimer */}
       <p className="mt-6 text-xs text-[--text-tertiary] border-t border-black/5 pt-4">
-        Sources suggested by AI models — links may not be accurate.
+        {disclaimer}
       </p>
 
       {/* AEO Checker callout */}

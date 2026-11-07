@@ -3,8 +3,7 @@
  * search on and an approximate user location, recording the answer, sources,
  * searches, model, tokens and cost.
  *
- * Sits beside the public site's analyze flow (lib/ai-clients), which still
- * asks for a JSON block; switching the site over is task 2.5.
+ * The public site (app/api/analyze) and the tracker both ask through here.
  */
 import { claudeProvider } from "./claude";
 import { geminiProvider } from "./gemini";
@@ -15,7 +14,7 @@ import { getModels } from "./registry";
 import type { AnswerProvider, AskOptions, AskResult, ProviderError, ProviderId } from "./types";
 
 export * from "./types";
-export { toProviderError } from "./errors";
+export { toProviderError, providerErrorLabel } from "./errors";
 export { TEXAS_LOCATION } from "./shared";
 export { PRICES } from "./prices";
 export {

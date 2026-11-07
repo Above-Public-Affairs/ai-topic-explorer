@@ -1,7 +1,7 @@
 import ProgressTracker from "@/components/ProgressTracker";
 import type { Provider } from "@/lib/types";
 
-type Stage = "expanding" | "querying" | "merging" | "complete" | "error";
+type Stage = "querying" | "merging" | "complete" | "error";
 type ProviderStatus = "pending" | "loading" | "done" | "failed";
 
 interface Props {
@@ -13,9 +13,8 @@ interface Props {
 }
 
 const STAGE_MESSAGES: Record<Stage, string> = {
-  expanding: "Expanding your query into subtopics",
-  querying: "Querying AI models",
-  merging: "Merging results",
+  querying: "Asking each AI",
+  merging: "Reading the answers",
   complete: "Analysis complete! Redirecting",
   error: "Something went wrong",
 };

@@ -1,5 +1,36 @@
-import { geminiErrorBody } from "@/lib/ai-clients/gemini";
+import { ApiError } from "@google/genai";
 import { ProviderError, type ProviderErrorKind, type ProviderId } from "./types";
+
+/** The parsed `error` object of a Gemini API failure. */
+export interface GeminiErrorBody {
+  message?: string;
+  status?: string;
+  details: unknown[];
+}
+
+/**
+ * The Gemini API's own error body. The SDK's ApiError carries only `status`
+ * and a `message` holding the JSON response body (stream errors prefix it with
+ * "got status: ..."), so the details have to be parsed back out of it.
+ */
+export function geminiErrorBody(err: unknown): GeminiErrorBody | null {
+  if (!(err instanceof ApiError)) return null;
+  const jsonStart = err.message.indexOf("{");
+  if (jsonStart === -1) return null;
+  try {
+    const parsed = JSON.parse(err.message.slice(jsonStart)) as { error?: unknown };
+    const body = parsed.error;
+    if (typeof body !== "object" || body === null) return null;
+    const { message, status, details } = body as Record<string, unknown>;
+    return {
+      message: typeof message === "string" ? message : undefined,
+      status: typeof status === "string" ? status : undefined,
+      details: Array.isArray(details) ? details : [],
+    };
+  } catch {
+    return null;
+  }
+}
 
 const LABELS: Record<ProviderErrorKind, string> = {
   quota_exhausted: "Quota exhausted — check the provider's billing",
@@ -57,6 +88,14 @@ function classify(provider: ProviderId, err: unknown): { kind: ProviderErrorKind
     return { kind: "blocked", status, detail };
   }
   return { kind: "other", status, detail };
+}
+
+/**
+ * The short reason shown to a visitor when a provider couldn't answer, e.g.
+ * "Timed out" or "Rate limited — too many requests".
+ */
+export function providerErrorLabel(kind: ProviderErrorKind): string {
+  return LABELS[kind];
 }
 
 /** Turn any failure from a provider call into a ProviderError. */
