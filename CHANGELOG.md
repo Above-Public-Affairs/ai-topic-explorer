@@ -5,6 +5,10 @@ All notable changes to AI Topic Explorer will be documented in this file.
 ## [2026-11-06]
 
 ### Added
+- Provider interface for the tracker (task 2.1, not yet used by the public site): `lib/answers/` asks Claude, OpenAI, Gemini and Grok one plain question with each one's own web search on and an approximate user location. Each answer records the answering model, cited vs. looked-at sources, the searches run, token usage, location mode and cost in USD
+  - Location goes in the search tool's parameter for Claude and OpenAI, and in a system message ("by prompt") for Gemini and Grok, whose search takes none
+  - Grok moved to xAI's Responses API with web search only (task 3.3); its cost is xAI's own `cost_in_usd_ticks`. The others are priced from one table, `lib/answers/prices.ts`, with a source and date per row
+  - `scripts/ask-providers.ts` asks all four a test question as a user in Austin, Texas
 - Cost and abuse guards on the public site (task 1.4):
   - Topics are capped at 300 characters (form and server). Each analysis runs at most 4 queries of up to 200 characters, and the topic reaches the expansion model as quoted data, not as instructions
   - Rate limits are kept in Postgres (`RateLimitCounter`), so they survive deploys and work across replicas: 10 analyses and 5 bug reports per visitor per hour. Malformed requests don't count

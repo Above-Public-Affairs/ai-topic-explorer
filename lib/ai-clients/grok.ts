@@ -12,7 +12,7 @@ import {
 // Expert mode. low is grok-4.3's default reasoning effort. Unconfirmed: revisit
 // if xAI publishes the free-tier model. The retired grok-3 was being silently
 // served by grok-4.3 anyway.
-const MODEL = "grok-4.3";
+export const MODEL = "grok-4.3";
 
 // Built on first use, not at module load, so `next build` (which loads this
 // module to collect route config) works without API keys in the environment.

@@ -10,6 +10,8 @@ phases and what blocks each one, is in `PROJECT-PLAN.md`. Work runs from the pro
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS). Done: 1.1 (plan docs),
 1.2 (platform upgrade), 1.3 (Perplexity removed, models replaced), 1.4 (cost and
 abuse guards) and 3.1 (Grok research, not yet merged). Task 3.2 decided: no X Search.
+Task 2.1 (provider interface, also covering 3.3) is built and awaiting merge; Gemini's
+search grounding is blocked by a Google quota 429.
 
 Key findings from the Nov 6 codebase review that drive phase 1:
 - Perplexity's Sonar Chat Completions API ended Sep 27, 2026. Perplexity is being
@@ -27,6 +29,21 @@ Key findings from the Nov 6 codebase review that drive phase 1:
 
 Deployed on Railway with four providers (Claude, ChatGPT, Gemini, Grok). Ongoing work is reliability hardening
 driven by production error reports.
+
+### Provider interface (task 2.1, also 3.3, 2026-11-06)
+- `lib/answers/`: `AnswerProvider.ask(question, { location })` for Claude, OpenAI,
+  Gemini and Grok, plus `askAll()`. Sits beside the analyze flow, which is unchanged
+  (the clients only export their `MODEL` constants now).
+- Search: Claude `web_search_20250305` (the 20260209 tool cited nothing), OpenAI
+  Responses `web_search`, Gemini Google Search grounding, Grok Responses `web_search`.
+- Location: tool parameter for Claude and OpenAI; system message (`by_prompt`) for
+  Gemini and Grok.
+- Cost: Grok from `cost_in_usd_ticks`; others from `lib/answers/prices.ts`. Gemini
+  search is priced at list ($14/1k) even inside the 5,000/month free allowance.
+- Test run (Austin, TX; "Are data centers raising electricity bills in Texas?"):
+  Claude $0.078, OpenAI $0.013, Grok $0.042. **Gemini blocked:** every grounded call
+  gets 429 "exceeded your current quota" while plain calls work. Same project that
+  showed 402 "prepayment credits depleted" earlier; needs a billing check.
 
 ### Cost and abuse guards (task 1.4, 2026-11-06)
 - All guard logic lives in `lib/guards/*`, `lib/rate-limit.ts` and `proxy.ts`. The

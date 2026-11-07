@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { AIResponse, TokenUsage } from "@/lib/types";
 import { PROMPT_TEMPLATE, parseStructuredData, extractRawText } from "./shared";
 
-const MODEL = "claude-sonnet-5-5";
+export const MODEL = "claude-sonnet-5-5";
 
 // Sonnet 5.5 thinks by default, and thinking tokens count against max_tokens,
 // where they would eat into the prose and the trailing JSON block.
