@@ -68,8 +68,18 @@ enum CostSource {
 /// Free-tier default models, one row per provider/model/settings combination
 /// (§2C). A new row is added when the default changes; the old one gets
 /// `retiredAt`, so every answer can point at the exact registry row it ran on.
+/// What a model-list row is for: answering questions (the four free-tier
+/// defaults) or the one extraction pass over every answer.
+enum ModelRole {
+  answer
+  extraction
+}
+
 model ModelRegistry {
   id            String       @id @default(cuid())
+  /// `answer` rows are what getModels()/askAll() use; the `extraction` row is
+  /// the model lib/extraction runs (task 2.7). One current row per role and provider.
+  role          ModelRole    @default(answer)
   provider      AiProvider
   model         String
   /// Reasoning/effort level sent with the request, when the API has one.
@@ -90,10 +100,12 @@ model ModelRegistry {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
-  answers Answer[]
-  events  Event[]
+  answers     Answer[]
+  events      Event[]
+  extractions Extraction[]
 
   @@index([provider, retiredAt])
+  @@index([role, provider, retiredAt])
 }
 
 /// A topic tracked over time (§4A): topic + optional geography + the place it's
@@ -329,9 +341,12 @@ model Citation {
 /// The one fixed extraction pass over an answer (§2B), with its own model,
 /// prompt version and cost. Tone is the answer's overall framing.
 model Extraction {
-  id            String   @id @default(cuid())
-  answerId      String   @unique
-  model         String
+  id              String   @id @default(cuid())
+  answerId        String   @unique
+  model           String
+  /// The model-list row (role = extraction) the model was read from; null when
+  /// the list couldn't be read and the built-in default was used.
+  modelRegistryId String?
   /// Bumped whenever the extraction prompt changes, so results stay comparable.
   promptVersion String
   /// Overall tone toward the industry/topic, e.g. "positive", "mixed", "critical".
@@ -347,8 +362,9 @@ model Extraction {
   errorMessage  String?
   createdAt     DateTime @default(now())
 
-  answer    Answer     @relation(fields: [answerId], references: [id], onDelete: Cascade)
-  entities  Entity[]
+  answer        Answer         @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  modelRegistry ModelRegistry? @relation(fields: [modelRegistryId], references: [id])
+  entities      Entity[]
   themes    Theme[]
   arguments Argument[]
 }
@@ -364,11 +380,54 @@ model Entity {
   type         String
   mentions     Int     @default(1)
   url          String?
+  /// The extraction model's full name for it ("ERCOT" → "Electric Reliability
+  /// Council of Texas"), when it differs from `name`. Null on rows extracted
+  /// before prompt 2026-11-07.3.
+  canonicalName     String?
+  /// The one real-world thing this mention is merged into (task 2.7). Null
+  /// until linked (lib/extraction/link.ts).
+  canonicalEntityId String?
 
-  extraction Extraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+  extraction Extraction       @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+  canonical  CanonicalEntity? @relation(fields: [canonicalEntityId], references: [id], onDelete: SetNull)
 
   @@index([extractionId])
   @@index([normalized])
+  @@index([canonicalEntityId])
+}
+
+/// One real-world person, organization, place or law, however each answer
+/// names it (task 2.7). Mentions keep their own wording on Entity.
+model CanonicalEntity {
+  id        String   @id @default(cuid())
+  /// Display name: the first full name seen ("Electric Reliability Council of Texas").
+  name      String
+  /// "person", "place" or "thing" (organizations, laws, other): keys only match within a group.
+  group     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entities Entity[]
+  aliases  EntityAlias[]
+
+  @@index([group])
+}
+
+/// A key a CanonicalEntity is matched by (lib/extraction/canonical.ts):
+/// `name` (a full name), `acronym` (written as one, "ERCOT") or `derived`
+/// (an acronym of a full name, matched only when unambiguous).
+model EntityAlias {
+  id                String   @id @default(cuid())
+  canonicalEntityId String
+  /// Group-prefixed key, e.g. "thing:electric reliability council of texas".
+  key               String
+  kind              String
+  createdAt         DateTime @default(now())
+
+  canonical CanonicalEntity @relation(fields: [canonicalEntityId], references: [id], onDelete: Cascade)
+
+  @@unique([canonicalEntityId, key, kind])
+  @@index([key])
 }
 
 /// A theme in an answer, optionally tied to one of the watch item's sub-topics.

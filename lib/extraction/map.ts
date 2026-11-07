@@ -72,6 +72,7 @@ export function extractedCitationRows(
 
 export interface ExtractionMeta {
   model: string;
+  modelRegistryId?: string | null;
   promptVersion: string;
   inputTokens: number;
   outputTokens: number;
@@ -93,6 +94,7 @@ export function extractionCreateData(
   return {
     answerId,
     model: meta.model,
+    modelRegistryId: meta.modelRegistryId ?? null,
     promptVersion: meta.promptVersion,
     tone: result.tone,
     framing: result.framing,
@@ -108,6 +110,7 @@ export function extractionCreateData(
         type: e.type,
         mentions: e.mentions,
         url: e.url,
+        canonicalName: e.canonicalName,
       })),
     },
     themes: {

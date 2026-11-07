@@ -1,6 +1,7 @@
 /**
  * Write the free-tier model list (FREE_TIER_DEFAULTS in
- * lib/answers/registry.ts) to the ModelRegistry table, then print the
+ * lib/answers/registry.ts) and the extraction model (EXTRACTION_DEFAULT) to
+ * the ModelRegistry table, then print the
  * current rows. Safe to re-run: an unchanged model only refreshes its
  * confirmation; a changed one retires the old row and adds a new one.
  *
@@ -12,7 +13,7 @@
  * or copied database (DATABASE_URL=...); run it on Railway (`railway ssh`)
  * to write production.
  */
-import { FREE_TIER_DEFAULTS, PROVIDER_IDS, saveModel } from "@/lib/answers/registry";
+import { EXTRACTION_DEFAULT, FREE_TIER_DEFAULTS, PROVIDER_IDS, saveModel } from "@/lib/answers/registry";
 import { prisma } from "@/lib/db";
 
 async function main() {
@@ -23,14 +24,17 @@ async function main() {
         `${provider}: ${r.action} ${FREE_TIER_DEFAULTS[provider].model} (${r.id})${r.retiredId ? `, retired ${r.retiredId}` : ""}`
       );
     }
+    const r = await saveModel(EXTRACTION_DEFAULT);
+    console.log(`extraction: ${r.action} ${EXTRACTION_DEFAULT.model} (${r.id})${r.retiredId ? `, retired ${r.retiredId}` : ""}`);
   }
   const rows = await prisma.modelRegistry.findMany({
     where: { retiredAt: null },
-    orderBy: { provider: "asc" },
+    orderBy: [{ role: "asc" }, { provider: "asc" }],
   });
   console.log("\nCurrent model registry:");
   console.table(
     rows.map((r) => ({
+      role: r.role,
       provider: r.provider,
       model: r.model,
       effort: r.effortLevel,

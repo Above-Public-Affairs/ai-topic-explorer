@@ -16,7 +16,12 @@
  */
 import type { LocationMode, ProviderId } from "./types";
 
+/** What a row is for: one of the four answering AIs, or the extraction pass. */
+export type ModelRole = "answer" | "extraction";
+
 export interface ModelSettings {
+  /** Defaults to "answer". */
+  role?: ModelRole;
   provider: ProviderId;
   /** API model id sent in the request. */
   model: string;
@@ -104,9 +109,32 @@ export const FREE_TIER_DEFAULTS: Record<ProviderId, ModelSettings> = {
   },
 };
 
+/**
+ * The extraction model (task 2.7): not one of the answering AIs, so it's a
+ * separate kind of row (role "extraction") that getModels() never returns.
+ * Seeds the row (migration 20261107200000) and is the fallback when the
+ * table can't be read. Confirmed Nov 7, 2026.
+ */
+export const EXTRACTION_DEFAULT: ModelSettings = {
+  role: "extraction",
+  provider: "openai",
+  model: "gpt-6-luna",
+  effortLevel: "none",
+  searchSetting: null,
+  locationMode: "none",
+  confirmedAt: new Date("2026-11-07T00:00:00Z"),
+  isGuess: false,
+  sourceUrl: "https://developers.openai.com/api/docs/pricing",
+  note:
+    "Not an answering AI: the one extraction pass over every answer (strict JSON schema, no web search, no location). " +
+    "Chosen in task 2.3 as the cheapest model that holds the schema: $0.10 in / $0.50 out per 1M tokens, about $0.0007 per answer. Reasoning effort none.",
+};
+
 /** A ModelRegistry row, as far as the lookup needs it. */
 export interface RegistryRow {
   id: string;
+  /** Missing is read as "answer". */
+  role?: ModelRole;
   provider: ProviderId;
   model: string;
   effortLevel: string | null;
@@ -124,6 +152,7 @@ export type RegistryLoader = () => Promise<RegistryRow[]>;
 async function loadFromDatabase(): Promise<RegistryRow[]> {
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set");
   const { prisma } = await import("@/lib/db");
+  // Every current row, answering and extraction alike; load() splits them.
   return prisma.modelRegistry.findMany({
     where: { retiredAt: null },
     // Newest first, so if two current rows ever exist for a provider the
@@ -136,8 +165,12 @@ let loader: RegistryLoader = loadFromDatabase;
 
 /** Rows are re-read at most this often, so a watcher's update lands within minutes. */
 export const CACHE_MS = 5 * 60 * 1000;
-let cache: { at: number; choices: Record<ProviderId, ModelChoice> } | null = null;
-let inflight: Promise<Record<ProviderId, ModelChoice>> | null = null;
+interface Loaded {
+  choices: Record<ProviderId, ModelChoice>;
+  extraction: ModelChoice;
+}
+let cache: { at: number; loaded: Loaded } | null = null;
+let inflight: Promise<Loaded> | null = null;
 
 function fallback(provider: ProviderId): ModelChoice {
   return { ...FREE_TIER_DEFAULTS[provider], registryId: null, source: "fallback" };
@@ -145,6 +178,7 @@ function fallback(provider: ProviderId): ModelChoice {
 
 function fromRow(row: RegistryRow): ModelChoice {
   return {
+    role: row.role ?? "answer",
     provider: row.provider,
     model: row.model,
     effortLevel: row.effortLevel,
@@ -159,7 +193,7 @@ function fromRow(row: RegistryRow): ModelChoice {
   };
 }
 
-async function load(): Promise<{ choices: Record<ProviderId, ModelChoice>; read: boolean }> {
+async function load(): Promise<{ loaded: Loaded; read: boolean }> {
   let rows: RegistryRow[] = [];
   let read = false;
   try {
@@ -170,12 +204,30 @@ async function load(): Promise<{ choices: Record<ProviderId, ModelChoice>; read:
       `[Model registry] Couldn't read ModelRegistry; using built-in defaults. ${err instanceof Error ? err.message : err}`
     );
   }
+  const answering = rows.filter((r) => (r.role ?? "answer") === "answer");
   const choices = {} as Record<ProviderId, ModelChoice>;
   for (const provider of PROVIDER_IDS) {
-    const row = rows.find((r) => r.provider === provider);
+    const row = answering.find((r) => r.provider === provider);
     choices[provider] = row ? fromRow(row) : fallback(provider);
   }
-  return { choices, read };
+  const extractionRow = rows.find((r) => r.role === "extraction");
+  const extraction = extractionRow
+    ? fromRow(extractionRow)
+    : { ...EXTRACTION_DEFAULT, registryId: null, source: "fallback" as const };
+  return { loaded: { choices, extraction }, read };
+}
+
+function loadCached(): Promise<Loaded> {
+  if (cache && Date.now() - cache.at < CACHE_MS) return Promise.resolve(cache.loaded);
+  inflight ??= load()
+    .then(({ loaded, read }) => {
+      if (read) cache = { at: Date.now(), loaded };
+      return loaded;
+    })
+    .finally(() => {
+      inflight = null;
+    });
+  return inflight;
 }
 
 /**
@@ -184,16 +236,16 @@ async function load(): Promise<{ choices: Record<ProviderId, ModelChoice>; read:
  * `source: "fallback"`. A failed read isn't cached, so the next call retries.
  */
 export async function getModels(): Promise<Record<ProviderId, ModelChoice>> {
-  if (cache && Date.now() - cache.at < CACHE_MS) return cache.choices;
-  inflight ??= load()
-    .then(({ choices, read }) => {
-      if (read) cache = { at: Date.now(), choices };
-      return choices;
-    })
-    .finally(() => {
-      inflight = null;
-    });
-  return inflight;
+  return (await loadCached()).choices;
+}
+
+/**
+ * The extraction model: the current role "extraction" row, or
+ * EXTRACTION_DEFAULT (`source: "fallback"`) when there's none or the table
+ * can't be read. Read by lib/extraction for every extraction.
+ */
+export async function getExtractionModel(): Promise<ModelChoice> {
+  return (await loadCached()).extraction;
 }
 
 /** One provider's current model. */
@@ -216,7 +268,7 @@ export function setRegistryLoader(next?: RegistryLoader): void {
 const CHOICE_FIELDS = ["model", "effortLevel", "searchSetting", "locationMode"] as const;
 
 /**
- * Make `settings` the provider's current row. Same model, effort, search
+ * Make `settings` the current row for its role and provider. Same model, effort, search
  * and location mode as the current row: that row's confirmation (date,
  * source, note, guess flag) is refreshed. Anything else: the current row is
  * retired and a new one added, so past answers keep their row. For the seed
@@ -232,9 +284,10 @@ export async function saveModel(
     sourceUrl: settings.sourceUrl,
     note: settings.note,
   };
+  const role = settings.role ?? "answer";
   const result = await prisma.$transaction(async (tx) => {
     const current = await tx.modelRegistry.findFirst({
-      where: { provider: settings.provider, retiredAt: null },
+      where: { role, provider: settings.provider, retiredAt: null },
       orderBy: { activeFrom: "desc" },
     });
     if (current && CHOICE_FIELDS.every((f) => current[f] === settings[f])) {
@@ -244,12 +297,13 @@ export async function saveModel(
     const now = new Date();
     if (current) {
       await tx.modelRegistry.updateMany({
-        where: { provider: settings.provider, retiredAt: null },
+        where: { role, provider: settings.provider, retiredAt: null },
         data: { retiredAt: now },
       });
     }
     const created = await tx.modelRegistry.create({
       data: {
+        role,
         provider: settings.provider,
         model: settings.model,
         effortLevel: settings.effortLevel,

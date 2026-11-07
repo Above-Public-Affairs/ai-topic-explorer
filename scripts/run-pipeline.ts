@@ -8,12 +8,14 @@
  *
  * Flags: --topic="..." sets the run topic (defaults to the question);
  * --only=claude,grok limits the providers; --backfill extracts stored answers
- * that have no extraction yet instead of running a new question.
+ * that have no extraction yet instead of running a new question; --merge
+ * re-runs entity merging over every stored entity (`npm run entities:merge`)
+ * and prints counts before and after with the largest merged groups.
  */
 import { prisma } from "@/lib/db";
 import { TEXAS_LOCATION, type ProviderId } from "@/lib/answers";
 import { runPipeline } from "@/lib/pipeline/run";
-import { extractMissing } from "@/lib/pipeline/backfill";
+import { extractMissing, remergeEntities } from "@/lib/pipeline/backfill";
 
 const args = process.argv.slice(2);
 const flag = (name: string) => args.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
@@ -43,6 +45,16 @@ async function counts(runId: string) {
 async function main() {
   if (args.includes("--backfill")) {
     console.log(await extractMissing(prisma));
+    return;
+  }
+  if (args.includes("--merge")) {
+    const r = await remergeEntities(prisma);
+    const names = await prisma.entity.groupBy({ by: ["normalized"], _count: true });
+    console.log(
+      `Entity rows: ${r.entities}. Distinct by normalized name (before merging): ${names.length}. ` +
+        `Canonical entities: ${r.before} before re-merge, ${r.after} after.${r.skipped ? ` ${r.skipped} left unlinked.` : ""}`
+    );
+    await printMergedGroups(15);
     return;
   }
   console.log(`Question: ${question}`);
@@ -103,6 +115,21 @@ async function main() {
       `Extraction cost: $${extractionCost.toFixed(6)} total, $${(extractionCost / extracted.length).toFixed(6)} per answer`
     );
   if (c.extractions - c.failedExtractions < c.withText) process.exitCode = 1;
+}
+
+/** The canonical entities with the most distinct spellings, and each spelling. */
+async function printMergedGroups(limit: number) {
+  const groups = await prisma.canonicalEntity.findMany({
+    select: { name: true, group: true, entities: { select: { name: true, canonicalName: true } } },
+  });
+  const merged = groups
+    .map((g) => ({ ...g, spellings: [...new Set(g.entities.map((e) => e.name))] }))
+    .filter((g) => g.spellings.length > 1)
+    .sort((a, b) => b.spellings.length - a.spellings.length || b.entities.length - a.entities.length);
+  console.log(`\nCanonical entities with more than one spelling: ${merged.length}`);
+  for (const g of merged.slice(0, limit)) {
+    console.log(`- ${g.name} [${g.group}] (${g.entities.length} mentions): ${g.spellings.map((s) => JSON.stringify(s)).join(", ")}`);
+  }
 }
 
 main()

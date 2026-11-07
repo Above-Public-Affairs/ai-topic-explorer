@@ -10,3 +10,18 @@ export { extractAnswer, buildExtractionInput, EXTRACTION_INSTRUCTIONS } from "./
 export type { ExtractionInput, ExtractionOutput, ResponsesClient } from "./extract";
 export * from "./map";
 export { extractAndStore } from "./store";
+export { linkEntities, relinkAllEntities, type LinkResult } from "./link";
+export {
+  EntityResolver,
+  acronymsOf,
+  displayName,
+  entityGroup,
+  entityKeyText,
+  looksLikeAcronym,
+  mentionKeys,
+  type AliasKind,
+  type CanonicalState,
+  type EntityGroup,
+  type EntityKey,
+  type MentionInput,
+} from "./canonical";

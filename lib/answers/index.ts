@@ -19,12 +19,15 @@ export { toProviderError } from "./errors";
 export { TEXAS_LOCATION } from "./shared";
 export { PRICES } from "./prices";
 export {
+  EXTRACTION_DEFAULT,
   FREE_TIER_DEFAULTS,
   PROVIDER_IDS,
   clearModelCache,
+  getExtractionModel,
   getModel,
   getModels,
   type ModelChoice,
+  type ModelRole,
   type ModelSettings,
 } from "./registry";
 

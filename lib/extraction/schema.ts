@@ -4,12 +4,14 @@
  * structured output; provider answers stay plain prose.
  */
 
+import { EXTRACTION_DEFAULT } from "@/lib/answers/registry";
+
 /**
- * The single cheap model every answer is extracted with. GPT-6 Luna at
- * $0.10 / $0.50 per 1M tokens, priced from lib/answers/prices.ts.
- * Not in the model registry (task 2.4 covers the answering models only).
+ * The built-in extraction model, used only when the model list can't be
+ * read. The live choice is the ModelRegistry row with role "extraction"
+ * (getExtractionModel(), task 2.7); this is its seed, EXTRACTION_DEFAULT.
  */
-export const EXTRACTION_MODEL = "gpt-6-luna";
+export const EXTRACTION_MODEL = EXTRACTION_DEFAULT.model;
 /** Provider whose price rows apply to EXTRACTION_MODEL. */
 export const EXTRACTION_PROVIDER = "openai" as const;
 
@@ -17,7 +19,7 @@ export const EXTRACTION_PROVIDER = "openai" as const;
  * Bump whenever the prompt or schema changes, so stored extractions stay
  * comparable (Extraction.promptVersion).
  */
-export const PROMPT_VERSION = "2026-11-07.2";
+export const PROMPT_VERSION = "2026-11-07.3";
 
 export const TONES = ["positive", "neutral", "mixed", "critical"] as const;
 export const ENTITY_TYPES = ["person", "organization", "place", "legislation", "other"] as const;
@@ -33,7 +35,15 @@ export type Side = (typeof SIDES)[number];
 export interface ExtractionResult {
   tone: Tone | null;
   framing: string | null;
-  entities: { name: string; normalized: string; type: EntityType; mentions: number; url: string | null }[];
+  entities: {
+    name: string;
+    normalized: string;
+    type: EntityType;
+    mentions: number;
+    url: string | null;
+    /** The model's full name for it when that differs from `name` ("ERCOT" → "Electric Reliability Council of Texas"). */
+    canonicalName: string | null;
+  }[];
   themes: {
     label: string;
     normalized: string;
@@ -69,9 +79,15 @@ export const EXTRACTION_JSON_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "type", "mentions", "url"],
+        required: ["name", "canonicalName", "type", "mentions", "url"],
         properties: {
-          name: { type: "string" },
+          name: { type: "string", description: "The name exactly as the answer writes it." },
+          canonicalName: {
+            type: "string",
+            description:
+              "Its full official name, with acronyms and short forms spelled out, when the answer makes clear what it is " +
+              "(ERCOT → Electric Reliability Council of Texas; Texas PUC → Public Utility Commission of Texas). Otherwise the name as written.",
+          },
           type: { type: "string", enum: [...ENTITY_TYPES] },
           mentions: { type: "integer", description: "Times the answer names it." },
           url: { ...nullableString, description: "A URL the answer gives for it, or null." },

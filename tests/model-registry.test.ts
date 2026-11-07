@@ -17,9 +17,11 @@ import { geminiThinking } from "@/lib/answers/gemini";
 import { priceFor } from "@/lib/answers/prices";
 import {
   CACHE_MS,
+  EXTRACTION_DEFAULT,
   FREE_TIER_DEFAULTS,
   PROVIDER_IDS,
   clearModelCache,
+  getExtractionModel,
   getModel,
   getModels,
   setRegistryLoader,
@@ -291,5 +293,52 @@ describe("seed migration", () => {
       expect(sql).toContain(q(d.note));
     }
     expect(sql.match(/INSERT INTO "ModelRegistry"/g)).toHaveLength(PROVIDER_IDS.length);
+  });
+});
+
+describe("the extraction model in the model list (task 2.7)", () => {
+  it("is its own row: getModels() returns only the four answering AIs", async () => {
+    setRegistryLoader(async () => [
+      row({ provider: "openai", id: "x1", role: "extraction", model: "gpt-6-luna-extract" }),
+      ...PROVIDER_IDS.map((provider) => row({ provider, role: "answer" })),
+    ]);
+    const models = await getModels();
+    expect(Object.keys(models).sort()).toEqual([...PROVIDER_IDS].sort());
+    expect(models.openai).toMatchObject({ registryId: "row-openai", model: FREE_TIER_DEFAULTS.openai.model });
+    expect(await getExtractionModel()).toMatchObject({ role: "extraction", model: "gpt-6-luna-extract", registryId: "x1", source: "registry" });
+  });
+
+  it("an extraction row never stands in for a missing answering row", async () => {
+    setRegistryLoader(async () => [row({ provider: "openai", id: "x1", role: "extraction", model: "other-model" })]);
+    expect((await getModels()).openai).toMatchObject({ source: "fallback", model: FREE_TIER_DEFAULTS.openai.model });
+  });
+
+  it("falls back to EXTRACTION_DEFAULT with no row or no database", async () => {
+    setRegistryLoader(async () => PROVIDER_IDS.map((provider) => row({ provider })));
+    expect(await getExtractionModel()).toEqual({ ...EXTRACTION_DEFAULT, registryId: null, source: "fallback" });
+    setRegistryLoader(async () => {
+      throw new Error("down");
+    });
+    expect(await getExtractionModel()).toMatchObject({ model: EXTRACTION_DEFAULT.model, source: "fallback" });
+  });
+
+  it("has a price, no search and no location (it isn't an answering AI)", () => {
+    expect(() => priceFor(EXTRACTION_DEFAULT.provider, EXTRACTION_DEFAULT.model, "input")).not.toThrow();
+    expect(() => priceFor(EXTRACTION_DEFAULT.provider, EXTRACTION_DEFAULT.model, "output")).not.toThrow();
+    expect(EXTRACTION_DEFAULT).toMatchObject({ role: "extraction", searchSetting: null, locationMode: "none", isGuess: false });
+    expect(EXTRACTION_DEFAULT.sourceUrl).toMatch(/^https:\/\//);
+  });
+
+  it("is seeded by the 2.7 migration with exactly EXTRACTION_DEFAULT", async () => {
+    const { readFileSync } = await import("node:fs");
+    const sql = readFileSync("prisma/migrations/20261107200000_entity_merge_and_extraction_model/migration.sql", "utf8");
+    const q = (v: string | null) => (v === null ? "NULL" : `'${v.replace(/'/g, "''")}'`);
+    const d = EXTRACTION_DEFAULT;
+    expect(sql).toContain(
+      `'extraction'::"ModelRole", '${d.provider}'::"AiProvider", ${q(d.model)}, ${q(d.effortLevel)}, ${q(d.searchSetting)}, '${d.locationMode}'::"LocationMode", '${d.confirmedAt.toISOString()}'::timestamp, ${d.isGuess}, ${q(d.sourceUrl)},`
+    );
+    expect(sql).toContain(q(d.note));
+    // Additive only: nothing dropped or renamed.
+    expect(sql).not.toMatch(/\bDROP\b|\bRENAME\b/);
   });
 });

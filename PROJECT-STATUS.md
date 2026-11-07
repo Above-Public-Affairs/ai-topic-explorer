@@ -24,6 +24,12 @@ Task 2.3 (extraction pass + pipeline runner) is built: `lib/extraction/` and
 `lib/pipeline/`. One real run (4 providers, Railway keys, local copy of the schema):
 4/4 answers extracted, about $0.0007 per answer with GPT-6 Luna. No provider is asked for
 a JSON block in the new pipeline; the public site still uses `lib/ai-clients` until 2.5.
+Task 2.7 (entity merging + extraction model in the model list) is built: `CanonicalEntity`
+and `EntityAlias` (migration `20261107200000_entity_merge_and_extraction_model`), rules in
+`lib/extraction/canonical.ts`, linked after each extraction. Proof run: 82 mentions, 40
+distinct names, 29 entities after merging (30 by rules alone, without the model's
+`canonicalName`). After deploy, run `npm run entities:merge` on Railway once to merge
+entities stored before 2.7 (there are none in production yet unless the pipeline has run).
 
 Key findings from the Nov 6 codebase review that drive phase 1:
 - Perplexity's Sonar Chat Completions API ended Sep 27, 2026. Perplexity is being

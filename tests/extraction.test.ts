@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@/app/generated/prisma/client";
-import { FREE_TIER_DEFAULTS, PROVIDERS, ProviderError, TEXAS_LOCATION, type AskResult } from "@/lib/answers";
+import { EXTRACTION_DEFAULT, FREE_TIER_DEFAULTS, PROVIDERS, ProviderError, TEXAS_LOCATION, type AskResult } from "@/lib/answers";
 import {
   EXTRACTION_JSON_SCHEMA,
   EXTRACTION_MODEL,
@@ -25,9 +25,9 @@ const sample = {
   tone: "mixed",
   framing: "Frames Texas data centers as an economic boon that strains the grid.",
   entities: [
-    { name: "ERCOT", type: "organization", mentions: 3, url: "https://www.ercot.com/" },
-    { name: "ercot", type: "organization", mentions: 1, url: null },
-    { name: "Senate Bill 6", type: "legislation", mentions: 1, url: null },
+    { name: "ERCOT", canonicalName: "Electric Reliability Council of Texas", type: "organization", mentions: 3, url: "https://www.ercot.com/" },
+    { name: "ercot", canonicalName: "ERCOT", type: "organization", mentions: 1, url: null },
+    { name: "Senate Bill 6", canonicalName: "Senate Bill 6", type: "legislation", mentions: 1, url: null },
     { name: "  ", type: "person", mentions: 1, url: null },
     { name: "Abilene", type: "city", mentions: 0, url: "not a url" },
   ],
@@ -80,9 +80,10 @@ describe("parseExtraction", () => {
 
   it("merges entities by normalized name and cleans fields", () => {
     expect(r.entities).toEqual([
-      { name: "ERCOT", normalized: "ercot", type: "organization", mentions: 4, url: "https://www.ercot.com/" },
-      { name: "Senate Bill 6", normalized: "senate bill 6", type: "legislation", mentions: 1, url: null },
-      { name: "Abilene", normalized: "abilene", type: "other", mentions: 1, url: null },
+      { name: "ERCOT", normalized: "ercot", type: "organization", mentions: 4, url: "https://www.ercot.com/", canonicalName: "Electric Reliability Council of Texas" },
+      // A canonical name that only repeats the name isn't kept.
+      { name: "Senate Bill 6", normalized: "senate bill 6", type: "legislation", mentions: 1, url: null, canonicalName: null },
+      { name: "Abilene", normalized: "abilene", type: "other", mentions: 1, url: null, canonicalName: null },
     ]);
   });
 
@@ -261,6 +262,24 @@ describe("extractAnswer", () => {
     // 2,000 in × $0.10/1M + 400 out × $0.50/1M
     expect(out.costUsd).toBeCloseTo(0.0004, 8);
     expect(out.priceIds).toEqual(["gpt-6-luna:input", "gpt-6-luna:output"]);
+  });
+
+  it("reads the model from the model list's extraction row and records the row", async () => {
+    const { client, requests } = fakeClient(sample);
+    const settings = { ...EXTRACTION_DEFAULT, registryId: "reg-x", source: "registry" as const };
+    const out = await extractAnswer({ topic: "T", question: "Q?", answer: "A." }, { client, settings });
+    expect(requests[0]).toMatchObject({ model: EXTRACTION_DEFAULT.model, reasoning: { effort: "none" } });
+    expect(out.modelRegistryId).toBe("reg-x");
+    const data = extractionCreateData("ans1", out.result, out);
+    expect(data).toMatchObject({ modelRegistryId: "reg-x" });
+    expect((data.entities as { create: { canonicalName: string | null }[] }).create[0].canonicalName).toBe(
+      "Electric Reliability Council of Texas"
+    );
+  });
+
+  it("asks for each entity's full name in the schema", () => {
+    const entity = EXTRACTION_JSON_SCHEMA.properties.entities.items;
+    expect(entity.required).toContain("canonicalName");
   });
 
   it("passes the answer as quoted data", () => {

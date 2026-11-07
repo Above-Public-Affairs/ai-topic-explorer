@@ -52,7 +52,15 @@ const rawSchema = z.object({
   tone: z.string().nullish(),
   framing: z.string().nullish(),
   entities: z
-    .array(z.object({ name: text, type: z.string().nullish(), mentions: z.number().nullish(), url: z.unknown() }))
+    .array(
+      z.object({
+        name: text,
+        canonicalName: text.nullish(),
+        type: z.string().nullish(),
+        mentions: z.number().nullish(),
+        url: z.unknown(),
+      })
+    )
     .default([]),
   themes: z
     .array(
@@ -104,7 +112,9 @@ export function parseExtraction(output: unknown, subTopics: string[] = []): Extr
       continue;
     }
     const type: EntityType = oneOf(ENTITY_TYPES, e.type) ?? "other";
-    entities.set(normalized, { name: e.name, normalized, type, mentions, url });
+    // Kept only when it says something the name doesn't.
+    const canonicalName = e.canonicalName && normalizeName(e.canonicalName) !== normalized ? e.canonicalName : null;
+    entities.set(normalized, { name: e.name, normalized, type, mentions, url, canonicalName });
   }
 
   const subTopicByKey = new Map(subTopics.map((s) => [s.trim().toLowerCase(), s]));
