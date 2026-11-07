@@ -17,6 +17,15 @@ The app is becoming an internal topic-tracking tool.
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
 Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search) and 5.1.
 
+## Measured cost (task 2.6)
+- Real cost per answer and the monthly figure (~$83 vs the $60 estimate) are in
+  `PROJECT-PLAN.md` under "Measured cost". Rerun with
+  `railway run -- env DATABASE_URL=<local> npx tsx scripts/cost-batch.ts` (`--report-only`,
+  `--cap=`); it refuses any non-local database.
+- Gemini's recorded cost prices search at list; real is ~$0.002 while under 5,000 grounding
+  requests a month. Grok's reported charge matched a list-price recompute. Claude and OpenAI
+  weren't checked against their consoles. Grok returned one 429 "at capacity" in 10 calls.
+
 ## Model list (task 2.4)
 - `lib/answers/registry.ts` holds `FREE_TIER_DEFAULTS` (one free-tier default per
   provider, with source URL, date confirmed, guess flag) and `getModel(provider)`.

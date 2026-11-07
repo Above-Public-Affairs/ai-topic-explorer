@@ -36,6 +36,9 @@ row that points at its `Run`. The results page reads v3 results from the run tab
 (`lib/results/run-view.ts`) and v1/v2 blobs as before. `lib/ai-clients/` and the JSON
 parse/merge code are gone. Spend cap counts real answer + extraction cost, plus $0.15 per
 call cut off by the deadline. Local proof: 4/4 answered and extracted in ~40s, $0.15 total.
+Task 2.6 (real cost) is done: 40 answers cost $1.46. Real per answer: Claude $0.040, OpenAI $0.030,
+Gemini ~$0.002 (search free inside the allowance), Grok $0.053. About **$83/month** for 3 watch
+items against the $60 estimate, mostly Grok's searching. Figures in `PROJECT-PLAN.md`.
 
 Key findings from the Nov 6 codebase review that drive phase 1:
 - Perplexity's Sonar Chat Completions API ended Sep 27, 2026. Perplexity is being
