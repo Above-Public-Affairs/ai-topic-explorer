@@ -21,7 +21,7 @@ const geistMono = Geist_Mono({
 const siteUrl = "https://aitopicexplorer.app";
 const title = "AI Topic Explorer";
 const description =
-  "Enter any topic and see what Claude, ChatGPT, Gemini, Perplexity, and Grok collectively know about it. Key themes, named entities, citations, and X perspectives — all in one place.";
+  "Enter any topic and see what Claude, ChatGPT, Gemini, and Grok collectively know about it. Key themes, named entities, citations, and X perspectives — all in one place.";
 
 export const metadata: Metadata = {
   title,

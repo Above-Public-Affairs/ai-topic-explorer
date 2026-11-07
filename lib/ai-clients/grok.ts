@@ -7,6 +7,13 @@ import {
   REQUEST_MAX_RETRIES,
 } from "./shared";
 
+// xAI doesn't name the model behind grok.com's free "Fast" mode. grok-4.3 is
+// its non-flagship model ("fast, reliable"); the flagship grok-4.7 runs paid
+// Expert mode. low is grok-4.3's default reasoning effort. Unconfirmed: revisit
+// if xAI publishes the free-tier model. The retired grok-3 was being silently
+// served by grok-4.3 anyway.
+const MODEL = "grok-4.3";
+
 // Built on first use, not at module load, so `next build` (which loads this
 // module to collect route config) works without API keys in the environment.
 let client: OpenAI | null = null;
@@ -54,8 +61,9 @@ export async function analyzeWithGrok(
 ): Promise<AIResponse> {
   const completion = await getClient().chat.completions.create(
     {
-      model: "grok-3",
+      model: MODEL,
       max_tokens: 8192,
+      reasoning_effort: "low",
       messages: [
         {
           role: "user",
@@ -91,7 +99,7 @@ export async function analyzeWithGrok(
     entities,
     citations,
     keyThemes,
-    model: "grok-3",
+    model: MODEL,
     usage: [usage],
     ...(quotedPhrases.length > 0 && { quotedPhrases }),
   };

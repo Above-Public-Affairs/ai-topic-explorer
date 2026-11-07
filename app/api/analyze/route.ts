@@ -5,7 +5,6 @@ import { reportError } from "@above-public-affairs/error-reporter";
 import { analyzeWithClaude } from "@/lib/ai-clients/claude";
 import { analyzeWithOpenAI } from "@/lib/ai-clients/openai";
 import { analyzeWithGemini, geminiErrorBody } from "@/lib/ai-clients/gemini";
-import { analyzeWithPerplexity } from "@/lib/ai-clients/perplexity";
 import { analyzeWithGrok } from "@/lib/ai-clients/grok";
 import { expandQuery } from "@/lib/analysis/query-expansion";
 import {
@@ -40,7 +39,7 @@ const EXPANSION_TIMEOUT_MS = 15_000; // 15 seconds for query expansion
 
 // Every expanded query fires at every provider, so a single analysis opens all
 // of a provider's subtopic queries in the same instant. That burst is what trips
-// Perplexity's rate limiter — the per-minute volume is small, but it arrives all
+// burst-based rate limiters — the per-minute volume is small, but it arrives all
 // at once. Spacing the starts costs ~1.6s on the last query out of a 150s budget
 // (and the offset is added back to that query's deadline below) and lets a
 // burst-based limiter drain between requests. A limiter enforcing a strict
@@ -220,9 +219,6 @@ function getConfiguredProviders(): { provider: Provider; analyze: AnalyzeFn }[] 
   if (process.env.GOOGLE_AI_API_KEY) {
     providers.push({ provider: "gemini", analyze: analyzeWithGemini });
   }
-  if (process.env.PERPLEXITY_API_KEY) {
-    providers.push({ provider: "perplexity", analyze: analyzeWithPerplexity });
-  }
   if (process.env.XAI_API_KEY) {
     providers.push({ provider: "grok", analyze: analyzeWithGrok });
   }
@@ -238,9 +234,6 @@ function mergeProviderResponses(responses: AIResponse[]): AIResponse {
   const allCitations = responses.flatMap((r) => r.citations);
   const allKeyThemes = responses.map((r) => r.keyThemes);
   const allUsage = responses.flatMap((r) => r.usage || []);
-  const allRelatedQuestions = [
-    ...new Set(responses.flatMap((r) => r.relatedQuestions || [])),
-  ];
   const allQuotedPhrases = [
     ...new Map(
       responses
@@ -259,7 +252,6 @@ function mergeProviderResponses(responses: AIResponse[]): AIResponse {
     keyThemes: mergeKeyThemes(...allKeyThemes),
     model: responses[0].model,
     usage: allUsage,
-    ...(allRelatedQuestions.length > 0 && { relatedQuestions: allRelatedQuestions }),
     ...(allQuotedPhrases.length > 0 && { quotedPhrases: allQuotedPhrases }),
   };
 }
@@ -486,7 +478,6 @@ export async function POST(request: NextRequest) {
           claude: null,
           openai: null,
           gemini: null,
-          perplexity: null,
           grok: null,
         };
         const errors: AnalysisResult["errors"] = {};
@@ -503,7 +494,7 @@ export async function POST(request: NextRequest) {
           if (result.status === "fulfilled") {
             responses[provider] = result.value;
 
-            if (provider !== "perplexity" && provider !== "grok") {
+            if (provider !== "grok") {
               wordFreqLists.push(calculateWordFrequency(result.value.rawText, topicWordSet));
               keyThemeLists.push(result.value.keyThemes);
               entityLists.push({ provider, entities: result.value.entities });

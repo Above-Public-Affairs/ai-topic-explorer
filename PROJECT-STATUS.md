@@ -8,7 +8,8 @@
 site stays up and gets a durability and security pass. The full plan, with the five new
 phases and what blocks each one, is in `PROJECT-PLAN.md`. Work runs from the project
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS). Done: 1.1 (plan docs),
-1.2 (platform upgrade) and 3.1 (Grok research, not yet merged).
+1.2 (platform upgrade), 1.3 (Perplexity removed, models replaced) and 3.1 (Grok
+research, not yet merged).
 
 Key findings from the Nov 6 codebase review that drive phase 1:
 - Perplexity's Sonar Chat Completions API ended Sep 27, 2026. Perplexity is being
@@ -24,14 +25,25 @@ Key findings from the Nov 6 codebase review that drive phase 1:
 - No outright failed analyses and no real 5xx errors in production from Oct 12 to Nov 6
   (11 real analyses in that time).
 
-Deployed on Railway with all five providers. Ongoing work is reliability hardening
+Deployed on Railway with four providers (Claude, ChatGPT, Gemini, Grok). Ongoing work is reliability hardening
 driven by production error reports.
+
+### Models (task 1.3, 2026-11-06)
+- Perplexity removed everywhere. Old saved results still render; their Perplexity
+  response is ignored, and its entity and citation badges still show.
+- Each client has one `MODEL` constant that is also the stored label. Claude
+  `claude-sonnet-5-5` (unchanged), OpenAI `gpt-6-luna` (reasoning `none`), Gemini
+  `gemini-3.6-flash` (Flash-Lite fallback unchanged), Grok `grok-4.3` (reasoning
+  `low`), expansion `claude-haiku-5-5` (effort `low`, 1,024 max tokens).
+- The Grok choice is unconfirmed: xAI doesn't name the model behind grok.com's free
+  "Fast" mode. Revisit in task 3.3 (Responses API + X Search).
+- `railway.json` deleted; the pre-deploy command is set in the service settings.
 
 ### Platform upgrade (task 1.2, 2026-11-06)
 - Next 16.4.5, Prisma 7.10.1, `@anthropic-ai/sdk` 1.6, `openai` 7, Gemini on
   `@google/genai`; Node pinned to 24. Production audit: 0 vulnerabilities.
-- Migrations run as the Railway pre-deploy command (`railway.json`). The service
-  has no custom build/start command in its settings (Railpack defaults).
+- Migrations run as the Railway pre-deploy command, set in the service settings
+  (`railway.json` was ignored and is deleted).
 - `next build` needs no API keys; lint and type check are clean.
 - **Open:** the local Gemini key's Google project returned 402 "prepayment credits
   depleted" on 2026-11-06. Check whether production's key is affected.
@@ -52,8 +64,6 @@ driven by production error reports.
   `gemini-3.5-flash` — Google no longer serves `gemini-2.5-flash` to new projects.
 - **Truncation:** Claude `max_tokens` 4096 → 8192, the shared prompt targets ~1,000–
   1,500 words of prose, and a cut-off JSON block no longer leaks into the word cloud.
-- Follow-up candidate: query expansion to Claude Haiku 5.5 (needs `effort: "low"` and
-  ~1,024 `max_tokens`, or its default thinking eats the 300-token cap).
 - **Fixed the `stream_error` "Invalid state: Controller is already closed" report.**
   Two distinct bugs in `app/api/analyze/route.ts`, both from `controller.close()`
   being called unguarded while `controller.enqueue()` (via `emit`) was already

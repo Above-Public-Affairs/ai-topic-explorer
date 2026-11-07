@@ -18,12 +18,6 @@ const platforms = [
     color: "bg-blue-100 text-blue-700",
   },
   {
-    name: "Perplexity",
-    provider: "Perplexity AI",
-    description: "Search-grounded answers with real-time web citations.",
-    color: "bg-purple-100 text-purple-700",
-  },
-  {
     name: "Grok",
     provider: "xAI",
     description: "Trained on X/Twitter data for a social media perspective.",
@@ -108,7 +102,7 @@ export default function MethodologySection() {
       <h2 className="text-2xl font-bold text-slate-800 text-center mb-8">
         Powered By
       </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-12">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
         {platforms.map((platform) => (
           <div
             key={platform.name}

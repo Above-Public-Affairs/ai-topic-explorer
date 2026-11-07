@@ -1,4 +1,5 @@
 import type { Provider } from "@/lib/types";
+import { PROVIDER_LABELS } from "@/lib/providers";
 
 interface ProviderStatus {
   provider: Provider;
@@ -10,14 +11,6 @@ interface Props {
   providers: ProviderStatus[];
   layout?: "horizontal" | "vertical";
 }
-
-const PROVIDER_LABELS: Record<Provider, string> = {
-  claude: "Claude",
-  openai: "ChatGPT",
-  gemini: "Gemini",
-  perplexity: "Perplexity",
-  grok: "Grok",
-};
 
 export default function ProgressTracker({ providers, layout = "vertical" }: Props) {
   return (

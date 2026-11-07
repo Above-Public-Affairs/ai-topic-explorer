@@ -7,6 +7,11 @@ import {
   REQUEST_MAX_RETRIES,
 } from "./shared";
 
+// The model free ChatGPT users get by default: GPT-6 Luna since Oct 8, 2026
+// (ChatGPT release notes). Free Chat answers at Instant unless the user picks
+// Think, so reasoning is off to match.
+const MODEL = "gpt-6-luna";
+
 // Built on first use, not at module load, so `next build` (which loads this
 // module to collect route config) works without API keys in the environment.
 let client: OpenAI | null = null;
@@ -20,8 +25,10 @@ export async function analyzeWithOpenAI(
 ): Promise<AIResponse> {
   const completion = await getClient().chat.completions.create(
     {
-      model: "gpt-4o",
-      max_tokens: 8192,
+      model: MODEL,
+      // Reasoning models take max_completion_tokens; max_tokens is deprecated.
+      max_completion_tokens: 8192,
+      reasoning_effort: "none",
       messages: [
         {
           role: "user",
@@ -59,7 +66,7 @@ export async function analyzeWithOpenAI(
     entities,
     citations,
     keyThemes,
-    model: "gpt-4o",
+    model: MODEL,
     usage: [usage],
   };
 }

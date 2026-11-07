@@ -8,7 +8,6 @@ import QuotedPhrases from "@/components/QuotedPhrases";
 import WordContextModal from "@/components/WordContextModal";
 import EntityList from "@/components/EntityList";
 import CitationList from "@/components/CitationList";
-import Perplexity from "@/components/Perplexity";
 import ProgressTracker from "@/components/ProgressTracker";
 import Footer from "@/components/Footer";
 import { findWordContext, type WordContextMatch } from "@/lib/analysis/word-context";
@@ -33,7 +32,6 @@ interface Props {
   analysisId: string;
   providerTexts: Record<string, string>;
   grokQuotedPhrases: QuotedPhrase[] | null;
-  perplexityRelatedQuestions: string[] | null;
 }
 
 export default function ResultsContent({
@@ -47,15 +45,13 @@ export default function ResultsContent({
   analysisId,
   providerTexts,
   grokQuotedPhrases,
-  perplexityRelatedQuestions,
 }: Props) {
   const sections = useMemo(() => [
     { id: "key-themes", label: "Key Themes" },
     { id: "entities", label: "Entities" },
     { id: "citations", label: "Citations" },
     ...(grokQuotedPhrases ? [{ id: "x-perspective", label: "X Perspective" }] : []),
-    ...(perplexityRelatedQuestions && perplexityRelatedQuestions.length > 0 ? [{ id: "perplexity", label: "Related Questions" }] : []),
-  ], [perplexityRelatedQuestions, grokQuotedPhrases]);
+  ], [grokQuotedPhrases]);
   const [copied, setCopied] = useState(false);
   const [contextModal, setContextModal] = useState<{
     word: string;
@@ -276,24 +272,6 @@ export default function ResultsContent({
                   These are phrases, slogans, or talking points generated from X/Twitter.
                 </p>
                 <QuotedPhrases phrases={grokQuotedPhrases} />
-              </section>
-            )}
-
-            {/* Perplexity — related questions */}
-            {perplexityRelatedQuestions && perplexityRelatedQuestions.length > 0 && (
-              <section id="perplexity" className="mb-10 scroll-mt-20">
-                <div className="flex items-center gap-2 mb-1">
-                  <h2 className="text-xl font-bold text-[--text-primary]">
-                    Related Questions
-                  </h2>
-                  <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-50 text-purple-400">
-                    Perplexity
-                  </span>
-                </div>
-                <p className="text-sm text-[--text-tertiary] mb-4">
-                  Suggested by Perplexity based on real-time web search for this topic.
-                </p>
-                <Perplexity relatedQuestions={perplexityRelatedQuestions} />
               </section>
             )}
           </div>

@@ -1,18 +1,11 @@
 import type { Provider } from "@/lib/types";
+import { providerLabel } from "@/lib/providers";
 
 export interface WordContextMatch {
   provider: Provider;
   providerLabel: string;
   excerpts: string[];
 }
-
-const PROVIDER_LABELS: Record<Provider, string> = {
-  claude: "Claude",
-  openai: "ChatGPT",
-  gemini: "Gemini",
-  perplexity: "Perplexity",
-  grok: "Grok",
-};
 
 /**
  * Find sentences containing a given word/phrase across all provider texts.
@@ -80,7 +73,7 @@ export function findWordContext(
     if (topExcerpts.length > 0) {
       results.push({
         provider: provider as Provider,
-        providerLabel: PROVIDER_LABELS[provider as Provider] || provider,
+        providerLabel: providerLabel(provider),
         excerpts: topExcerpts,
       });
     }

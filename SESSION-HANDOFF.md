@@ -3,55 +3,42 @@
 **Last Updated:** November 6, 2026
 
 ## Where we are
-Live in production (beta) on Railway. Phase 1A task 1.2 (platform upgrade) shipped
-from branch `claude/platform-upgrades-7ed9a7`. The app is becoming an internal
-topic-tracking tool; later tasks (model swaps, removing Perplexity, a new provider
-pipeline) build on these SDKs.
+Live in production (beta) on Railway with four providers: Claude, ChatGPT, Gemini
+and Grok. Phase 1 tasks 1.2 (platform upgrade) and 1.3 (Perplexity removed, models
+replaced) have shipped. The app is becoming an internal topic-tracking tool.
 
-**Plan and tracker.** The roadmap is in `PROJECT-PLAN.md`: five phases, plus a phase
-map of hard blockers and waits so phases can be picked up in any order the blockers
-allow. Work runs from the project tracker
-(https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic Explorer —
-master" chat. Done so far: 1.1 (plan docs), 1.2 (this upgrade), and 3.1 (Grok and
-X Search research, on branch `claude/grok-x-search-research-2ff2f3` as
-`docs/research/grok-x-search.md`, not merged). Perplexity is being removed; Grok is
-kept.
+**Plan and tracker.** The roadmap is in `PROJECT-PLAN.md`. Work runs from the project
+tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
+Explorer — master" chat. Done: 1.1, 1.2, 1.3, and 3.1 (Grok research; its branch is
+no longer on the remote).
 
-## What was built this session
-- **Dependencies:** Next / eslint-config-next 16.4.5, Prisma 7.10.1,
-  `@anthropic-ai/sdk` 1.6, `openai` 7.53, `@google/genai` 3, `dotenv` 18,
-  `@types/node` 24. `npm audit --omit=dev`: 0 (was 22, 1 critical / 19 high).
-  Dev tooling still has 8 moderate issues (minimatch via eslint).
-- **Gemini** (`lib/ai-clients/gemini.ts`): on `@google/genai`. `ApiError` has only
-  `status` and a `message` holding the JSON error body; `geminiErrorBody()` parses
-  it for the retry delay and for `app/api/analyze/route.ts` (reason,
-  providerMessage, display text). A blocked response throws, as `text()` used to.
-- **Lazy clients:** all five provider clients are built on first call, so
-  `next build` works with no keys.
-- **Lint:** `BetaBanner` and the home page use `useSyncExternalStore` instead of
-  setState-in-effect; `/` is still statically prerendered.
-- **Deploy:** `railway.json` runs `npx prisma migrate deploy` before deploy;
-  `start` is just `next start`. Node 24 via `engines` and `.nvmrc`.
+## What was built this session (task 1.3)
+- **Perplexity removed:** client, `components/Perplexity.tsx`, the related-questions
+  section, progress/badge entries, metadata and home-page copy. `Provider` is now the
+  four live providers; `StoredProvider` adds `"perplexity"` for saved data, and
+  `lib/providers.ts` holds the one label/color map (Perplexity kept there only so old
+  results' badges render).
+- **Models, one `MODEL` constant per client (also the stored label):** OpenAI
+  `gpt-6-luna` + `reasoning_effort: "none"` + `max_completion_tokens` (Free Chat
+  default since Oct 8, 2026, Instant); Grok `grok-4.3` + `reasoning_effort: "low"`;
+  Gemini `gemini-3.6-flash`; expansion `claude-haiku-5-5` + `effort: "low"` +
+  1,024 `max_tokens`. Claude stays `claude-sonnet-5-5`.
+- **Build cleanup:** `railway.json` deleted (pre-deploy is in service settings; see
+  `LESSONS.md`); OG image off the Edge runtime; `allowScripts` in `package.json`.
 
 ## Verification status
-- `npm run lint` (0 problems), `npx tsc --noEmit`, and `npm run build` with no
-  `.env` and no keys all pass.
-- In dev: prefill + URL cleanup, placeholder rotation, banner dismiss/persist work.
-- Live calls: only Gemini had a local key. It returned **402 "prepayment credits
-  depleted"**. Real Gemini errors parse correctly (reason `API_KEY_INVALID`).
-  Claude, OpenAI, Perplexity and Grok were not called locally (no keys).
+- `tsc`, lint and a keyless `next build` pass.
+- Live check before shipping (prod keys via `railway run`): expansion gave 5 queries;
+  Claude, OpenAI, Gemini and Grok each returned text, entities, citations and themes
+  in 29–40s.
 
 ## Next steps
-- Next tracker tasks: 1.3 (remove Perplexity, replace the retired Grok and expiring
-  OpenAI models), then 1.4 (cost and abuse guards). Both edit
-  `app/api/analyze/route.ts`, so they run one after the other.
-- Check Gemini billing in AI Studio if production also returns 402.
+- 1.4 (cost and abuse guards) rebases onto this.
+- Remove the unused `PERPLEXITY_API_KEY` variable from the Railway service.
+- Confirm the free grok.com model if xAI ever names it; revisit in 3.3.
 - Map a 402 to "Quota exhausted — check billing" in `categorizeError`.
-- `FloatingKeywords` uses `Math.random()` during render, causing a hydration
-  mismatch on `/`.
-- Next 16.4 warns that the Edge Runtime is deprecated (one route uses it).
-- Earlier candidates still open: query expansion to Claude Haiku 5.5, stream the
-  other four providers.
+- `FloatingKeywords` uses `Math.random()` during render (hydration mismatch on `/`).
+- `components/MethodologySection.tsx` isn't imported anywhere; delete or use it.
 
 ## Known gotchas
 - **Google model access depends on the project's age.** A newly created Gemini key
@@ -63,6 +50,10 @@ kept.
   deliberately not committed; don't `git add -A` blindly.
 - **Gemini errors are JSON in `ApiError.message`.** Use `geminiErrorBody()`,
   not message matching.
+- **Pick each provider's free-tier default, never the flagship.** OpenAI's is in the
+  ChatGPT release notes (help.openai.com blocks plain fetches; use the browser).
+- **iCloud makes "… 2" duplicates** (`node_modules/@types/node 2`, `.next/... 2.ts`,
+  generated Prisma files) that break `tsc`. They're ignored files; delete them.
 - **`between_tools` works only on Claude Sonnet 5.5.** Any retry or router that
   re-sends the Claude request to another model must drop it.
 - **Sonnet 5.5's tokenizer spends ~30% more tokens than Sonnet 4.5** on the same

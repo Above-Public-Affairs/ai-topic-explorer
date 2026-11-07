@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { TokenUsage } from "@/lib/types";
 
+const MODEL = "claude-haiku-5-5";
+
 const EXPANSION_PROMPT = (topic: string) => `Given the topic: "${topic}"
 
 Generate 3-4 distinct subtopic queries that would provide comprehensive coverage of this topic. Each query should explore a different angle or dimension — for example, different aspects like history, current state, key players, controversies, technical details, societal impact, etc.
@@ -23,8 +25,11 @@ export async function expandQuery(
   const client = new Anthropic({ apiKey });
 
   const message = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 300,
+    model: MODEL,
+    // Haiku 5.5 thinks by default and thinking counts against max_tokens, so
+    // leave room above the ~100-token JSON array. Low effort keeps it brief.
+    max_tokens: 1024,
+    output_config: { effort: "low" },
     messages: [{ role: "user", content: EXPANSION_PROMPT(topic) }],
   });
 

@@ -4,13 +4,25 @@ All notable changes to AI Topic Explorer will be documented in this file.
 
 ## [2026-11-06]
 
+### Removed
+- Perplexity, from the site and the backend: its client, the related-questions section, its progress entry and badge, and the in-site copy. Its Sonar API ended Sep 27, 2026. Results saved earlier still open; their Perplexity badges on entities and citations still show
+- `railway.json`. Railway ignored it for this service, so migrations never ran from it. `npx prisma migrate deploy` is now the pre-deploy command in the service settings
+
 ### Changed
+- Each provider now runs the model free consumer users get by default, set by one `MODEL` constant per client so the stored label always matches the model called:
+  - ChatGPT: `gpt-4o` (shuts down Jan 14, 2027) → `gpt-6-luna` with reasoning off, matching Free's Instant default
+  - Grok: the retired `grok-3` → `grok-4.3` at `low` reasoning effort. xAI doesn't name the free-tier model, so this is a best fit
+  - Gemini: calls `gemini-3.6-flash` directly (`gemini-3.5-flash` was auto-routed to it)
+- Query expansion: Claude Haiku 4.5 → Haiku 5.5, with `effort: "low"` and 1,024 `max_tokens` so its default thinking fits
+- Provider labels and badge colors live in one place (`lib/providers.ts`) instead of six copies
+- The Open Graph image renders on the Node runtime; Next 16.4 deprecates the Edge runtime
+- `package.json` approves install scripts for `prisma`, `@prisma/engines`, `protobufjs` and `unrs-resolver` (`allowScripts`), since npm 11.20 blocks unapproved install scripts by default
 - New project plan: AI Topic Explorer becomes an internal tool that tracks how AI describes Above's issues over time. The public site stays up and gets a durability pass (see `PROJECT-PLAN.md`); a `LESSONS.md` file was added
 - Security upgrade: Next.js 16.1.6 → 16.4.5 and Prisma 7.4 → 7.10.1, plus `npm audit fix`. `npm audit --omit=dev` goes from 22 vulnerabilities (1 critical, 19 high) to 0
 - AI SDKs brought current: `@anthropic-ai/sdk` 0.74 → 1.6 (sends API version 2026-10-21; the `between_tools` cast is no longer needed) and `openai` 6 → 7. Models and behavior are unchanged
 - Gemini moved from the deprecated `@google/generative-ai` to `@google/genai`. Same models, retries, Flash-Lite fallback, safety and thinking settings. Error details are parsed from the new SDK's `ApiError`, and a blocked response still fails the provider
 - Node pinned to 24 (`engines`, `.nvmrc`, `@types/node`)
-- Database migrations now run as Railway's pre-deploy command (`railway.json`), no longer inside `npm start`
+- Database migrations no longer run inside `npm start` (they were meant to move to `railway.json`; see Removed)
 - Provider clients are created on first use, so `next build` no longer needs API keys in the environment
 - `dotenv` is now a direct dependency (`prisma.config.ts` imports it)
 

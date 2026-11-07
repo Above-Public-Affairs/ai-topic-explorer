@@ -1,9 +1,16 @@
-export type Provider = "claude" | "openai" | "gemini" | "perplexity" | "grok";
+/** Providers the analysis calls today. */
+export type Provider = "claude" | "openai" | "gemini" | "grok";
+
+/**
+ * Any provider a saved result can name. Results saved before Nov 2026 also
+ * carry Perplexity, which was removed then.
+ */
+export type StoredProvider = Provider | "perplexity";
 
 export interface Entity {
   name: string;
   url?: string;
-  providers?: Provider[];
+  providers?: StoredProvider[];
 }
 
 export interface ExtractedEntities {
@@ -30,7 +37,6 @@ export interface AIResponse {
   keyThemes: KeyTheme[];
   model: string;
   usage?: TokenUsage[];
-  relatedQuestions?: string[];
   quotedPhrases?: QuotedPhrase[];
 }
 
@@ -58,7 +64,7 @@ export interface CombinedCitation {
   title: string;
   url: string;
   domain: string;
-  providers: Provider[];
+  providers: StoredProvider[];
 }
 
 export interface CombinedEntities {
@@ -73,14 +79,12 @@ export interface AnalysisResult {
     claude: AIResponse | null;
     openai: AIResponse | null;
     gemini: AIResponse | null;
-    perplexity: AIResponse | null;
     grok: AIResponse | null;
   };
   errors: {
     claude?: string;
     openai?: string;
     gemini?: string;
-    perplexity?: string;
     grok?: string;
   };
   combinedWordFrequencies: WordFrequency[];

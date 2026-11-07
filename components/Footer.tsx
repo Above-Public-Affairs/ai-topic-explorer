@@ -4,6 +4,14 @@ import { useState, useRef, useEffect } from "react";
 
 const CHANGELOG: { date: string; changes: string[] }[] = [
   {
+    date: "Nov 6",
+    changes: [
+      "Compare four AI models: Claude, ChatGPT, Gemini and Grok. Perplexity has been removed",
+      "Each model now runs the version free users get by default: GPT-6 Luna for ChatGPT, Grok 4.3, and Gemini 3.6 Flash",
+      "Topic expansion now uses Claude Haiku 5.5",
+    ],
+  },
+  {
     date: "Oct 28",
     changes: [
       "Gemini retries when Google is busy and falls back to a lighter model, so it drops out of comparisons less often",

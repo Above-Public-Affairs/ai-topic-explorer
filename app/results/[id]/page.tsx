@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { toWordCloudData, topicToWords } from "@/lib/analysis/word-frequency";
 import type { AnalysisResult, KeyTheme, Provider } from "@/lib/types";
+import { PROVIDER_LABELS } from "@/lib/providers";
 import ResultsContent from "./ResultsContent";
 
 interface Props {
@@ -37,8 +38,9 @@ export default async function ResultsPage({ params }: Props) {
   const wordCloudData = toWordCloudData(filteredFrequencies);
   const keyThemes: KeyTheme[] = result.combinedKeyThemes || [];
 
-  // Determine which providers succeeded/failed/unavailable
-  const allProviders: Provider[] = ["claude", "openai", "gemini", "perplexity", "grok"];
+  // Determine which providers succeeded/failed/unavailable. Results saved
+  // before Nov 2026 also hold a Perplexity response; it isn't listed here.
+  const allProviders: Provider[] = ["claude", "openai", "gemini", "grok"];
   const providerStatuses: { provider: Provider; status: "done" | "failed" | "unavailable"; errorReason?: string }[] =
     allProviders.map((provider) => {
       if (result.responses[provider]) {
@@ -57,13 +59,6 @@ export default async function ResultsPage({ params }: Props) {
     .filter((p) => p.status === "done")
     .map((p) => p.provider);
 
-  const PROVIDER_LABELS: Record<Provider, string> = {
-    claude: "Claude",
-    openai: "ChatGPT",
-    gemini: "Gemini",
-    perplexity: "Perplexity",
-    grok: "Grok",
-  };
 
   let partialFailureMessage: string | null = null;
   if (failedProviders.length > 0 && succeededProviders.length > 0) {
@@ -81,10 +76,11 @@ export default async function ResultsPage({ params }: Props) {
     partialFailureMessage = `${failedDetails} unavailable — showing results from ${succeededNames}`;
   }
 
-  // Build provider raw text map for word context lookups (exclude Perplexity — web search, not training data)
+  // Build provider raw text map for word context lookups. Grok is kept out:
+  // its X/Twitter perspective is shown separately from the combined analysis.
   const providerTexts: Record<string, string> = {};
   for (const provider of allProviders) {
-    if (provider === "perplexity" || provider === "grok") continue;
+    if (provider === "grok") continue;
     const resp = result.responses[provider];
     if (resp) {
       providerTexts[provider] = resp.rawText;
@@ -95,12 +91,6 @@ export default async function ResultsPage({ params }: Props) {
   const grokResponse = result.responses.grok;
   const grokQuotedPhrases = grokResponse?.quotedPhrases?.length
     ? grokResponse.quotedPhrases
-    : null;
-
-  // Perplexity related questions (web search perspective)
-  const perplexityResponse = result.responses.perplexity;
-  const perplexityRelatedQuestions = perplexityResponse?.relatedQuestions?.length
-    ? perplexityResponse.relatedQuestions
     : null;
 
   return (
@@ -115,7 +105,6 @@ export default async function ResultsPage({ params }: Props) {
       analysisId={id}
       providerTexts={providerTexts}
       grokQuotedPhrases={grokQuotedPhrases}
-      perplexityRelatedQuestions={perplexityRelatedQuestions}
     />
   );
 }

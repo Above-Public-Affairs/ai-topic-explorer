@@ -1,24 +1,9 @@
-import type { CombinedEntities, Provider } from "@/lib/types";
+import type { CombinedEntities } from "@/lib/types";
+import { PROVIDER_COLORS, PROVIDER_LABELS } from "@/lib/providers";
 
 interface Props {
   entities: CombinedEntities;
 }
-
-const PROVIDER_LABELS: Record<Provider, string> = {
-  claude: "Claude",
-  openai: "ChatGPT",
-  gemini: "Gemini",
-  perplexity: "Perplexity",
-  grok: "Grok",
-};
-
-const PROVIDER_COLORS: Record<Provider, string> = {
-  claude: "bg-orange-50 text-orange-400",
-  openai: "bg-emerald-50 text-emerald-400",
-  gemini: "bg-blue-50 text-blue-400",
-  perplexity: "bg-purple-50 text-purple-400",
-  grok: "bg-red-50 text-red-400",
-};
 
 const CATEGORIES: { key: keyof CombinedEntities; label: string }[] = [
   { key: "people", label: "People" },
