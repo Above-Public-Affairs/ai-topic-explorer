@@ -42,12 +42,13 @@ export interface SendOptions {
  * callers deciding whether to retry should treat the two differently.
  */
 export class SendRejectedError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
+  readonly status: number;
+
+  // No constructor parameter properties: Node's type stripping rejects them.
+  constructor(message: string, status: number) {
     super(message);
     this.name = "SendRejectedError";
+    this.status = status;
   }
 }
 
