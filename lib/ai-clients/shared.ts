@@ -1,3 +1,4 @@
+import { reportError } from "@above-public-affairs/error-reporter";
 import type { Entity, ExtractedEntities, Citation, KeyTheme } from "@/lib/types";
 
 /**
@@ -134,6 +135,37 @@ function normalizeParsed(parsed: ParsedJSON): {
   };
 }
 
+/**
+ * The outermost JSON object in `text` that contains `"entities"`, found by
+ * matching braces from the `{` that opens it. The old greedy regex ran to the
+ * last `}` in the whole response, so any brace in prose after the block made
+ * the parse fail.
+ */
+function findEntitiesObject(text: string): string | null {
+  const key = text.search(/"entities"\s*:/);
+  if (key === -1) return null;
+  const start = text.lastIndexOf("{", key);
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (ch === "\\") i++;
+      else if (ch === '"') inString = false;
+    } else if (ch === '"') inString = true;
+    else if (ch === "{") depth++;
+    else if (ch === "}" && --depth === 0) return text.slice(start, i + 1);
+  }
+  return null;
+}
+
+/** Map the display name each client passes to its provider id, for reports. */
+function providerId(providerName: string): string {
+  const lower = providerName.toLowerCase();
+  return ["claude", "openai", "gemini", "grok"].includes(lower) ? lower : providerName;
+}
+
 export function parseStructuredData(
   text: string,
   providerName = "AI"
@@ -151,26 +183,58 @@ export function parseStructuredData(
     keyThemes: [] as KeyTheme[],
   };
 
-  try {
-    // Try to extract JSON from code block
-    const codeBlockMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
-    if (codeBlockMatch) {
-      const parsed: ParsedJSON = JSON.parse(codeBlockMatch[1]);
-      return normalizeParsed(parsed);
-    }
+  // Non-greedy: stops at the first closing fence, so text after the block
+  // can't be swallowed into the JSON.
+  // An empty answer fails the provider in app/api/analyze/route.ts, which
+  // reports it there; a parse report on top would be noise.
+  if (!text.trim()) return fallback;
 
-    // Fallback: try to find raw JSON object
-    const jsonMatch = text.match(/\{[\s\S]*"entities"[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed: ParsedJSON = JSON.parse(jsonMatch[0]);
-      return normalizeParsed(parsed);
+  const codeBlock = text.match(/```json\s*([\s\S]*?)\s*```/)?.[1];
+  const candidate = codeBlock ?? findEntitiesObject(text);
+
+  // A missing block usually means the answer was cut off before it (max
+  // tokens or the timeout); a present but unparseable one is the model writing
+  // bad JSON. Both leave this answer with no entities, citations or themes, so
+  // report them per provider rather than only logging.
+  let failure: {
+    kind: "missing_block" | "unclosed_block" | "invalid_json";
+    error?: unknown;
+  };
+  if (candidate === null) {
+    failure = { kind: text.includes("```json") ? "unclosed_block" : "missing_block" };
+  } else {
+    try {
+      return normalizeParsed(JSON.parse(candidate) as ParsedJSON);
+    } catch (e) {
+      failure = { kind: "invalid_json", error: e };
     }
-  } catch (e) {
-    console.warn(
-      `Failed to parse entities/citations JSON from ${providerName} response:`,
-      e
-    );
   }
+
+  const message = `${providerName} answer had ${
+    {
+      missing_block: "no JSON block",
+      unclosed_block: "a JSON block cut off before it closed",
+      invalid_json: "an unparseable JSON block",
+    }[failure.kind]
+  }`;
+  console.warn(`[${providerName}] ${message}`);
+  reportError({
+    project: "ai-topic-explorer",
+    category: "json_parse_failure",
+    // The answer's prose still feeds the word cloud, so this degrades the
+    // result rather than breaking it.
+    level: "warning",
+    provider: providerId(providerName),
+    message,
+    rawError: failure.error,
+    context: {
+      kind: failure.kind,
+      foundCodeBlock: codeBlock !== undefined,
+      responseLength: text.length,
+      // The end of the answer shows whether it was truncated mid-block.
+      responseTail: text.slice(-300),
+    },
+  });
 
   return fallback;
 }

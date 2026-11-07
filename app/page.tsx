@@ -292,7 +292,15 @@ export default function Home() {
   const [showMethodology, setShowMethodology] = useState(false);
   const [progress, setProgress] = useState<ProgressState | null>(null);
   const router = useRouter();
-  const exampleTopics = useMemo(() => pickRandom(ALL_TOPICS, 5), []);
+  // Random examples can't be rendered on the server: its pick and the
+  // browser's would differ (a hydration error). The server renders the first
+  // five, hidden so they hold the row's height, and the browser swaps in a
+  // random five that fade in.
+  const isClient = useSyncExternalStore(subscribeToNothing, () => true, () => false);
+  const exampleTopics = useMemo(
+    () => (isClient ? pickRandom(ALL_TOPICS, 5) : ALL_TOPICS.slice(0, 5)),
+    [isClient]
+  );
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const getPlaceholderTopic = useCallback(() => {
@@ -588,14 +596,17 @@ export default function Home() {
                 <div className="text-sm text-[--text-secondary]">
                   <p className="mb-3">Try an example:</p>
                   <div className="flex flex-wrap gap-2">
-                    {exampleTopics.map((example) => (
+                    {exampleTopics.map((example, i) => (
                       <button
                         key={example}
+                        // Stagger the fade-in; "both" keeps each pill hidden
+                        // until its delay ends.
+                        style={isClient ? { animationDelay: `${i * 60}ms`, animationFillMode: "both" } : undefined}
                         onClick={() => {
                           setTopic(example);
                           trackEvent({ action: "example_topic_clicked", params: { topic: example } });
                         }}
-                        className="pill-interactive px-4 py-2 rounded-full text-sm"
+                        className={`pill-interactive px-4 py-2 rounded-full text-sm ${isClient ? "animate-fade-in" : "invisible"}`}
                         disabled={isLoading}
                       >
                         {example}

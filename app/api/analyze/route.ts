@@ -16,6 +16,7 @@ import {
 import { mergeEntities } from "@/lib/analysis/merge-entities";
 import { mergeCitations } from "@/lib/analysis/merge-citations";
 import { mergeKeyThemes } from "@/lib/analysis/merge-themes";
+import { RESULT_SCHEMA_VERSION } from "@/lib/results/stored-result";
 import type {
   AIResponse,
   AnalysisResult,
@@ -37,6 +38,19 @@ type AnalyzeFn = (query: string, signal?: AbortSignal) => Promise<AIResponse>;
 // killed mid-stream and reported as failures.
 const PROVIDER_TIMEOUT_MS = 150_000; // 150 seconds per provider query
 const EXPANSION_TIMEOUT_MS = 15_000; // 15 seconds for query expansion
+
+// One deadline for the whole run, under the browser's 180s timeout in
+// app/page.tsx. Expansion (15s) plus a full provider budget (150s) plus the
+// stagger could otherwise run past it, and the visitor would see a timeout for
+// a run that then finished and saved. Provider calls stop SAVE_RESERVE_MS
+// before the deadline so merging and the database write still fit.
+const RUN_DEADLINE_MS = 170_000;
+const SAVE_RESERVE_MS = 10_000;
+
+// Proxies and load balancers drop a connection that sends nothing for a while,
+// and providers can stay silent for over a minute. An SSE comment line keeps
+// the stream alive; the browser's parser skips anything not starting "data: ".
+const HEARTBEAT_MS = 15_000;
 
 // Every expanded query fires at every provider, so a single analysis opens all
 // of a provider's subtopic queries in the same instant. That burst is what trips
@@ -78,7 +92,7 @@ function withTimeout<T>(
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       controller.abort();
-      reject(new Error(`Timed out after ${ms / 1000}s (${label})`));
+      reject(new Error(`Timed out after ${Math.round(ms / 1000)}s (${label})`));
     }, ms);
     task(controller.signal).then(
       (val) => { clearTimeout(timer); resolve(val); },
@@ -124,7 +138,12 @@ function categorizeError(err: unknown): string {
 
   // A 429 for exhausted credit isn't a rate limit: it won't clear on retry and
   // needs billing attention, so name it separately.
-  if (code === "insufficient_quota")
+  // xAI answers 402 when the team's prepaid credits run out.
+  if (
+    code === "insufficient_quota" ||
+    status === 402 ||
+    /credits? (?:are |is )?depleted|prepayment credits/i.test(message)
+  )
     return "Quota exhausted — check the provider's billing";
   if (status === 401 || reason === "API_KEY_INVALID")
     return "Authentication error — invalid API key";
@@ -132,6 +151,18 @@ function categorizeError(err: unknown): string {
     return "Permission denied — API key blocked or lacks access";
   if (status === 404) return "Model not found — check the model ID";
   if (status === 429) return "Rate limited — too many requests";
+
+  // A provider's safety filter: Gemini's block or SAFETY-style finish reasons,
+  // or Claude's refusal.
+  if (
+    /prompt blocked|finish reason: (?:SAFETY|PROHIBITED_CONTENT|BLOCKLIST|SPII|RECITATION)|declined to analyze/i.test(
+      message
+    )
+  )
+    return "Blocked by the provider's safety filter";
+  // OpenAI's content_filter and similar come back as a 200 with no text.
+  if (message.includes("returned an empty answer"))
+    return "Empty answer — possibly filtered by the provider";
 
   if (message.includes("429") || message.toLowerCase().includes("rate limit"))
     return "Rate limited — too many requests";
@@ -227,6 +258,16 @@ function getConfiguredProviders(): { provider: Provider; analyze: AnalyzeFn }[] 
   return providers;
 }
 
+/**
+ * Grok's quoted-phrase frequency is model-authored. A string like "high"
+ * made `Math.max(1, ...)` return NaN, which then sorted unpredictably and
+ * saved as null. Keep it a whole number from 1 to 5.
+ */
+function clampFrequency(value: unknown): number {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? Math.min(5, Math.max(1, Math.round(n))) : 3;
+}
+
 /** Merge multiple AIResponses from subtopic queries into a single AIResponse per provider */
 function mergeProviderResponses(responses: AIResponse[]): AIResponse {
   const rawTexts = responses.map((r) => r.rawText);
@@ -239,7 +280,8 @@ function mergeProviderResponses(responses: AIResponse[]): AIResponse {
     ...new Map(
       responses
         .flatMap((r) => r.quotedPhrases || [])
-        .map((q) => [q.phrase.toLowerCase(), q] as const)
+        .filter((q) => typeof q?.phrase === "string" && q.phrase.trim())
+        .map((q) => [q.phrase.toLowerCase(), { ...q, frequency: clampFrequency(q.frequency) }] as const)
     ).values(),
   ]
     .sort((a, b) => b.frequency - a.frequency)
@@ -251,7 +293,9 @@ function mergeProviderResponses(responses: AIResponse[]): AIResponse {
     entities: mergeEntities(allEntities),
     citations: allCitations,
     keyThemes: mergeKeyThemes(...allKeyThemes),
-    model: responses[0].model,
+    // Gemini can answer some subtopic queries on its fallback model, so name
+    // every model that answered, not just the first.
+    model: [...new Set(responses.map((r) => r.model))].join(", "),
     usage: allUsage,
     ...(allQuotedPhrases.length > 0 && { quotedPhrases: allQuotedPhrases }),
   };
@@ -304,6 +348,16 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      const deadlineAt = Date.now() + RUN_DEADLINE_MS;
+      const heartbeat = setInterval(() => {
+        if (streamClosed || signal.aborted) return;
+        try {
+          controller.enqueue(encoder.encode(": keepalive\n\n"));
+        } catch {
+          // Stream already closed
+        }
+      }, HEARTBEAT_MS);
+
       try {
         // Step 1: Query expansion
         emit({ stage: "expanding" });
@@ -311,7 +365,11 @@ export async function POST(request: NextRequest) {
         const allUsage: TokenUsage[] = [];
         let expandedQueries: string[];
         try {
-          const expansion = await withTimeout(() => expandQuery(topic), EXPANSION_TIMEOUT_MS, "expansion");
+          const expansion = await withTimeout(
+            (expansionSignal) => expandQuery(topic, expansionSignal),
+            EXPANSION_TIMEOUT_MS,
+            "expansion"
+          );
           expandedQueries = expansion.queries;
           if (expansion.usage.inputTokens > 0) {
             allUsage.push(expansion.usage);
@@ -332,8 +390,10 @@ export async function POST(request: NextRequest) {
           expandedQueries = [topic];
         }
 
-        // Check if client disconnected before expensive AI calls.
-        // `finally` closes the stream — closing here too would double-close.
+        // A visitor who left during expansion has cost almost nothing yet, so
+        // skip the expensive calls. Past this point the run is paid for and is
+        // saved even if they leave. `finally` closes the stream — closing here
+        // too would double-close.
         if (signal.aborted) return;
 
         // Step 2: Run all queries × all providers in parallel
@@ -349,11 +409,25 @@ export async function POST(request: NextRequest) {
                   return withTimeout(
                     async (signal) => {
                       if (offset > 0) await sleep(offset, signal);
-                      return analyze(query, signal);
+                      const answer = await analyze(query, signal);
+                      // An HTTP 200 with no text is a filtered answer (OpenAI's
+                      // content_filter) — counting it a success would show an
+                      // empty provider.
+                      if (!answer.rawText.trim()) {
+                        throw new Error(`${provider} returned an empty answer`);
+                      }
+                      return answer;
                     },
                     // Add the stagger back so every query gets the same
-                    // generation budget regardless of its place in the queue.
-                    PROVIDER_TIMEOUT_MS + offset,
+                    // generation budget regardless of its place in the queue,
+                    // but never past the run's deadline.
+                    Math.max(
+                      1_000,
+                      Math.min(
+                        PROVIDER_TIMEOUT_MS + offset,
+                        deadlineAt - SAVE_RESERVE_MS - Date.now()
+                      )
+                    ),
                     `${provider}: "${query.slice(0, 50)}"`
                   );
                 })
@@ -497,6 +571,7 @@ export async function POST(request: NextRequest) {
         const combinedCitations = mergeCitations(citationsByProvider);
 
         const analysisResult: AnalysisResult = {
+          schemaVersion: RESULT_SCHEMA_VERSION,
           topic,
           expandedQueries,
           responses,
@@ -508,9 +583,8 @@ export async function POST(request: NextRequest) {
           tokenUsage: allUsage,
         };
 
-        // Check if client disconnected before DB save
-        if (signal.aborted) return;
-
+        // Save even if the visitor has left: the providers are already paid
+        // for, and the run is still worth keeping.
         // Save to database (retry once on failure)
         let analysisId: string | null = null;
         for (let attempt = 0; attempt < 2; attempt++) {
@@ -541,6 +615,9 @@ export async function POST(request: NextRequest) {
           return;
         }
 
+        if (signal.aborted) {
+          console.log(`[Analyze] Visitor left mid-analysis; saved result ${analysisId}`);
+        }
         emit({ stage: "complete", id: analysisId });
       } catch (err) {
         console.error("Analysis stream error:", err);
@@ -558,6 +635,7 @@ export async function POST(request: NextRequest) {
         }
         emit({ stage: "error", message: "Analysis failed. Please try again." });
       } finally {
+        clearInterval(heartbeat);
         closeStream();
       }
     },

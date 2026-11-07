@@ -4,13 +4,28 @@
 
 ## Where we are
 Live in production (beta) on Railway with four providers: Claude, ChatGPT, Gemini
-and Grok. Phase 1 tasks 1.2, 1.3 and 1.4 (cost and abuse guards) have shipped, and task 5.1
+and Grok. Phase 1 tasks 1.2, 1.3, 1.4 (cost and abuse guards) and 1.5 (stop losing results) have shipped, and task 5.1
 (email sending) is in place for the later alert and report phases. The
 app is becoming an internal topic-tracking tool.
 
 **Plan and tracker.** The roadmap is in `PROJECT-PLAN.md`. Work runs from the project
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
-Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 3.1, 3.2 (no X Search) and 5.1.
+Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search) and 5.1.
+
+## Stop losing results (task 1.5)
+- `app/api/analyze/route.ts`: saves even after the visitor leaves (only a leave during
+  expansion skips the provider calls); one 170s run deadline (`RUN_DEADLINE_MS`, provider
+  calls stop `SAVE_RESERVE_MS` = 10s before it); `: keepalive` SSE comment every 15s;
+  empty answers fail the provider; mixed-model `model` labels; Grok frequency clamped;
+  `categorizeError` covers 402 / depleted credits and safety blocks.
+- `lib/ai-clients/shared.ts`: `json_parse_failure` reports (warning) per provider, kinds
+  `missing_block` / `unclosed_block` / `invalid_json`; brace-matching fallback parser.
+- `lib/results/stored-result.ts`: zod read of saved results with defaults;
+  `RESULT_SCHEMA_VERSION` = 2. Unreadable results render `UnreadableResult.tsx` and
+  report `stored_result_unreadable`.
+- `lib/analysis/query-expansion.ts` takes the abort signal; SDK `timeout` 12s, `maxRetries` 1.
+- Gemini's Flash-Lite fallback retries once (the only provider-file change).
+- Local testing without keys: point `OPENAI_BASE_URL` at a mock OpenAI-compatible server.
 
 ## Email (task 5.1)
 - `lib/email/send.ts`: `sendEmail({ to, subject, text, html? })` over SendGrid v3,

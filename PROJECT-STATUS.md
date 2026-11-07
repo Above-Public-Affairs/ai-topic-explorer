@@ -9,7 +9,7 @@ site stays up and gets a durability and security pass. The full plan, with the f
 phases and what blocks each one, is in `PROJECT-PLAN.md`. Work runs from the project
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS). Done: 1.1 (plan docs),
 1.2 (platform upgrade), 1.3 (Perplexity removed, models replaced), 1.4 (cost and
-abuse guards) and 3.1 (Grok research, not yet merged). Task 3.2 decided: no X Search.
+abuse guards), 1.5 (stop losing results) and 3.1 (Grok research, not yet merged). Task 3.2 decided: no X Search.
 
 Key findings from the Nov 6 codebase review that drive phase 1:
 - Perplexity's Sonar Chat Completions API ended Sep 27, 2026. Perplexity is being

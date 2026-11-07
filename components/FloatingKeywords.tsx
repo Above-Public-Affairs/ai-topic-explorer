@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 
 interface ThemeGroup {
   id: string;
@@ -249,8 +249,15 @@ function generateWords(): FloatingWord[] {
   }));
 }
 
+const subscribeNoop = () => () => {};
+
 export default function FloatingKeywords() {
-  const words = useMemo(() => generateWords(), []);
+  // The words are random, so the server's render and the browser's would never
+  // match (a hydration error). Render none on the server and pick them once in
+  // the browser; each pill's drift animation starts at opacity 0, so they fade
+  // in rather than pop.
+  const isClient = useSyncExternalStore(subscribeNoop, () => true, () => false);
+  const words = useMemo(() => (isClient ? generateWords() : []), [isClient]);
 
   return (
     <div className="relative w-full h-full overflow-hidden">

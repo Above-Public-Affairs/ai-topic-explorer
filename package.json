@@ -31,7 +31,8 @@
     "pg": "^8.18.0",
     "prisma": "^7.10.1",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -36,8 +36,18 @@ function capQueries(topic: string, candidates: unknown[]): string[] {
   return out;
 }
 
+/**
+ * Expansion is a small, fast call, so a slow one is better abandoned than
+ * waited on: the analysis falls back to the topic alone. The SDK's own timeout
+ * and retry cap keep it from outliving the caller's deadline, and `signal`
+ * cancels the request outright when that deadline fires.
+ */
+const EXPANSION_REQUEST_TIMEOUT_MS = 12_000;
+const EXPANSION_MAX_RETRIES = 1;
+
 export async function expandQuery(
-  topic: string
+  topic: string,
+  signal?: AbortSignal
 ): Promise<{ queries: string[]; usage: TokenUsage }> {
   const apiKey = process.env.ANTHROPIC_EXPANSION_API_KEY;
   if (!apiKey) {
@@ -48,16 +58,23 @@ export async function expandQuery(
     };
   }
 
-  const client = new Anthropic({ apiKey });
-
-  const message = await client.messages.create({
-    model: MODEL,
-    // Haiku 5.5 thinks by default and thinking counts against max_tokens, so
-    // leave room above the ~100-token JSON array. Low effort keeps it brief.
-    max_tokens: 1024,
-    output_config: { effort: "low" },
-    messages: [{ role: "user", content: EXPANSION_PROMPT(topic) }],
+  const client = new Anthropic({
+    apiKey,
+    timeout: EXPANSION_REQUEST_TIMEOUT_MS,
+    maxRetries: EXPANSION_MAX_RETRIES,
   });
+
+  const message = await client.messages.create(
+    {
+      model: MODEL,
+      // Haiku 5.5 thinks by default and thinking counts against max_tokens, so
+      // leave room above the ~100-token JSON array. Low effort keeps it brief.
+      max_tokens: 1024,
+      output_config: { effort: "low" },
+      messages: [{ role: "user", content: EXPANSION_PROMPT(topic) }],
+    },
+    { signal }
+  );
 
   const usage: TokenUsage = {
     inputTokens: message.usage.input_tokens,

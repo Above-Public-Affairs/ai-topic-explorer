@@ -129,9 +129,9 @@ The shared engine for the tracker and the public site.
 
 ### 2B. Extraction and storage
 - **One fixed extraction pass** with a single cheap model runs over every answer. It pulls
-  out entities, citations, themes, and how named clients and opponents are framed. This
-  replaces asking each provider for a JSON block, which ends the broken-JSON problem and
-  leaves each provider's answer unaltered.
+  out entities, citations, themes, and how the industry and topic are framed (themes,
+  arguments for and against, tone, sources). This replaces asking each provider for a JSON
+  block, which ends the broken-JSON problem and leaves each provider's answer unaltered.
 - **Normalized tables** replace the single JSON blob: runs, answers, entities, citations,
   themes, and cost per answer.
 
@@ -174,7 +174,16 @@ Snapshots can run before that.
 ### 4A. Watch items
 - A watch item is a **topic**, an optional **geography** and an optional **sub-sector**.
   Josh sets the list.
-- First three: "data centers in Texas", "oil and gas in New Mexico", "renewables in Texas".
+- Confirmed first three (Josh tracks industries and topics, not clients):
+
+  | Watch item | Asked as a user in | Sub-topics |
+  |---|---|---|
+  | Data centers in Texas | Austin, TX | power generation, water use, noise |
+  | Oil and gas in New Mexico | Albuquerque, NM | none |
+  | Renewables in Texas | Austin, TX | wind, solar, BESS |
+
+- Sub-topics live inside their parent item, not as separate watch items: the anchor
+  questions cover each sub-topic, and results break down by sub-topic.
 
 ### 4B. Question sets: depth and breadth
 - **Anchor set (1.1, 1.2, …):** generated once when a watch item is created, then locked.

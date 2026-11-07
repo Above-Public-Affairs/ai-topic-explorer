@@ -4,6 +4,24 @@ All notable changes to AI Topic Explorer will be documented in this file.
 
 ## [2026-11-06]
 
+### Fixed
+- Results are lost less often (task 1.5):
+  - A result is saved even when the visitor leaves mid-analysis. Those runs were paid for and thrown away. A visitor who leaves during expansion still skips the provider calls
+  - One overall deadline (170s, under the browser's 180s): provider calls stop 10s before it so merging and saving fit. A 15s SSE keepalive comment keeps the connection open while providers are silent
+  - Query expansion is actually cancelled at its timeout: the abort signal reaches the SDK, which also gets a 12s `timeout` and `maxRetries: 1`
+  - A missing, cut-off or unparseable JSON block is reported per provider (`json_parse_failure`, warning) instead of only logged. The fallback parser matches braces from the object that holds `"entities"` instead of a greedy regex that ran to the last `}` in the answer
+  - The results page reads saved results through a zod schema (`lib/results/stored-result.ts`) that fills defaults and drops bad entries. New results carry `schemaVersion: 2`; older ones read as 1. A result with no topic or no surviving answers shows a page offering to rerun the topic, and is reported
+  - Gemini retries its Flash-Lite fallback once
+  - Grok quoted-phrase frequencies can't be `NaN`; a provider answered by two models (Gemini Flash and Flash-Lite) names both; an empty answer (OpenAI's `content_filter`) counts as a failure, not an empty success; safety blocks and refusals read "Blocked by the provider's safety filter"; a 402 for depleted prepaid credits reads "Quota exhausted"
+  - The home page no longer has hydration mismatches: the floating keywords and example topics are picked in the browser only, and the examples fade in
+- `zod` is a direct dependency (it was only installed through the AI SDKs)
+
+### Removed
+- `components/MethodologySection.tsx`, imported nowhere
+
+### Changed
+- Plan: §2B extracts how the industry and topic are framed, not named clients; §4A records the three confirmed watch items with their locations and sub-topics
+
 ### Added
 - Email sending (task 5.1), for the coming alerts and monthly report: SendGrid, the same account Above's other tools use, from AI Topic Explorer `<topic-explorer@abovepublicaffairs.com>`. `npm run email:test` sends a test email
 - Cost and abuse guards on the public site (task 1.4):

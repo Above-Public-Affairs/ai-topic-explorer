@@ -178,12 +178,16 @@ export async function analyzeWithGemini(
       `[Analysis: Gemini] ${MODEL} still unavailable (${statusOf(err)}); falling back to ${FALLBACK_MODEL}`
     );
     servedBy = FALLBACK_MODEL;
-    response = await generate(
-      FALLBACK_MODEL,
-      { thinkingLevel: ThinkingLevel.MINIMAL },
-      prompt,
-      signal
-    );
+    const fallback = () =>
+      generate(FALLBACK_MODEL, { thinkingLevel: ThinkingLevel.MINIMAL }, prompt, signal);
+    try {
+      response = await fallback();
+    } catch (fallbackErr) {
+      // One retry on the fallback too: it shares Google's busy spells.
+      if (!isRetryable(fallbackErr) || signal?.aborted) throw fallbackErr;
+      await wait(RETRY_DELAYS_MS[0] * (1 + Math.random() * 0.3), signal);
+      response = await fallback();
+    }
   }
 
   // The old SDK's text() threw on a blocked response; the new getter returns

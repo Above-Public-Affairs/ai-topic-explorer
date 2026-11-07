@@ -1,9 +1,12 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { toWordCloudData, topicToWords } from "@/lib/analysis/word-frequency";
-import type { AnalysisResult, KeyTheme, Provider } from "@/lib/types";
+import { reportError } from "@above-public-affairs/error-reporter";
+import type { KeyTheme, Provider } from "@/lib/types";
 import { PROVIDER_LABELS } from "@/lib/providers";
+import { readStoredResult } from "@/lib/results/stored-result";
 import ResultsContent from "./ResultsContent";
+import UnreadableResult from "./UnreadableResult";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -20,23 +23,27 @@ export default async function ResultsPage({ params }: Props) {
     notFound();
   }
 
-  const result = analysis.result as unknown as AnalysisResult;
-
-  // Validate essential data shape
-  if (
-    !result?.topic ||
-    !result?.responses ||
-    !Array.isArray(result?.combinedWordFrequencies)
-  ) {
-    notFound();
+  // Saved results span every version of the app, so read them through a
+  // schema that fills defaults rather than trusting the stored JSON.
+  const read = readStoredResult(analysis.result);
+  if (!read.ok) {
+    reportError({
+      project: "ai-topic-explorer",
+      category: "stored_result_unreadable",
+      level: "warning",
+      message: `Saved result can't be shown (${read.reason})`,
+      context: { analysisId: id },
+    });
+    return <UnreadableResult topic={analysis.topic} />;
   }
+  const result = read.result;
 
   const topicWords = topicToWords(result.topic);
   const filteredFrequencies = result.combinedWordFrequencies.filter(
     (f) => !topicWords.has(f.word)
   );
   const wordCloudData = toWordCloudData(filteredFrequencies);
-  const keyThemes: KeyTheme[] = result.combinedKeyThemes || [];
+  const keyThemes: KeyTheme[] = result.combinedKeyThemes;
 
   // Determine which providers succeeded/failed/unavailable. Results saved
   // before Nov 2026 also hold a Perplexity response; it isn't listed here.

@@ -73,6 +73,11 @@ export interface CombinedEntities {
 }
 
 export interface AnalysisResult {
+  /**
+   * Shape version of a saved result. Missing on results saved before v2
+   * (Nov 2026); lib/results/stored-result.ts reads every version.
+   */
+  schemaVersion?: number;
   topic: string;
   expandedQueries?: string[];
   responses: {

@@ -11,6 +11,10 @@ const CHANGELOG: { date: string; changes: string[] }[] = [
       "Topic expansion now uses Claude Haiku 5.5",
       "Topics can be up to 300 characters",
       "Bug reports now tell you if they couldn't be sent",
+      "Your analysis is saved even if you close the tab before it finishes",
+      "Long analyses finish before your browser gives up on them, and slow topic expansion is cancelled instead of left running",
+      "Older or damaged saved results open with whatever survives, or a page offering to run the topic again, instead of an error",
+      "Clearer reasons when a provider's safety filter blocks an answer, returns nothing, or runs out of prepaid credit",
     ],
   },
   {
