@@ -1,11 +1,20 @@
 # AI Topic Explorer - Project Status
 
-**Last Updated:** October 28, 2026
+**Last Updated:** November 6, 2026
 
 ## Current Status: Live in production (beta)
 
 Deployed on Railway with all five providers. Ongoing work is reliability hardening
 driven by production error reports.
+
+### Platform upgrade (task 1.2, 2026-11-06)
+- Next 16.4.5, Prisma 7.10.1, `@anthropic-ai/sdk` 1.6, `openai` 7, Gemini on
+  `@google/genai`; Node pinned to 24. Production audit: 0 vulnerabilities.
+- Migrations run as the Railway pre-deploy command (`railway.json`). The service
+  has no custom build/start command in its settings (Railpack defaults).
+- `next build` needs no API keys; lint and type check are clean.
+- **Open:** the local Gemini key's Google project returned 402 "prepayment credits
+  depleted" on 2026-11-06. Check whether production's key is affected.
 
 ### Recent reliability work
 - **Rotated the Anthropic (analysis + expansion), OpenAI and Gemini keys (2026-10-28).**

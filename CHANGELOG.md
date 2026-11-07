@@ -2,6 +2,20 @@
 
 All notable changes to AI Topic Explorer will be documented in this file.
 
+## [2026-11-06]
+
+### Changed
+- Security upgrade: Next.js 16.1.6 → 16.4.5 and Prisma 7.4 → 7.10.1, plus `npm audit fix`. `npm audit --omit=dev` goes from 22 vulnerabilities (1 critical, 19 high) to 0
+- AI SDKs brought current: `@anthropic-ai/sdk` 0.74 → 1.6 (sends API version 2026-10-21; the `between_tools` cast is no longer needed) and `openai` 6 → 7. Models and behavior are unchanged
+- Gemini moved from the deprecated `@google/generative-ai` to `@google/genai`. Same models, retries, Flash-Lite fallback, safety and thinking settings. Error details are parsed from the new SDK's `ApiError`, and a blocked response still fails the provider
+- Node pinned to 24 (`engines`, `.nvmrc`, `@types/node`)
+- Database migrations now run as Railway's pre-deploy command (`railway.json`), no longer inside `npm start`
+- Provider clients are created on first use, so `next build` no longer needs API keys in the environment
+- `dotenv` is now a direct dependency (`prisma.config.ts` imports it)
+
+### Fixed
+- Lint passes again: the beta banner and the home page's rotating placeholder and `?topic=` prefill no longer call `setState` inside effects (flagged by `react-hooks/set-state-in-effect`)
+
 ## [2026-10-28]
 
 ### Changed

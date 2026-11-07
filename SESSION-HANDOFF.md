@@ -1,91 +1,56 @@
 # Session Handoff — AI Topic Explorer
 
-**Last Updated:** October 28, 2026
+**Last Updated:** November 6, 2026
 
 ## Where we are
-Live in production (beta) on Railway. This session triaged the 2026-10-27 error
-digest. Four errors came from a single analysis, and they turned out to be
-account/key problems rather than code:
-
-- **Anthropic:** both keys (`ANTHROPIC_API_KEY`, `ANTHROPIC_EXPANSION_API_KEY`) were
-  rejected as invalid.
-- **OpenAI:** out of quota. It returned a 429 on a single in-flight request after a
-  few seconds of quick retries.
-- **Gemini:** failed instantly, but the reason was hidden by our own error
-  formatting (see below).
-
-All four keys were rotated. They're stored in 1Password (Development vault,
-"AI Topic Explorer - …") and set on Railway, and each was checked live against its
-provider before being saved. Railway redeployed `main` with the new keys, so Claude
-and OpenAI already work in production.
-
-**Gemini is still down in production until this branch deploys.** The new key's
-Google project is new, and Google no longer serves `gemini-2.5-flash` to new
-projects. That project also needed the Gemini API enabled, which is done.
+Live in production (beta) on Railway. Phase 1A task 1.2 (platform upgrade) shipped
+from branch `claude/platform-upgrades-7ed9a7`. The app is becoming an internal
+topic-tracking tool; later tasks (model swaps, removing Perplexity, a new provider
+pipeline) build on these SDKs.
 
 ## What was built this session
-Branch `claude/ai-topic-explorer-provider-errors-26b19e`, three commits plus these
-docs.
-
-- **Error classification** (`app/api/analyze/route.ts`).
-  - `categorizeError` reads the SDK's `status`, OpenAI's `code` and Gemini's
-    `errorDetails` `reason` before matching message text.
-  - Gemini errors begin with the full request URL, so the HTTP status sat past the
-    120-character display cut. The URL prefix is now stripped.
-  - OpenAI `insufficient_quota` gets its own "Quota exhausted" label.
-  - `providerErrorDetail` adds `code` and `reason` to reports.
-  - The `invalid.*key` auth check was a literal-string `includes()` and never
-    matched. It's now a regex.
-- **Claude Sonnet 5.5** (`lib/ai-clients/claude.ts`).
-  - Model is `claude-sonnet-5-5`.
-  - Thinking is off via `thinking: {type: "between_tools"}`. `disabled` is a 400 on
-    this model, and SDK 0.74's types need a cast.
-  - `stop_reason: "refusal"` now throws "Claude declined to analyze this topic"
-    instead of passing as an empty success.
-- **Gemini** (`lib/ai-clients/gemini.ts`): `gemini-3.5-flash` with
-  `thinkingBudget: 0`. Google currently serves that alias with Gemini 3.6 Flash.
-  `gemini-3.8-flash` timed out under load when tested.
-- **Truncation** (`claude.ts`, `lib/ai-clients/shared.ts`).
-  - Claude `max_tokens` is now 8192, up from 4096.
-  - The shared prompt asks for ~1,000–1,500 words of prose, which affects all five
-    providers.
-  - `extractRawText` strips an unclosed JSON block.
-- Docs: CHANGELOG, in-site changelog (`components/Footer.tsx`), PROJECT-PLAN (no
-  longer says Claude runs on Haiku), and PROJECT-STATUS.
+- **Dependencies:** Next / eslint-config-next 16.4.5, Prisma 7.10.1,
+  `@anthropic-ai/sdk` 1.6, `openai` 7.53, `@google/genai` 3, `dotenv` 18,
+  `@types/node` 24. `npm audit --omit=dev`: 0 (was 22, 1 critical / 19 high).
+  Dev tooling still has 8 moderate issues (minimatch via eslint).
+- **Gemini** (`lib/ai-clients/gemini.ts`): on `@google/genai`. `ApiError` has only
+  `status` and a `message` holding the JSON error body; `geminiErrorBody()` parses
+  it for the retry delay and for `app/api/analyze/route.ts` (reason,
+  providerMessage, display text). A blocked response throws, as `text()` used to.
+- **Lazy clients:** all five provider clients are built on first call, so
+  `next build` works with no keys.
+- **Lint:** `BetaBanner` and the home page use `useSyncExternalStore` instead of
+  setState-in-effect; `/` is still statically prerendered.
+- **Deploy:** `railway.json` runs `npx prisma migrate deploy` before deploy;
+  `start` is just `next start`. Node 24 via `engines` and `.nvmrc`.
 
 ## Verification status
-- `tsc --noEmit` and eslint pass. The only warnings are three pre-existing unused
-  imports in `openai.ts`.
-- The new error classification was run against real SDK error objects: Anthropic
-  401, OpenAI quota vs rate-limit 429, and Gemini 400/403/404.
-- `extractRawText` was checked on closed, unclosed, missing and mid-text JSON
-  blocks.
-- Live single-request checks with the new keys all passed:
-  - Sonnet 5.5 + `between_tools`
-  - GPT-4o
-  - Gemini 3.5 Flash with the app's exact safety + thinking settings
-- **Not** exercised: a full end-to-end analysis on this branch.
+- `npm run lint` (0 problems), `npx tsc --noEmit`, and `npm run build` with no
+  `.env` and no keys all pass.
+- In dev: prefill + URL cleanup, placeholder rotation, banner dismiss/persist work.
+- Live calls: only Gemini had a local key. It returned **402 "prepayment credits
+  depleted"**. Real Gemini errors parse correctly (reason `API_KEY_INVALID`).
+  Claude, OpenAI, Perplexity and Grok were not called locally (no keys).
 
 ## Next steps
-- After deploy, run one analysis on the live site and confirm all five providers
-  return. Check that Claude/Gemini prose lands near the new 1,000–1,500-word target
-  and that entities/citations/themes come through.
-- Delete the old Anthropic, OpenAI and Gemini keys in each console if not done yet.
-- The GitHub CLI token can't create PRs in Above-Public-Affairs. The API returns
-  404 even though the account is a repo admin, which points to the GitHub CLI
-  OAuth app not being approved for the org. Grant it at
-  github.com/settings/connections/applications if PRs are wanted.
-- Candidates:
-  - Query expansion to Claude Haiku 5.5 (needs `effort: "low"` + ~1,024
-    `max_tokens`).
-  - Move to `gemini-3.8-flash` once it's stable.
-  - Trim Perplexity's fan-out.
-  - Stream the other four providers.
+- Check Gemini billing in AI Studio if production also returns 402.
+- Map a 402 to "Quota exhausted — check billing" in `categorizeError`.
+- `FloatingKeywords` uses `Math.random()` during render, causing a hydration
+  mismatch on `/`.
+- Next 16.4 warns that the Edge Runtime is deprecated (one route uses it).
+- Earlier candidates still open: query expansion to Claude Haiku 5.5, stream the
+  other four providers.
 
 ## Known gotchas
 - **Google model access depends on the project's age.** A newly created Gemini key
   may not get older models that existing projects still have. Test the exact model
   with a new key before deploying it.
+- **`next build` loads route modules** to collect config, so anything constructed
+  at module load runs at build time. Keep SDK clients lazy.
+- **`next dev` (16.4) writes `AGENTS.md`** and restores it if removed. It's
+  deliberately not committed; don't `git add -A` blindly.
+- **Gemini errors are JSON in `ApiError.message`.** Use `geminiErrorBody()`,
+  not message matching.
 - **`between_tools` works only on Claude Sonnet 5.5.** Any retry or router that
   re-sends the Claude request to another model must drop it.
 - **Sonnet 5.5's tokenizer spends ~30% more tokens than Sonnet 4.5** on the same
