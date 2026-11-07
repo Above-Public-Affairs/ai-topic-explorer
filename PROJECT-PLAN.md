@@ -30,14 +30,13 @@ action from Josh, a vendor, or the calendar.
 |---|---|---|---|---|
 | **1. Durability & security fixes** | Now | None | Gemini quota (doesn't block code) | `gpt-4o` shuts down **Jan 14, 2027** |
 | **2. New pipeline** | Now for design. Code after **1A** ships | **1A** (SDK upgrades) | None | None |
-| **3. Grok & X Search** | Research now. Code after **2A** ships | **2A** (provider interface) | None | xAI's release pace |
+| **3. Grok web search** | After **2A** ships | **2A** (provider interface) | None | xAI's release pace |
 | **4. Tracking** | After **2** ships | **2** (pipeline, tables, registry) | Approve the event list before **4D** goes live | Baselines only start once 4 runs |
 | **5. Outputs** | **5C** after **2B**. **5A/5B** after **4** | **4** (snapshots and noise bands) | Add the org Connector; email sender | Monthly report needs ≥4 weekly snapshots; alerts need ≥2 |
 
 **What can run side by side:**
 - **Phase 1 sub-parts are independent** of each other, except 1A should land first because
   the others touch the same `package.json` and client files.
-- **Phase 3 research** (the X Search deep dive) needs no code, so it can run during any phase.
 - **Phase 3 build and phase 4** both depend only on phase 2, so they can run in parallel.
   Tracking runs fine with the phase 2 Grok adapter, and phase 3 improvements fold in later.
 - **5C (the connector)** can be built against the phase 2 tables while phase 4 is underway.
@@ -150,29 +149,20 @@ The shared engine for the tracker and the public site.
 
 ---
 
-## Phase 3 — Grok & X Search
+## Phase 3 — Grok web search
 
-Grok is the only provider that reads X in real time, and its answers are public on X when
-people tag @grok to fact-check a post. That makes it an early signal in a political fight.
-This phase gets the most out of it for both the tracker and the public site.
+**Decided (task 3.2): no X Search.** Grok gets web search only. There's no X developer
+account, no X-vs-web comparison, and no X section on the public site.
 
-**Blockers:** the build needs 2A, the provider interface. **Research has no blockers.**
+**Blockers:** the build needs 2A, the provider interface.
 **Waits:** xAI ships often (Grok 4.5 in July, 4.6 in August, 4.7 in September), so
-re-check the current state when this phase starts.
+re-check the model when this phase starts.
 
-### 3A. Research (can start any time)
-- X Search in depth: what it returns, its filters (accounts, date ranges, handles), and how
-  its sources differ from web search.
-- Recent Grok capabilities worth using, and which model free users actually get.
-- How stable Grok's answers are from run to run, compared with the other providers.
-
-### 3B. Build
-- Turn on X Search alongside web search in the Grok adapter, and store X posts as their own
-  source type.
-- Tracker: compare what X says with what the web says per watch item, and track which X
-  accounts get cited.
-- Public site: show what's being said on X next to the AI answers, plus other features the
-  research turns up.
+### 3A. Build
+- Grok runs on xAI's Responses API with the web search tool only.
+- Location goes in the system prompt, as for the other providers.
+- Record `cost_in_usd_ticks` from each response as that answer's cost.
+- Model: `grok-4.3`. This is a guess at what free users get; re-check it when the phase starts.
 
 ---
 

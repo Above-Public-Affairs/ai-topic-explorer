@@ -36,7 +36,7 @@ driven by production error reports.
   `gemini-3.6-flash` (Flash-Lite fallback unchanged), Grok `grok-4.3` (reasoning
   `low`), expansion `claude-haiku-5-5` (effort `low`, 1,024 max tokens).
 - The Grok choice is unconfirmed: xAI doesn't name the model behind grok.com's free
-  "Fast" mode. Revisit in task 3.3 (Responses API + X Search).
+  "Fast" mode. Revisit in task 3.3 (Responses API, web search only).
 - `railway.json` deleted; the pre-deploy command is set in the service settings.
 
 ### Platform upgrade (task 1.2, 2026-11-06)
@@ -166,7 +166,7 @@ See `PROJECT-PLAN.md`. It holds the five phases, the phase map of blockers and w
 cost estimates:
 1. Durability & security fixes
 2. New pipeline
-3. Grok & X Search
+3. Grok web search (no X Search, per task 3.2)
 4. Tracking
 5. Outputs
 
