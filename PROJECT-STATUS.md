@@ -2,7 +2,25 @@
 
 **Last Updated:** November 6, 2026
 
-## Current Status: Live in production (beta)
+## Current Status: Live in production (beta), new direction planned
+
+**Nov 6, 2026:** the project is pivoting to an internal topic-tracking tool. The public
+site stays up and gets a durability and security pass. The full plan, with the five new
+phases and what blocks each one, is in `PROJECT-PLAN.md`. Nothing from it is built yet.
+
+Key findings from the Nov 6 codebase review that drive phase 1:
+- Perplexity's Sonar Chat Completions API ended Sep 27, 2026. Perplexity is being
+  removed, not migrated.
+- `grok-3` was retired May 15, 2026 and is silently redirected to `grok-4.3`.
+- `gpt-4o` shuts down Jan 14, 2027.
+- `npm audit`: 22 vulnerabilities (1 critical, 19 high), mostly from Next 16.1.6 and
+  Prisma 7.4.
+- About 11% of OpenAI queries lose their JSON block (entities, citations, themes)
+  without any report.
+- Gemini: 36% of queries fall back to Flash-Lite on the new Google project's per-minute
+  quota.
+- No outright failed analyses and no real 5xx errors in production from Oct 12 to Nov 6
+  (11 real analyses in that time).
 
 Deployed on Railway with all five providers. Ongoing work is reliability hardening
 driven by production error reports.
@@ -93,7 +111,7 @@ driven by production error reports.
 
 ---
 
-## Completed
+## Completed (v1 build)
 
 ### Phase 1: Foundation
 - [x] Next.js 16 project initialized (TypeScript, Tailwind, App Router)
@@ -132,22 +150,13 @@ driven by production error reports.
 
 ## To-Do
 
-### Deployment
-- [ ] Create GitHub repository
-- [ ] Provision Railway Postgres database
-- [ ] Set environment variables in Railway (ANTHROPIC_API_KEY, ANTHROPIC_EXPANSION_API_KEY, DATABASE_URL, ANALYSIS_ENABLED)
-- [ ] Deploy to Railway
-- [ ] Run Prisma migrations against Railway Postgres
-- [ ] Test end-to-end with live API
+See `PROJECT-PLAN.md`. It holds the five phases, the phase map of blockers and waits, and
+cost estimates:
+1. Durability & security fixes
+2. New pipeline
+3. Grok & X Search
+4. Tracking
+5. Outputs
 
-### Phase 5: Add OpenAI + Gemini
-- [ ] Obtain OpenAI API key
-- [ ] Obtain Google AI (Gemini) API key
-- [ ] Install openai and @google/generative-ai SDKs
-- [ ] Create OpenAI client wrapper
-- [ ] Create Gemini client wrapper
-- [ ] Add API keys to Railway env vars
-- [ ] Test with all three providers running in parallel
-
-### Post-MVP
-- [ ] Brand/AEO Mode ("Is your brand mentioned by AI?")
+**Josh action, open now:** move the Gemini Google project to a paid tier or raise its
+quota in Google AI Studio.

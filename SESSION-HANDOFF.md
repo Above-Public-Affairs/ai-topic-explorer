@@ -8,6 +8,15 @@ from branch `claude/platform-upgrades-7ed9a7`. The app is becoming an internal
 topic-tracking tool; later tasks (model swaps, removing Perplexity, a new provider
 pipeline) build on these SDKs.
 
+**Plan and tracker.** The roadmap is in `PROJECT-PLAN.md`: five phases, plus a phase
+map of hard blockers and waits so phases can be picked up in any order the blockers
+allow. Work runs from the project tracker
+(https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic Explorer —
+master" chat. Done so far: 1.1 (plan docs), 1.2 (this upgrade), and 3.1 (Grok and
+X Search research, on branch `claude/grok-x-search-research-2ff2f3` as
+`docs/research/grok-x-search.md`, not merged). Perplexity is being removed; Grok is
+kept.
+
 ## What was built this session
 - **Dependencies:** Next / eslint-config-next 16.4.5, Prisma 7.10.1,
   `@anthropic-ai/sdk` 1.6, `openai` 7.53, `@google/genai` 3, `dotenv` 18,
@@ -33,6 +42,9 @@ pipeline) build on these SDKs.
   Claude, OpenAI, Perplexity and Grok were not called locally (no keys).
 
 ## Next steps
+- Next tracker tasks: 1.3 (remove Perplexity, replace the retired Grok and expiring
+  OpenAI models), then 1.4 (cost and abuse guards). Both edit
+  `app/api/analyze/route.ts`, so they run one after the other.
 - Check Gemini billing in AI Studio if production also returns 402.
 - Map a 402 to "Quota exhausted — check billing" in `categorizeError`.
 - `FloatingKeywords` uses `Math.random()` during render, causing a hydration
