@@ -4,7 +4,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { reportError } from "@above-public-affairs/error-reporter";
 import { analyzeWithClaude } from "@/lib/ai-clients/claude";
 import { analyzeWithOpenAI } from "@/lib/ai-clients/openai";
-import { analyzeWithGemini } from "@/lib/ai-clients/gemini";
+import { analyzeWithGemini, geminiErrorBody } from "@/lib/ai-clients/gemini";
 import { analyzeWithPerplexity } from "@/lib/ai-clients/perplexity";
 import { analyzeWithGrok } from "@/lib/ai-clients/grok";
 import { expandQuery } from "@/lib/analysis/query-expansion";
@@ -89,20 +89,19 @@ function withTimeout<T>(
 
 /**
  * The structured fields the provider SDKs put on their errors. Anthropic and
- * OpenAI errors carry `status`, `code` and the parsed body in `error`; Gemini's
- * GoogleGenerativeAIFetchError carries `status` and `errorDetails`.
+ * OpenAI errors carry `status`, `code` and the parsed body in `error`.
+ * Gemini's ApiError carries `status` and the JSON body as its message, which
+ * `geminiErrorBody` parses.
  */
 interface ProviderErrorShape {
   status?: unknown;
   code?: unknown;
   error?: unknown;
-  errorDetails?: unknown;
 }
 
 /** Gemini's machine-readable failure reason (e.g. API_KEY_INVALID), if present. */
-function geminiReason(err: ProviderErrorShape): string | null {
-  if (!Array.isArray(err.errorDetails)) return null;
-  for (const detail of err.errorDetails) {
+function geminiReason(err: unknown): string | null {
+  for (const detail of geminiErrorBody(err)?.details ?? []) {
     const reason = (detail as { reason?: unknown } | null)?.reason;
     if (typeof reason === "string") return reason;
   }
@@ -116,12 +115,12 @@ function categorizeError(err: unknown): string {
   if (message.includes("Timed out after")) return message;
 
   // Classify on the SDK's own status and error code before falling back to
-  // message matching. Gemini prefixes every message with the full request URL,
-  // so the status sits past the 120-char display cut and was never seen.
+  // message matching. Gemini's message is its raw JSON error body, which buries
+  // the status past the 120-char display cut.
   const shaped = (typeof err === "object" && err !== null ? err : {}) as ProviderErrorShape;
   const status = typeof shaped.status === "number" ? shaped.status : null;
   const code = typeof shaped.code === "string" ? shaped.code : null;
-  const reason = geminiReason(shaped);
+  const reason = geminiReason(err);
 
   // A 429 for exhausted credit isn't a rate limit: it won't clear on retry and
   // needs billing attention, so name it separately.
@@ -159,9 +158,9 @@ function categorizeError(err: unknown): string {
   )
     return "Could not process the provider's response";
 
-  // Truncate long messages, dropping Gemini's "Error fetching from <url>:"
-  // prefix so the part that explains the failure survives the cut.
-  const trimmed = message.replace(/Error fetching from \S+: /, "");
+  // Truncate long messages. For Gemini, show the API's own message rather
+  // than the JSON body it arrives wrapped in.
+  const trimmed = geminiErrorBody(err)?.message ?? message;
   return trimmed.length > 120 ? trimmed.slice(0, 120) + "…" : trimmed;
 }
 
@@ -180,7 +179,7 @@ function providerErrorDetail(err: unknown): Record<string, unknown> {
 
   if (typeof candidate.status === "number") detail.status = candidate.status;
   if (typeof candidate.code === "string") detail.code = candidate.code;
-  const reason = geminiReason(candidate);
+  const reason = geminiReason(err);
   if (reason) detail.reason = reason;
 
   // SDK errors carry a Headers instance; guard because the shape isn't declared.
@@ -193,6 +192,8 @@ function providerErrorDetail(err: unknown): Record<string, unknown> {
   }
 
   // The parsed response body usually holds the provider's own explanation.
+  const geminiMessage = geminiErrorBody(err)?.message;
+  if (geminiMessage) detail.providerMessage = geminiMessage.slice(0, 300);
   const body = candidate.error;
   if (typeof body === "string") {
     detail.providerMessage = body.slice(0, 300);

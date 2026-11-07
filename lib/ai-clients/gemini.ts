@@ -1,9 +1,13 @@
 import {
-  GoogleGenerativeAI,
-  HarmCategory,
+  ApiError,
+  FinishReason,
+  GoogleGenAI,
   HarmBlockThreshold,
-  type GenerateContentResult,
-} from "@google/generative-ai";
+  HarmCategory,
+  ThinkingLevel,
+  type GenerateContentResponse,
+  type ThinkingConfig,
+} from "@google/genai";
 import type { AIResponse, TokenUsage } from "@/lib/types";
 import { PROMPT_TEMPLATE, parseStructuredData, extractRawText } from "./shared";
 
@@ -13,12 +17,13 @@ import { PROMPT_TEMPLATE, parseStructuredData, extractRawText } from "./shared";
 const MODEL = "gemini-3.5-flash";
 
 // Lighter model used when MODEL stays busy after retries. It rejects
-// thinkingBudget 0; thinkingLevel "minimal" is its lowest setting.
+// thinkingBudget 0; thinkingLevel MINIMAL is its lowest setting.
 const FALLBACK_MODEL = "gemini-3.5-flash-lite";
 
 // Google answers "high demand" (503), quota/rate limits (429) and the odd 500
-// with errors that usually clear within seconds, and this SDK never retries on
-// its own. Every other status (bad key, bad request, unknown model) is final.
+// with errors that usually clear within seconds. The SDK retries only when
+// httpOptions.retryOptions is set, which we leave off so the loop below owns
+// retries. Every other status (bad key, bad request, unknown model) is final.
 const RETRYABLE_STATUSES = new Set([429, 500, 503]);
 
 // Waits between attempts on MODEL, so 3 attempts in all. Failed attempts come
@@ -37,12 +42,42 @@ const SAFETY_SETTINGS = [
   { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
 ];
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
+const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_AI_API_KEY || "" });
 
-/** HTTP status from a GoogleGenerativeAIFetchError, if the error carries one. */
+/** The parsed `error` object of a Gemini API failure. */
+export interface GeminiErrorBody {
+  message?: string;
+  status?: string;
+  details: unknown[];
+}
+
+/**
+ * The Gemini API's own error body. The SDK's ApiError carries only `status`
+ * and a `message` holding the JSON response body (stream errors prefix it with
+ * "got status: ..."), so the details have to be parsed back out of it.
+ */
+export function geminiErrorBody(err: unknown): GeminiErrorBody | null {
+  if (!(err instanceof ApiError)) return null;
+  const jsonStart = err.message.indexOf("{");
+  if (jsonStart === -1) return null;
+  try {
+    const parsed = JSON.parse(err.message.slice(jsonStart)) as { error?: unknown };
+    const body = parsed.error;
+    if (typeof body !== "object" || body === null) return null;
+    const { message, status, details } = body as Record<string, unknown>;
+    return {
+      message: typeof message === "string" ? message : undefined,
+      status: typeof status === "string" ? status : undefined,
+      details: Array.isArray(details) ? details : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** HTTP status from the SDK's ApiError, if the error is one. */
 function statusOf(err: unknown): number | null {
-  const status = (err as { status?: unknown } | null)?.status;
-  return typeof status === "number" ? status : null;
+  return err instanceof ApiError ? err.status : null;
 }
 
 function isRetryable(err: unknown): boolean {
@@ -52,9 +87,7 @@ function isRetryable(err: unknown): boolean {
 
 /** The wait a 429 asks for (RetryInfo.retryDelay, e.g. "34s"), in ms. */
 function serverRetryDelayMs(err: unknown): number | null {
-  const details = (err as { errorDetails?: unknown } | null)?.errorDetails;
-  if (!Array.isArray(details)) return null;
-  for (const detail of details) {
+  for (const detail of geminiErrorBody(err)?.details ?? []) {
     const delay = (detail as { retryDelay?: unknown } | null)?.retryDelay;
     if (typeof delay === "string") {
       const seconds = parseFloat(delay);
@@ -82,18 +115,21 @@ function wait(ms: number, signal?: AbortSignal): Promise<void> {
 
 function generate(
   modelName: string,
-  thinkingConfig: Record<string, unknown>,
+  thinkingConfig: ThinkingConfig,
   prompt: string,
   signal?: AbortSignal
-): Promise<GenerateContentResult> {
-  const model = genAI.getGenerativeModel({
+): Promise<GenerateContentResponse> {
+  return ai.models.generateContent({
     model: modelName,
-    safetySettings: SAFETY_SETTINGS,
-    generationConfig: { thinkingConfig } as Record<string, unknown>,
+    contents: prompt,
+    config: {
+      safetySettings: SAFETY_SETTINGS,
+      thinkingConfig,
+      // Pass the signal so a timed-out request is actually cancelled rather
+      // than left running in the background.
+      abortSignal: signal,
+    },
   });
-  // Pass the signal so a timed-out request is actually cancelled rather than
-  // left running in the background.
-  return model.generateContent(prompt, { signal });
 }
 
 /** Call MODEL, retrying the transient statuses above. Throws the last error. */
@@ -101,7 +137,7 @@ async function generateWithRetries(
   prompt: string,
   query: string,
   signal?: AbortSignal
-): Promise<GenerateContentResult> {
+): Promise<GenerateContentResponse> {
   for (let attempt = 0; ; attempt++) {
     try {
       return await generate(MODEL, { thinkingBudget: 0 }, prompt, signal);
@@ -126,9 +162,9 @@ export async function analyzeWithGemini(
   const prompt = PROMPT_TEMPLATE(query);
 
   let servedBy = MODEL;
-  let result: GenerateContentResult;
+  let response: GenerateContentResponse;
   try {
-    result = await generateWithRetries(prompt, query, signal);
+    response = await generateWithRetries(prompt, query, signal);
   } catch (err) {
     if (!isRetryable(err) || signal?.aborted) throw err;
     // Thinner answers beat a dropped query. The response records which model
@@ -137,11 +173,31 @@ export async function analyzeWithGemini(
       `[Analysis: Gemini] ${MODEL} still unavailable (${statusOf(err)}); falling back to ${FALLBACK_MODEL}`
     );
     servedBy = FALLBACK_MODEL;
-    result = await generate(FALLBACK_MODEL, { thinkingLevel: "minimal" }, prompt, signal);
+    response = await generate(
+      FALLBACK_MODEL,
+      { thinkingLevel: ThinkingLevel.MINIMAL },
+      prompt,
+      signal
+    );
   }
 
-  const response = result.response;
-  const responseText = response.text();
+  // The old SDK's text() threw on a blocked response; the new getter returns
+  // undefined instead. Keep failing loudly so a block isn't counted as an
+  // empty success.
+  const responseText = response.text ?? "";
+  const blockReason = response.promptFeedback?.blockReason;
+  const finishReason = response.candidates?.[0]?.finishReason;
+  if (
+    blockReason ||
+    (!responseText &&
+      finishReason !== undefined &&
+      finishReason !== FinishReason.STOP &&
+      finishReason !== FinishReason.MAX_TOKENS)
+  ) {
+    throw new Error(
+      `Gemini returned no text (${blockReason ? `prompt blocked: ${blockReason}` : `finish reason: ${finishReason}`})`
+    );
+  }
 
   const usageMetadata = response.usageMetadata;
   const usage: TokenUsage = {

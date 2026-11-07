@@ -8,10 +8,8 @@ const MODEL = "claude-sonnet-5-5";
 // where they would eat into the prose and the trailing JSON block.
 // `between_tools` is this model's thinking-off setting (`disabled` is a 400),
 // which keeps Claude comparable to the other providers (Gemini runs with
-// thinking off too). SDK 0.74's types predate the value, hence the cast.
-const THINKING_OFF = {
-  type: "between_tools",
-} as unknown as Anthropic.ThinkingConfigParam;
+// thinking off too).
+const THINKING_OFF: Anthropic.ThinkingConfigParam = { type: "between_tools" };
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
