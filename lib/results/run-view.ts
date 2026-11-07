@@ -30,7 +30,15 @@ export interface RunRows {
       tone: string | null;
       framing: string | null;
       errorMessage: string | null;
-      entities: { name: string; normalized: string; type: string; mentions: number; url: string | null }[];
+      entities: {
+        name: string;
+        normalized: string;
+        type: string;
+        mentions: number;
+        url: string | null;
+        /** The merged entity (task 2.7) this mention belongs to, when it's been linked. */
+        canonical?: { id: string; name: string } | null;
+      }[];
       themes: { label: string; normalized: string; sentiment: string | null; weight: number | null }[];
       arguments: { side: "for" | "against"; text: string; sourceUrl: string | null }[];
     } | null;
@@ -239,12 +247,14 @@ export function buildRunView(run: RunRows): RunView {
       )
       .map(({ text, providers, sourceUrl }) => ({ text, providers: providers.sort(byProviderOrder), sourceUrl }));
 
-  // Entities: merged by normalized name within each type.
+  // Entities: one row per merged entity (task 2.7's CanonicalEntity, so
+  // "HARC" and "Houston Advanced Research Center" are one), shown under its
+  // canonical name; unlinked mentions merge by normalized name within a type.
   const entities = new Map<string, EntityView & { type: string }>();
   for (const { provider, row } of answered) {
     for (const e of row.extraction?.entities ?? []) {
-      const key = `${e.type}:${e.normalized || e.name.toLowerCase()}`;
-      const entry = entities.get(key) ?? { name: e.name, type: e.type, providers: [], mentions: 0 };
+      const key = e.canonical ? `canonical:${e.canonical.id}` : `${e.type}:${e.normalized || e.name.toLowerCase()}`;
+      const entry = entities.get(key) ?? { name: e.canonical?.name ?? e.name, type: e.type, providers: [], mentions: 0 };
       if (!entry.providers.includes(provider)) entry.providers.push(provider);
       entry.mentions += e.mentions || 1;
       if (!entry.url && e.url) entry.url = e.url;
@@ -317,7 +327,16 @@ export async function loadRunView(runId: string): Promise<RunView | null> {
               tone: true,
               framing: true,
               errorMessage: true,
-              entities: { select: { name: true, normalized: true, type: true, mentions: true, url: true } },
+              entities: {
+                select: {
+                  name: true,
+                  normalized: true,
+                  type: true,
+                  mentions: true,
+                  url: true,
+                  canonical: { select: { id: true, name: true } },
+                },
+              },
               themes: { select: { label: true, normalized: true, sentiment: true, weight: true } },
               arguments: { select: { side: true, text: true, sourceUrl: true } },
             },

@@ -78,6 +78,33 @@ describe("buildRunView", () => {
     expect(view.citations).toEqual([{ title: "ERCOT", url: "https://ercot.com", domain: "ercot.com", providers: ["claude", "openai"] }]);
   });
 
+  it("shows mentions linked to one merged entity as one row, under its canonical name", () => {
+    const harc = { id: "ce_1", name: "Houston Advanced Research Center" };
+    const ext = (entities: { name: string; canonical: typeof harc | null }[]) => ({
+      tone: null,
+      framing: null,
+      errorMessage: null,
+      themes: [],
+      arguments: [],
+      entities: entities.map((e) => ({ name: e.name, normalized: e.name.toLowerCase(), type: "organization", mentions: 1, url: null, canonical: e.canonical })),
+    });
+    const view = buildRunView(
+      run([
+        answer("claude", { extraction: ext([{ name: "Houston Advanced Research Center (HARC)", canonical: harc }]) }),
+        answer("openai", { extraction: ext([{ name: "HARC", canonical: harc }, { name: "TWDB", canonical: null }]) }),
+      ])
+    );
+    expect(view.entities).toEqual([
+      {
+        label: "Organizations",
+        items: [
+          { name: "Houston Advanced Research Center", providers: ["claude", "openai"], mentions: 2 },
+          { name: "TWDB", providers: ["openai"], mentions: 1 },
+        ],
+      },
+    ]);
+  });
+
   it("hides tone and framing when the extraction failed", () => {
     const view = buildRunView(run([answer("claude", { extraction: { tone: null, framing: null, errorMessage: "boom", entities: [], themes: [], arguments: [] } })]));
     expect(view.answers[0]).toMatchObject({ status: "done", tone: null, framing: null });

@@ -20,6 +20,9 @@ All notable changes to AI Topic Explorer will be documented in this file.
   - `WatchItem` (topic, geography, the city it's asked from) with `SubTopic`, `QuestionSet` (anchor, promoted, fresh) and `Question` (retired, never edited)
   - `ModelRegistry` (provider, model, effort, search setting, location mode, date confirmed, whether it's a guess) and `Event` (category, source, trigger time, linked snapshot)
 
+### Fixed
+- Public results page lists each merged entity (task 2.7's `CanonicalEntity`) once, under its canonical name, so "HARC" and "Houston Advanced Research Center (HARC)" no longer show as two rows
+
 ### Removed
 - `lib/ai-clients/`, query expansion, and the JSON parse/merge code (`lib/analysis/merge-*`, `provider-errors`), with their tests. `geminiErrorBody` and `REQUEST_MAX_RETRIES` moved into `lib/answers/`
 

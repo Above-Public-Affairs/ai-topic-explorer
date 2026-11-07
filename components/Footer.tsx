@@ -9,7 +9,7 @@ const CHANGELOG: { date: string; changes: string[] }[] = [
       "Each AI is now asked your topic the way a person would ask it, with its own web search on, and its full answer is shown as written",
       "See the sources each AI actually cited, beside its answer",
       "New Arguments section: the case for and against that the answers make, and which AIs made it",
-      "Named entities now include places and laws, not just people and organizations",
+      "Named entities now include places and laws, not just people and organizations, and one name written different ways (\"HARC\" and its full name) is listed once",
       "Each answer shows its overall tone and how it frames the topic",
       "Each AI runs the model its free version uses by default, updated as that changes. Gemini now uses Gemini Flash-Lite",
       "Topics are no longer split into subtopics first, so results come back sooner",
