@@ -1,4 +1,4 @@
-import type { AnswerSource, UserLocation } from "./types";
+import type { AnswerSource, LocationMode, UserLocation } from "./types";
 
 /** The location the tracker asks from unless told otherwise. */
 export const TEXAS_LOCATION: UserLocation = {
@@ -11,6 +11,23 @@ export const TEXAS_LOCATION: UserLocation = {
 /** System message for providers whose search takes no location parameter. */
 export function locationSystemMessage(location: UserLocation): string {
   return `The user's approximate location is ${location.city}, ${location.region}, ${location.country}.`;
+}
+
+/**
+ * How a location is sent, given the registry's location mode and whether the
+ * provider's search takes a location parameter. `parameter` on a provider
+ * without one falls back to the prompt; no location is always `none`.
+ */
+export function planLocation(
+  location: UserLocation | undefined,
+  mode: LocationMode,
+  supportsParameter: boolean
+): { mode: LocationMode; parameter: UserLocation | null; systemMessage: string | null } {
+  if (!location || mode === "none") return { mode: "none", parameter: null, systemMessage: null };
+  if (mode === "parameter" && supportsParameter) {
+    return { mode: "parameter", parameter: location, systemMessage: null };
+  }
+  return { mode: "by_prompt", parameter: null, systemMessage: locationSystemMessage(location) };
 }
 
 /**

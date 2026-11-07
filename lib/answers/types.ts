@@ -1,3 +1,4 @@
+import type { ModelChoice } from "./registry";
 import type { Provider as ProviderId } from "@/lib/types";
 
 export type { ProviderId };
@@ -61,8 +62,12 @@ export interface AnswerCost {
 
 export interface AskResult {
   provider: ProviderId;
-  /** The model asked for (the provider's MODEL constant). */
+  /** The model asked for, from the model registry. */
   requestedModel: string;
+  /** The ModelRegistry row the model came from; null when the built-in fallback was used. */
+  modelRegistryId: string | null;
+  /** The effort/reasoning level sent (registry `effortLevel`), or null for none. */
+  effortLevel: string | null;
   /** The model that answered, as the response names it. */
   model: string;
   question: string;
@@ -82,12 +87,16 @@ export interface AskResult {
 export interface AskOptions {
   location?: UserLocation;
   signal?: AbortSignal;
+  /**
+   * Model, effort and location mode to ask with. Omitted: the provider's
+   * current row in the model registry (lib/answers/registry.ts).
+   */
+  settings?: ModelChoice;
 }
 
 /** One way to ask every AI: a plain question, web search on. */
 export interface AnswerProvider {
   id: ProviderId;
-  model: string;
   ask(question: string, options?: AskOptions): Promise<AskResult>;
 }
 

@@ -1,8 +1,8 @@
-import { ApiError, GoogleGenAI, type GenerateContentResponse } from "@google/genai";
-import { MODEL } from "@/lib/ai-clients/gemini";
+import { ApiError, GoogleGenAI, ThinkingLevel, type GenerateContentResponse, type ThinkingConfig } from "@google/genai";
 import { isGeminiQuotaExhausted } from "./errors";
 import { computeCost } from "./prices";
-import { locationSystemMessage, mergeSources, roundUsd, uniqueQueries } from "./shared";
+import { getModel } from "./registry";
+import { mergeSources, planLocation, roundUsd, uniqueQueries } from "./shared";
 import type { AnswerProvider, AnswerSource, AskOptions, AskResult } from "./types";
 
 // Google answers "high demand" (503), rate limits (429) and the odd 500 with
@@ -15,7 +15,23 @@ function getClient(): GoogleGenAI {
   return (ai ??= new GoogleGenAI({ apiKey: process.env.GOOGLE_AI_API_KEY || "" }));
 }
 
+/**
+ * The registry's effort as a Gemini thinking setting: a thinking level
+ * (minimal, low, medium, high), or "none" for a zero thinking budget (the
+ * Flash models' off switch; Flash-Lite rejects it). Null leaves the model's
+ * default.
+ */
+export function geminiThinking(effort: string | null): ThinkingConfig | undefined {
+  if (!effort) return undefined;
+  if (effort === "none") return { thinkingBudget: 0 };
+  const level = (ThinkingLevel as Record<string, ThinkingLevel>)[effort.toUpperCase()];
+  if (!level) throw new Error(`Unknown Gemini effort level "${effort}" in the model registry`);
+  return { thinkingLevel: level };
+}
+
 async function generate(
+  model: string,
+  thinkingConfig: ThinkingConfig | undefined,
   question: string,
   systemInstruction: string | undefined,
   signal?: AbortSignal
@@ -23,14 +39,14 @@ async function generate(
   for (let attempt = 0; ; attempt++) {
     try {
       return await getClient().models.generateContent({
-        model: MODEL,
+        model,
         contents: question,
         config: {
           // Grounding with Google Search takes no location, so it rides in the
           // system instruction ("by prompt").
           ...(systemInstruction && { systemInstruction }),
           tools: [{ googleSearch: {} }],
-          thinkingConfig: { thinkingBudget: 0 },
+          ...(thinkingConfig && { thinkingConfig }),
           abortSignal: signal,
         },
       });
@@ -68,12 +84,17 @@ async function resolveGroundingUrl(url: string, signal?: AbortSignal): Promise<s
 }
 
 async function ask(question: string, options: AskOptions = {}): Promise<AskResult> {
-  const { location, signal } = options;
+  const { signal } = options;
+  const settings = options.settings ?? (await getModel("gemini"));
+  const model = settings.model;
+  const loc = planLocation(options.location, settings.locationMode, false);
   const started = Date.now();
 
   const response = await generate(
+    model,
+    geminiThinking(settings.effortLevel),
     question,
-    location ? locationSystemMessage(location) : undefined,
+    loc.systemMessage ?? undefined,
     signal
   );
 
@@ -113,7 +134,7 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
   const outputTokens = (u?.candidatesTokenCount ?? 0) + reasoningTokens;
   // Gemini 3 bills each search query the model runs.
   const searches = queries.length;
-  const cost = computeCost("gemini", MODEL, {
+  const cost = computeCost("gemini", model, {
     input: inputTokens - cachedInput,
     cachedInput,
     output: outputTokens,
@@ -122,8 +143,10 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
 
   return {
     provider: "gemini",
-    requestedModel: MODEL,
-    model: response.modelVersion ?? MODEL,
+    requestedModel: model,
+    modelRegistryId: settings.registryId,
+    effortLevel: settings.effortLevel,
+    model: response.modelVersion ?? model,
     question,
     answer: answer.trim(),
     sources: mergeSources(sources),
@@ -135,8 +158,8 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
       reasoningTokens,
       searchCalls: searches,
     },
-    location: location ?? null,
-    locationMode: location ? "by_prompt" : "none",
+    location: loc.mode === "none" ? null : (options.location ?? null),
+    locationMode: loc.mode,
     cost: {
       usd: roundUsd(cost.usd),
       source: "computed",
@@ -150,4 +173,4 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
   };
 }
 
-export const geminiProvider: AnswerProvider = { id: "gemini", model: MODEL, ask };
+export const geminiProvider: AnswerProvider = { id: "gemini", ask };

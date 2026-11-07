@@ -1,8 +1,8 @@
 import OpenAI from "openai";
-import { MODEL } from "@/lib/ai-clients/grok";
 import { REQUEST_MAX_RETRIES } from "@/lib/ai-clients/shared";
 import { XAI_TICKS_PER_USD } from "./prices";
-import { locationSystemMessage, mergeSources, roundUsd, uniqueQueries } from "./shared";
+import { getModel } from "./registry";
+import { mergeSources, planLocation, roundUsd, uniqueQueries } from "./shared";
 import type { AnswerProvider, AnswerSource, AskOptions, AskResult } from "./types";
 
 // Server-side web search only runs on xAI's Responses API (/v1/responses),
@@ -28,19 +28,24 @@ interface XaiResponseExtras {
 }
 
 async function ask(question: string, options: AskOptions = {}): Promise<AskResult> {
-  const { location, signal } = options;
+  const { signal } = options;
+  const settings = options.settings ?? (await getModel("grok"));
+  const model = settings.model;
+  // xAI's search tools take no location, so it goes in a system message.
+  const loc = planLocation(options.location, settings.locationMode, false);
   const started = Date.now();
 
   const input: OpenAI.Responses.ResponseInput = [];
-  // xAI's search tools take no location, so it goes in a system message.
-  if (location) input.push({ role: "system", content: locationSystemMessage(location) });
+  if (loc.systemMessage) input.push({ role: "system", content: loc.systemMessage });
   input.push({ role: "user", content: question });
 
   const response = await getClient().responses.create(
     {
-      model: MODEL,
+      model,
       input,
-      reasoning: { effort: "low" },
+      ...(settings.effortLevel && {
+        reasoning: { effort: settings.effortLevel as OpenAI.ReasoningEffort },
+      }),
       max_output_tokens: 16000,
       tools: [{ type: "web_search" }],
       store: false,
@@ -89,7 +94,9 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
 
   return {
     provider: "grok",
-    requestedModel: MODEL,
+    requestedModel: model,
+    modelRegistryId: settings.registryId,
+    effortLevel: settings.effortLevel,
     model: response.model,
     question,
     answer: response.output_text.trim(),
@@ -102,8 +109,8 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
       reasoningTokens: u?.output_tokens_details?.reasoning_tokens ?? 0,
       searchCalls: extras.usage?.server_side_tool_usage_details?.web_search_calls ?? searches,
     },
-    location: location ?? null,
-    locationMode: location ? "by_prompt" : "none",
+    location: loc.mode === "none" ? null : (options.location ?? null),
+    locationMode: loc.mode,
     cost: {
       usd: roundUsd(ticks / XAI_TICKS_PER_USD),
       source: "provider",
@@ -114,4 +121,4 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
   };
 }
 
-export const grokProvider: AnswerProvider = { id: "grok", model: MODEL, ask };
+export const grokProvider: AnswerProvider = { id: "grok", ask };

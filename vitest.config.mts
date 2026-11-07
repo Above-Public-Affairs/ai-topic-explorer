@@ -16,6 +16,9 @@ export default defineConfig({
       OPENAI_API_KEY: "",
       GOOGLE_AI_API_KEY: "",
       XAI_API_KEY: "",
+      // The model registry reads Postgres; with no URL it uses its built-in
+      // defaults, so no test reaches a database.
+      DATABASE_URL: "",
       ERROR_API_URL: "",
       ERROR_API_KEY: "",
     },

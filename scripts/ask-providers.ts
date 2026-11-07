@@ -7,7 +7,14 @@
  * Flags: --json prints the full results as JSON; --only=claude,grok limits
  * the providers.
  */
-import { PROVIDERS, ProviderError, TEXAS_LOCATION, type AskResult, type ProviderId } from "@/lib/answers";
+import {
+  PROVIDERS,
+  ProviderError,
+  TEXAS_LOCATION,
+  getModels,
+  type AskResult,
+  type ProviderId,
+} from "@/lib/answers";
 
 const args = process.argv.slice(2);
 const json = args.includes("--json");
@@ -22,7 +29,9 @@ function print(r: AskResult) {
   const cited = r.sources.filter((s) => s.cited === true);
   const looked = r.sources.filter((s) => s.cited !== true);
   console.log(`\n=== ${r.provider} ===`);
-  console.log(`model: ${r.model} (asked for ${r.requestedModel})`);
+  console.log(
+    `model: ${r.model} (asked for ${r.requestedModel}, effort ${r.effortLevel ?? "none sent"}, registry row ${r.modelRegistryId ?? "none: built-in fallback"})`
+  );
   console.log(`location: ${r.location ? `${r.location.city}, ${r.location.region}, ${r.location.country}` : "none"} [${r.locationMode}]`);
   console.log(`finish: ${r.finishReason}   latency: ${(r.latencyMs / 1000).toFixed(1)}s`);
   console.log(
@@ -43,8 +52,15 @@ function print(r: AskResult) {
 async function main() {
   const ids = (only ?? (Object.keys(PROVIDERS) as ProviderId[])).filter((id) => id in PROVIDERS);
   console.log(`Question: ${question}`);
+  const models = await getModels();
+  for (const id of ids) {
+    const m = models[id];
+    console.log(
+      `registry ${id}: ${m.model} effort=${m.effortLevel ?? "-"} location=${m.locationMode} ${m.isGuess ? "GUESS " : ""}[${m.source}${m.registryId ? ` ${m.registryId}` : ""}]`
+    );
+  }
   const settled = await Promise.allSettled(
-    ids.map((id) => PROVIDERS[id].ask(question, { location: TEXAS_LOCATION }))
+    ids.map((id) => PROVIDERS[id].ask(question, { location: TEXAS_LOCATION, settings: models[id] }))
   );
   const results: AskResult[] = [];
   settled.forEach((s, i) => {
@@ -60,4 +76,7 @@ async function main() {
   if (results.length < ids.length) process.exitCode = 1;
 }
 
-main();
+main().finally(async () => {
+  // The registry read opens a database pool; close it so the script exits.
+  if (process.env.DATABASE_URL) await (await import("@/lib/db")).prisma.$disconnect();
+});

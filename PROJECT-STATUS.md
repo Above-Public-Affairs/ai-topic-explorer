@@ -16,6 +16,10 @@ Task 2.2 (tracking tables) is built: migration `20261107120000_tracking_tables` 
 tables beside the public site's. Proven on a copy of production (Postgres 17.11 dump over
 `railway ssh`): migration applied, no schema drift, all 122 saved results still render. Prod also
 records a `20260215120000_add_error_log` migration that isn't in the repo; `migrate deploy` ignores it.
+Task 2.4 (model list) is built: `lib/answers/` reads each provider's model from `ModelRegistry`,
+seeded by data migration `20261107180000_seed_model_registry`. Gemini's free default is now
+Flash-Lite (since Oct 9, 2026), so the tracker asks `gemini-3.5-flash-lite`; the public site
+still runs `gemini-3.6-flash` until task 2.5.
 
 Key findings from the Nov 6 codebase review that drive phase 1:
 - Perplexity's Sonar Chat Completions API ended Sep 27, 2026. Perplexity is being
@@ -41,6 +45,25 @@ driven by production error reports.
 - CI: `.github/workflows/ci.yml` runs lint, `npm run typecheck` and `npm test` on push
   to `main` and on PRs. It runs `prisma generate` and `next typegen` first (both outputs
   are gitignored).
+
+### Model list (task 2.4, 2026-11-07)
+- `lib/answers/registry.ts`: `FREE_TIER_DEFAULTS` (seed + fallback), `getModel`/`getModels`
+  (current rows, `retiredAt` null, cached 5 min; fallback per provider when there's no row
+  or the database can't be read), `saveModel` (refresh the confirmation, or retire and replace).
+- Confirmed Nov 7, 2026 from official pages; `sourceUrl` and `note` on every row:
+
+  | Provider | Model | Effort | Location | Guess | Source |
+  |---|---|---|---|---|---|
+  | Claude | `claude-sonnet-5-5` | medium | parameter | no | claude.com/pricing (Free: Sonnet, Haiku); Sonnet 5.5 post (apps default to medium) |
+  | OpenAI | `gpt-6-luna` | none | parameter | no | ChatGPT release notes, Oct 7 (Free tier FAQ still says GPT-5.6 Luna) |
+  | Gemini | `gemini-3.5-flash-lite` | low | by prompt | no | support.google.com/gemini/answer/18648722 (free: Auto or Flash-Lite) |
+  | Grok | `grok-4.3` | low | by prompt | **yes** | xAI names no free-tier model |
+
+- Gemini's help page gives no version; 3.5 is the newest Flash-Lite in the API
+  (`gemini-flash-lite-latest` resolves to it). Free Gemini "Auto" sends some prompts to
+  Flash or Pro; the tracker asks Flash-Lite only.
+- Test run 2026-11-07 against a scratch registry (all four answered on their registry row,
+  Austin TX, same question as 2.1): Claude $0.043, OpenAI $0.025, Gemini $0.029, Grok $0.042.
 
 ### Provider interface (task 2.1, also 3.3, 2026-11-06)
 - `lib/answers/`: `AnswerProvider.ask(question, { location })` for Claude, OpenAI,

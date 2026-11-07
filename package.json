@@ -12,6 +12,7 @@
     "lint": "eslint",
     "email:test": "node scripts/send-test-email.ts",
     "ask:providers": "tsx scripts/ask-providers.ts",
+    "models:seed": "tsx scripts/seed-model-registry.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

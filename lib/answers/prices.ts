@@ -54,6 +54,10 @@ export const PRICES: PriceRow[] = [
   { id: "gemini-3.6-flash:input@2027", provider: "gemini", model: "gemini-3.6-flash", item: "input", usd: 1.5, unit: "per_1m_tokens", source: GEMINI_PRICING, checked: "2026-11-07", from: "2027-01-01" },
   { id: "gemini-3.6-flash:cached_input@2027", provider: "gemini", model: "gemini-3.6-flash", item: "cached_input", usd: 0.15, unit: "per_1m_tokens", source: GEMINI_PRICING, checked: "2026-11-07", from: "2027-01-01", note: "Context caching; storage billed separately" },
   { id: "gemini-3.6-flash:output@2027", provider: "gemini", model: "gemini-3.6-flash", item: "output", usd: 7.5, unit: "per_1m_tokens", source: GEMINI_PRICING, checked: "2026-11-07", from: "2027-01-01", note: "Includes thinking tokens" },
+  // Gemini 3.5 Flash-Lite (the free Gemini app's default since Oct 9, 2026). No announced change.
+  { id: "gemini-3.5-flash-lite:input", provider: "gemini", model: "gemini-3.5-flash-lite", item: "input", usd: 0.3, unit: "per_1m_tokens", source: GEMINI_PRICING, checked: "2026-11-07" },
+  { id: "gemini-3.5-flash-lite:cached_input", provider: "gemini", model: "gemini-3.5-flash-lite", item: "cached_input", usd: 0.03, unit: "per_1m_tokens", source: GEMINI_PRICING, checked: "2026-11-07", note: "Context caching; storage billed separately" },
+  { id: "gemini-3.5-flash-lite:output", provider: "gemini", model: "gemini-3.5-flash-lite", item: "output", usd: 2.5, unit: "per_1m_tokens", source: GEMINI_PRICING, checked: "2026-11-07", note: "Includes thinking tokens" },
   { id: "gemini:search", provider: "gemini", model: "*", item: "search", usd: 0.014, unit: "per_call", source: GEMINI_PRICING, checked: "2026-11-07", note: "Grounding with Google Search: 5,000 free requests a month (shared across Gemini 3+ models; not on the free tier), then $14 per 1,000, capped at 1,500 a day. Google charges each search query the model runs, so it's counted per query. Recorded at list price, so it overstates cost inside the free allowance." },
 
   // xAI Grok 4.3 (reference only; xAI reports the charge itself)

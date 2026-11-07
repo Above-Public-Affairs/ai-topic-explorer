@@ -1,8 +1,8 @@
 import OpenAI from "openai";
-import { MODEL } from "@/lib/ai-clients/openai";
 import { REQUEST_MAX_RETRIES } from "@/lib/ai-clients/shared";
 import { computeCost } from "./prices";
-import { mergeSources, roundUsd, uniqueQueries } from "./shared";
+import { getModel } from "./registry";
+import { mergeSources, planLocation, roundUsd, uniqueQueries } from "./shared";
 import type { AnswerProvider, AnswerSource, AskOptions, AskResult } from "./types";
 
 let client: OpenAI | null = null;
@@ -11,15 +11,25 @@ function getClient(): OpenAI {
 }
 
 async function ask(question: string, options: AskOptions = {}): Promise<AskResult> {
-  const { location, signal } = options;
+  const { signal } = options;
+  const settings = options.settings ?? (await getModel("openai"));
+  const model = settings.model;
+  const loc = planLocation(options.location, settings.locationMode, true);
+  const location = loc.parameter;
   const started = Date.now();
+
+  const input: OpenAI.Responses.ResponseInput = [];
+  if (loc.systemMessage) input.push({ role: "system", content: loc.systemMessage });
+  input.push({ role: "user", content: question });
 
   const response = await getClient().responses.create(
     {
-      model: MODEL,
-      input: question,
-      // Free ChatGPT answers at Instant unless the user picks Think.
-      reasoning: { effort: "none" },
+      model,
+      input,
+      // Free ChatGPT answers at Instant (effort none) unless the user picks Think.
+      ...(settings.effortLevel && {
+        reasoning: { effort: settings.effortLevel as OpenAI.ReasoningEffort },
+      }),
       max_output_tokens: 16000,
       tools: [
         {
@@ -72,7 +82,7 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
   const inputTokens = u?.input_tokens ?? 0;
   const cachedInput = u?.input_tokens_details?.cached_tokens ?? 0;
   const outputTokens = u?.output_tokens ?? 0;
-  const cost = computeCost("openai", MODEL, {
+  const cost = computeCost("openai", model, {
     input: inputTokens - cachedInput,
     cachedInput,
     output: outputTokens,
@@ -81,7 +91,9 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
 
   return {
     provider: "openai",
-    requestedModel: MODEL,
+    requestedModel: model,
+    modelRegistryId: settings.registryId,
+    effortLevel: settings.effortLevel,
     model: response.model,
     question,
     answer: response.output_text.trim(),
@@ -94,8 +106,8 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
       reasoningTokens: u?.output_tokens_details?.reasoning_tokens ?? 0,
       searchCalls: searches,
     },
-    location: location ?? null,
-    locationMode: location ? "parameter" : "none",
+    location: loc.mode === "none" ? null : (options.location ?? null),
+    locationMode: loc.mode,
     cost: {
       usd: roundUsd(cost.usd),
       source: "computed",
@@ -107,4 +119,4 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
   };
 }
 
-export const openaiProvider: AnswerProvider = { id: "openai", model: MODEL, ask };
+export const openaiProvider: AnswerProvider = { id: "openai", ask };

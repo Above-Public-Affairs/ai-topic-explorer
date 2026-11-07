@@ -5,6 +5,7 @@ All notable changes to AI Topic Explorer will be documented in this file.
 ## [2026-11-07]
 
 ### Added
+- Model list (task 2.4): each provider is asked with its free, non-paying account's default model, never the flagship, read from the `ModelRegistry` table by `lib/answers/registry.ts` (`getModel`, `getModels`; rows re-read every 5 minutes; built-in defaults if the table can't be read). Data migration `20261107180000_seed_model_registry` seeds it, confirmed Nov 7, 2026 from official pages: Claude `claude-sonnet-5-5` at medium effort (claude.com/pricing, Sonnet 5.5 launch post), OpenAI `gpt-6-luna` at effort none (ChatGPT release notes, Oct 7), Gemini `gemini-3.5-flash-lite` at thinking level low (Gemini Apps "About Gemini models"), Grok `grok-4.3` at low effort, marked a guess (xAI publishes nothing). `saveModel()` and `npm run models:seed` write a row the way the model watcher (task 4.5) will. Gemini 3.5 Flash-Lite prices added to the price table
 - Test suite (task 1.6): `npm test` runs Vitest over answer parsing (`parseStructuredData` and each analyze-flow client, with recorded answers and mocked SDKs), result merging, error labels (the analyze route's and `ProviderError` kinds), the stored-result reader (including a v1 Perplexity-era result) and the dated price table. No network calls or API keys
 - GitHub Actions CI (`.github/workflows/ci.yml`): lint, typecheck and tests on every push to `main` and every PR
 - Tables for the tracking pipeline (task 2.2), migration `20261107120000_tracking_tables`. Additive only: `Analysis`, `RateLimitCounter` and `DailySpend` are untouched, so saved results load as before.
@@ -14,6 +15,7 @@ All notable changes to AI Topic Explorer will be documented in this file.
   - `ModelRegistry` (provider, model, effort, search setting, location mode, date confirmed, whether it's a guess) and `Event` (category, source, trigger time, linked snapshot)
 
 ### Changed
+- The tracker pipeline (`lib/answers/`) no longer hard-codes models: each provider takes its model, effort and location mode from the registry (or from `settings` passed to `ask`), and every answer reports `modelRegistryId` and `effortLevel`. Gemini moves from 3.6 Flash to 3.5 Flash-Lite, because free Gemini app users have been on Flash-Lite since Oct 9, 2026. Claude now sends medium effort (thinking stays off). The public site (`lib/ai-clients/`) is unchanged until task 2.5
 - The analyze route's error labelling and per-provider merge moved, unchanged, to `lib/analysis/provider-errors.ts` and `lib/analysis/merge-provider-responses.ts` so tests can import them (a Next route file can't export helpers)
 
 ### Fixed

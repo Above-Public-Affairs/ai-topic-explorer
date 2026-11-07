@@ -1,11 +1,15 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { MODEL } from "@/lib/ai-clients/claude";
 import { computeCost } from "./prices";
-import { mergeSources, roundUsd, uniqueQueries } from "./shared";
+import { getModel } from "./registry";
+import { mergeSources, planLocation, roundUsd, uniqueQueries } from "./shared";
 import type { AnswerProvider, AnswerSource, AskOptions, AskResult } from "./types";
 
+type Effort = NonNullable<Anthropic.OutputConfig["effort"]>;
+
 // Thinking off, as in the analyze flow: `between_tools` is Sonnet 5.5's
-// thinking-off setting (`disabled` is a 400).
+// thinking-off setting (`disabled` is a 400). It's accepted at effort high or
+// below; the registry's effort (medium, the apps' default) goes in
+// output_config.
 const THINKING_OFF: Anthropic.ThinkingConfigParam = { type: "between_tools" };
 
 // A server-tool loop that runs long comes back with stop_reason "pause_turn";
@@ -18,7 +22,10 @@ function getClient(): Anthropic {
 }
 
 async function ask(question: string, options: AskOptions = {}): Promise<AskResult> {
-  const { location, signal } = options;
+  const { signal } = options;
+  const settings = options.settings ?? (await getModel("claude"));
+  const model = settings.model;
+  const loc = planLocation(options.location, settings.locationMode, true);
   const started = Date.now();
 
   // The basic search tool, not web_search_20260209. The newer one filters
@@ -27,26 +34,29 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
   const webSearch: Anthropic.WebSearchTool20250305 = {
     type: "web_search_20250305",
     name: "web_search",
-    ...(location && {
+    ...(loc.parameter && {
       user_location: {
         type: "approximate",
-        city: location.city,
-        region: location.region,
-        country: location.country,
-        timezone: location.timezone ?? null,
+        city: loc.parameter.city,
+        region: loc.parameter.region,
+        country: loc.parameter.country,
+        timezone: loc.parameter.timezone ?? null,
       },
     }),
   };
 
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: question }];
+  const system = loc.systemMessage ?? undefined;
   const responses: Anthropic.Message[] = [];
   for (let i = 0; i <= MAX_CONTINUATIONS; i++) {
     const response = await getClient()
       .messages.stream(
         {
-          model: MODEL,
+          model,
           max_tokens: 16000,
           thinking: THINKING_OFF,
+          ...(settings.effortLevel && { output_config: { effort: settings.effortLevel as Effort } }),
+          ...(system && { system }),
           tools: [webSearch],
           messages,
         },
@@ -103,11 +113,13 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
     searches += u.server_tool_use?.web_search_requests ?? 0;
   }
 
-  const cost = computeCost("claude", MODEL, { input, cachedInput, cacheWrite, output, searches });
+  const cost = computeCost("claude", model, { input, cachedInput, cacheWrite, output, searches });
 
   return {
     provider: "claude",
-    requestedModel: MODEL,
+    requestedModel: model,
+    modelRegistryId: settings.registryId,
+    effortLevel: settings.effortLevel,
     model: last.model,
     question,
     answer: answer.trim(),
@@ -122,8 +134,8 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
       reasoningTokens: 0,
       searchCalls: searches,
     },
-    location: location ?? null,
-    locationMode: location ? "parameter" : "none",
+    location: loc.mode === "none" ? null : (options.location ?? null),
+    locationMode: loc.mode,
     cost: {
       usd: roundUsd(cost.usd),
       source: "computed",
@@ -135,4 +147,4 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
   };
 }
 
-export const claudeProvider: AnswerProvider = { id: "claude", model: MODEL, ask };
+export const claudeProvider: AnswerProvider = { id: "claude", ask };

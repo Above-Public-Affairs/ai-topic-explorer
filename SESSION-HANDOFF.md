@@ -14,6 +14,20 @@ proven on a copy of production. The app is becoming an internal topic-tracking t
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
 Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search) and 5.1.
 
+## Model list (task 2.4)
+- `lib/answers/registry.ts` holds `FREE_TIER_DEFAULTS` (one free-tier default per
+  provider, with source URL, date confirmed, guess flag) and `getModel(provider)`.
+  Providers call it unless `ask(q, { settings })` passes a `ModelChoice`; `askAll` reads
+  all four once. Answers carry `modelRegistryId` for `Answer.modelRegistryId`.
+- Seeded by data migration `20261107180000_seed_model_registry` (inserts only where a
+  provider has no current row). A test checks the SQL matches `FREE_TIER_DEFAULTS`; if
+  the defaults change, regenerate the SQL in a new migration or call `saveModel()`.
+- To change a model: `saveModel({...})` retires the current row and adds the new one;
+  the watcher (task 4.5) should do the same. `npm run models:seed -- --show` prints rows.
+- Tests blank `DATABASE_URL`, so the registry uses its defaults there.
+- Public site (`lib/ai-clients/`) still has its own `MODEL` constants (Gemini 3.6 Flash,
+  no longer the free default). Moving it is task 2.5.
+
 ## Tracking tables (task 2.2)
 - Migration `20261107120000_tracking_tables`: 13 new tables, nothing changed on
   `Analysis`, `RateLimitCounter` or `DailySpend`. Railway's pre-deploy applies it.
