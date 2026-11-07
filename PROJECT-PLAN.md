@@ -211,10 +211,23 @@ Snapshots can run before that.
   old model is still served, the anchor set runs on both models, so the model's own effect
   is separated from real-world change.
 - **Event watcher (daily, web search only, no other connectors):** only events that move AI
-  answers count: new models, model policy changes, crawler changes, elections, and very
-  large news. Hearings don't count. Josh approves the categories and any known dates. An
-  unscheduled event inside an approved category **auto-triggers** a snapshot about 24 hours
-  later.
+  answers count. An unscheduled event inside an approved category **auto-triggers** a
+  snapshot. Approved categories (Josh, task 4.6):
+  - **New models:** a provider changes its free-tier default model.
+  - **Model policy:** changes to how a chatbot handles political or election topics, or its
+    search and sourcing rules.
+  - **Crawler changes:** a major publisher blocks or unblocks AI crawlers, or signs a
+    licensing deal.
+  - **Elections:** election days and certified results in every geography any watch item
+    tracks, plus federal elections. New geographies are added automatically.
+  - **Legislative sessions:** the start and end of the legislative session in every tracked
+    geography.
+  - **Very large news:** statewide or national news directly on a watch item. Data center
+    policy announcements count; routine groundbreakings and openings don't. The bar is "big
+    enough to move AI answers." Hearings never count.
+  - **Rules:** an event snapshot runs about 24h after the event and may land within a day
+    of a weekly snapshot, since the comparison shows the event's effect. At most 2 event
+    snapshots a week. Every trigger is logged with its source.
 
 ---
 

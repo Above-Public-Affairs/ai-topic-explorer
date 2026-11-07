@@ -20,7 +20,7 @@ All notable changes to AI Topic Explorer will be documented in this file.
 - `components/MethodologySection.tsx`, imported nowhere
 
 ### Changed
-- Plan: §2B extracts how the industry and topic are framed, not named clients; §4A records the three confirmed watch items with their locations and sub-topics
+- Plan: §2B extracts how the industry and topic are framed, not named clients; §4A records the three confirmed watch items with their locations and sub-topics; §4D records the approved event-watcher categories and rules (task 4.6)
 
 ### Added
 - Email sending (task 5.1), for the coming alerts and monthly report: SendGrid, the same account Above's other tools use, from AI Topic Explorer `<topic-explorer@abovepublicaffairs.com>`. `npm run email:test` sends a test email
