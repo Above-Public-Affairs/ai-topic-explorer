@@ -13,6 +13,7 @@ import FloatingKeywords from "@/components/FloatingKeywords";
 import Footer from "@/components/Footer";
 import AnalysisProgressPanel from "@/components/AnalysisProgressPanel";
 import { trackEvent } from "@/lib/analytics";
+import { MAX_TOPIC_LENGTH } from "@/lib/guards/limits";
 
 const ALL_TOPICS = [
   // Science & Technology
@@ -232,7 +233,11 @@ type Stage = "expanding" | "querying" | "merging" | "complete" | "error";
 
 /** The ?topic= query param, read from the browser URL. */
 function readTopicParam(): string | null {
-  return new URLSearchParams(window.location.search).get("topic");
+  return (
+    new URLSearchParams(window.location.search)
+      .get("topic")
+      ?.slice(0, MAX_TOPIC_LENGTH) ?? null
+  );
 }
 
 /** The URL is read once per render; nothing needs to re-render on change. */
@@ -542,6 +547,7 @@ export default function Home() {
                     type="text"
                     value={topic}
                     onChange={(e) => setTopic(e.target.value)}
+                    maxLength={MAX_TOPIC_LENGTH}
                     placeholder={placeholder ? `e.g. "${placeholder}"` : 'e.g. "oil and gas in New Mexico"'}
                     className="flex-1 px-5 py-3.5 text-base rounded-2xl bg-white/80 border border-black/12 shadow-sm text-[--text-primary] placeholder-[--text-tertiary] focus:outline-none focus:border-[--accent-cyan]/50 focus:ring-2 focus:ring-[--accent-cyan]/15 focus:bg-white/90 backdrop-blur-xl transition-all duration-300"
                     disabled={isLoading}

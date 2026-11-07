@@ -9,6 +9,8 @@ const CHANGELOG: { date: string; changes: string[] }[] = [
       "Compare four AI models: Claude, ChatGPT, Gemini and Grok. Perplexity has been removed",
       "Each model now runs the version free users get by default: GPT-6 Luna for ChatGPT, Grok 4.3, and Gemini 3.6 Flash",
       "Topic expansion now uses Claude Haiku 5.5",
+      "Topics can be up to 300 characters",
+      "Bug reports now tell you if they couldn't be sent",
     ],
   },
   {

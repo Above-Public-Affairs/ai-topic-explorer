@@ -13,3 +13,25 @@ model Analysis {
   result    Json
   createdAt DateTime @default(now())
 }
+
+/// Fixed-window request counts for the public endpoints. One row per
+/// (bucket, key, window). Lives in Postgres so limits survive deploys and are
+/// shared across replicas.
+model RateLimitCounter {
+  bucket      String
+  key         String
+  windowStart DateTime
+  count       Int      @default(0)
+
+  @@id([bucket, key, windowStart])
+  @@index([windowStart])
+}
+
+/// Estimated AI spend per UTC day, used by the daily spend cap.
+model DailySpend {
+  day        DateTime @id @db.Date
+  costUsd    Float    @default(0)
+  analyses   Int      @default(0)
+  capAlerted Boolean  @default(false)
+  updatedAt  DateTime @updatedAt
+}
