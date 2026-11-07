@@ -8,7 +8,8 @@ and Grok. Phase 1 tasks 1.2, 1.3, 1.4 (cost and abuse guards) and 1.5 (stop losi
 (email sending) is in place for the later alert and report phases. Task 2.1, the provider
 interface for the tracker, is proven live for all four providers and waits for Josh's
 merge approval. Task 1.7 (Gemini on a paid Google tier) is done. Task 2.2 (tracking tables) is built and
-proven on a copy of production. The app is becoming an internal topic-tracking tool.
+proven on a copy of production. Task 2.7 (entity merging, extraction model in the model
+list) is built and proven locally. The app is becoming an internal topic-tracking tool.
 
 **Plan and tracker.** The roadmap is in `PROJECT-PLAN.md`. Work runs from the project
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
@@ -27,6 +28,22 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
 - Tests blank `DATABASE_URL`, so the registry uses its defaults there.
 - Public site (`lib/ai-clients/`) still has its own `MODEL` constants (Gemini 3.6 Flash,
   no longer the free default). Moving it is task 2.5.
+## Entity merging and the extraction model's row (task 2.7)
+- `lib/extraction/canonical.ts`: pure merge rules and `EntityResolver`. Keys are scoped
+  person / place / thing. `name` keys merge (and fold two stored entities together);
+  `acronym` keys ("ERCOT") match the same text or one unambiguous expansion; `derived`
+  keys (acronyms of full names, or the short form the model expanded) only join an
+  entity known solely by that acronym. The model's `canonicalName` is the main key.
+- `lib/extraction/link.ts`: `linkEntities(db)` writes it (advisory lock, loads only
+  canonical entities sharing a key); called by `extractAndStore` after each extraction
+  and by `extractMissing`. `relinkAllEntities` / `npm run entities:merge` rebuild it all.
+  Run that on Railway after changing the rules.
+- Extraction model: `ModelRegistry` row with `role = extraction`, read by
+  `getExtractionModel()` (fallback `EXTRACTION_DEFAULT`). `getModels()` ignores it.
+  `saveModel()` scopes by role. `Extraction.modelRegistryId` records the row.
+- Gotchas: a surname alone ("Governor Abbott") never merges without the model's full
+  name; ambiguous bare acronyms join whichever full name came first.
+
 ## Extraction and pipeline runner (task 2.3)
 - `lib/extraction/`: `schema.ts` (`EXTRACTION_MODEL` = `gpt-6-luna`, `PROMPT_VERSION`,
   strict JSON schema; bump the version on any prompt/schema change), `extract.ts` (the
