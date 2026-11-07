@@ -73,6 +73,8 @@ enum CostSource {
 enum ModelRole {
   answer
   extraction
+  /// Writes the watch items' anchor and fresh question sets (task 4.2).
+  questions
 }
 
 model ModelRegistry {
@@ -100,9 +102,10 @@ model ModelRegistry {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
-  answers     Answer[]
-  events      Event[]
-  extractions Extraction[]
+  answers      Answer[]
+  events       Event[]
+  extractions  Extraction[]
+  questionSets QuestionSet[]
 
   @@index([provider, retiredAt])
   @@index([role, provider, retiredAt])
@@ -172,10 +175,19 @@ model QuestionSet {
   /// Fresh sets belong to the one snapshot that generated them.
   runId       String?         @unique
   createdAt   DateTime        @default(now())
+  /// How the set was written (lib/questions): the model, its model-list row,
+  /// the prompt version and what it cost. Null for sets written by hand.
+  model           String?
+  modelRegistryId String?
+  promptVersion   String?
+  costUsd         Float?
+  /// Search queries, sources and the model's notes, kept for review.
+  generation      Json?
 
-  watchItem WatchItem  @relation(fields: [watchItemId], references: [id])
-  run       Run?       @relation(fields: [runId], references: [id])
-  questions Question[]
+  watchItem     WatchItem      @relation(fields: [watchItemId], references: [id])
+  run           Run?           @relation(fields: [runId], references: [id])
+  modelRegistry ModelRegistry? @relation(fields: [modelRegistryId], references: [id])
+  questions     Question[]
 
   @@unique([watchItemId, number])
 }
@@ -191,8 +203,16 @@ model Question {
   subTopicId     String?
   /// For a promoted question: the fresh question it came from.
   promotedFromId String?
+  /// Short label for what the question is really about ("electric bills").
+  /// Fresh questions about the same thing share it across snapshots, which is
+  /// how recurrence is counted for promotion (lib/questions/rules.ts).
+  concern        String?
+  /// For a fresh question: the current news that prompted it.
+  why            String?
   createdAt      DateTime  @default(now())
   retiredAt      DateTime?
+  /// Why a locked question was retired (it's never edited).
+  retiredReason  String?
 
   set          QuestionSet @relation(fields: [setId], references: [id])
   subTopic     SubTopic?   @relation(fields: [subTopicId], references: [id])
@@ -201,6 +221,7 @@ model Question {
   answers      Answer[]
 
   @@unique([setId, position])
+  @@index([concern])
 }
 
 /// weekly / event / model_switch: tracking snapshots of a watch item.

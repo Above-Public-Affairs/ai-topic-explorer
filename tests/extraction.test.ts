@@ -359,4 +359,16 @@ describe("runPipeline", () => {
     expect(tables.extractions).toEqual([expect.objectContaining({ errorMessage: expect.any(String), model: EXTRACTION_MODEL })]);
     expect(result.status).toBe("partial");
   });
+
+  it("stores answers on an existing run when given one (a snapshot creates its run first)", async () => {
+    vi.spyOn(PROVIDERS.claude, "ask").mockResolvedValue(askResult);
+    const { client } = fakeClient(sample);
+    const { db, tables } = fakeDb();
+    tables.runs.push({ id: "snapshot1", status: "running" });
+    const result = await runPipeline(db, { kind: "weekly", topic: "T", runId: "snapshot1", providers: ["claude"], extractionClient: client });
+    expect(result.runId).toBe("snapshot1");
+    expect(tables.runs).toHaveLength(1);
+    expect(tables.answers[0]).toMatchObject({ runId: "snapshot1" });
+    expect(tables.runs[0]).toMatchObject({ id: "snapshot1", status: "complete" });
+  });
 });

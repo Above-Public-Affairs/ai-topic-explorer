@@ -16,8 +16,8 @@
  */
 import type { LocationMode, ProviderId } from "./types";
 
-/** What a row is for: one of the four answering AIs, or the extraction pass. */
-export type ModelRole = "answer" | "extraction";
+/** What a row is for: one of the four answering AIs, the extraction pass, or writing question sets. */
+export type ModelRole = "answer" | "extraction" | "questions";
 
 export interface ModelSettings {
   /** Defaults to "answer". */
@@ -130,6 +130,28 @@ export const EXTRACTION_DEFAULT: ModelSettings = {
     "Chosen in task 2.3 as the cheapest model that holds the schema: $0.10 in / $0.50 out per 1M tokens, about $0.0007 per answer. Reasoning effort none.",
 };
 
+/**
+ * The model that writes each watch item's question sets (task 4.2): the
+ * locked anchor set once, and a fresh set with web search every snapshot.
+ * Like extraction, it's its own role, never one of the answering AIs. Seeds
+ * the row (migration 20261107230100) and is the fallback when the table
+ * can't be read. Confirmed Nov 7, 2026.
+ */
+export const QUESTIONS_DEFAULT: ModelSettings = {
+  role: "questions",
+  provider: "openai",
+  model: "gpt-6-luna",
+  effortLevel: "low",
+  searchSetting: "web_search",
+  locationMode: "parameter",
+  confirmedAt: new Date("2026-11-07T00:00:00Z"),
+  isGuess: false,
+  sourceUrl: "https://developers.openai.com/api/docs/pricing",
+  note:
+    "Not an answering AI: writes the watch items' question sets. The cheapest model on the list that holds a strict JSON schema and searches the web " +
+    "($0.10 in / $0.50 out per 1M tokens, $0.01 a search). Low reasoning effort for steadier wording. Web search (with the watch item's location) only for fresh sets.",
+};
+
 /** A ModelRegistry row, as far as the lookup needs it. */
 export interface RegistryRow {
   id: string;
@@ -168,6 +190,7 @@ export const CACHE_MS = 5 * 60 * 1000;
 interface Loaded {
   choices: Record<ProviderId, ModelChoice>;
   extraction: ModelChoice;
+  questions: ModelChoice;
 }
 let cache: { at: number; loaded: Loaded } | null = null;
 let inflight: Promise<Loaded> | null = null;
@@ -210,11 +233,13 @@ async function load(): Promise<{ loaded: Loaded; read: boolean }> {
     const row = answering.find((r) => r.provider === provider);
     choices[provider] = row ? fromRow(row) : fallback(provider);
   }
-  const extractionRow = rows.find((r) => r.role === "extraction");
-  const extraction = extractionRow
-    ? fromRow(extractionRow)
-    : { ...EXTRACTION_DEFAULT, registryId: null, source: "fallback" as const };
-  return { loaded: { choices, extraction }, read };
+  const forRole = (role: ModelRole, fallbackSettings: ModelSettings): ModelChoice => {
+    const r = rows.find((x) => x.role === role);
+    return r ? fromRow(r) : { ...fallbackSettings, registryId: null, source: "fallback" };
+  };
+  const extraction = forRole("extraction", EXTRACTION_DEFAULT);
+  const questions = forRole("questions", QUESTIONS_DEFAULT);
+  return { loaded: { choices, extraction, questions }, read };
 }
 
 function loadCached(): Promise<Loaded> {
@@ -246,6 +271,14 @@ export async function getModels(): Promise<Record<ProviderId, ModelChoice>> {
  */
 export async function getExtractionModel(): Promise<ModelChoice> {
   return (await loadCached()).extraction;
+}
+
+/**
+ * The model that writes question sets: the current role "questions" row, or
+ * QUESTIONS_DEFAULT (`source: "fallback"`). Read by lib/questions.
+ */
+export async function getQuestionModel(): Promise<ModelChoice> {
+  return (await loadCached()).questions;
 }
 
 /** One provider's current model. */

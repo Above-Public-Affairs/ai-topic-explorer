@@ -197,6 +197,23 @@ Snapshots can run before that.
 - **Retire, never edit:** stale anchor questions are retired so history stays comparable
   over a month, a year, or longer.
 - Questions are written the way voters ask them.
+- **Built (task 4.2, `lib/questions/`).** Each set is written by the model list's
+  `questions` model (GPT-6 Luna, low effort): 8 anchor questions per item, 2 per sub-topic
+  plus 2 overall (all 8 overall without sub-topics), no web search; 8 fresh questions per
+  snapshot, with web search from the item's city. Code checks each question (one plain
+  question, 5–30 words, no jargon, loaded words, company names or talk about the AI) and
+  the set gets one retry for whatever it lacks. Every question carries a short **concern**
+  label; fresh sets reuse recent labels when they ask about the same thing.
+- **Promotion rule (task 4.2).** A fresh concern is promoted when it came up in **at least 3
+  of the last 4 fresh sets** and no question still in a locked set has that concern. At most
+  **2 a snapshot** and **4 promoted questions active** per item (cost). Ties go to the
+  concern seen in more sets, then the most recent. The promoted copy keeps the latest fresh
+  wording word for word and goes into a new locked set dated that snapshot. Checked at the
+  start of each snapshot, before its fresh set is written.
+- **Locked means locked.** A database trigger refuses any change to a question's wording, set
+  or position, and any delete from a locked set. Stale questions get `retiredAt` and
+  `retiredReason`. Anchor sets reach production only by migration, from a file Josh has read
+  (`scripts/anchor-sets/`, `npm run questions -- --migration=…`).
 
 ### 4C. Repeats and noise
 - Each anchor question is asked 2–3 times per snapshot as separate, identical calls, all

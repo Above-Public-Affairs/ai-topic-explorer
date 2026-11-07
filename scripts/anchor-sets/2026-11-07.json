@@ -1,0 +1,166 @@
+{
+  "writtenAt": "2026-11-07T23:33:16.648Z",
+  "model": "gpt-6-luna",
+  "promptVersion": "2026-11-07.1",
+  "items": [
+    {
+      "watchItem": "Data centers in Texas",
+      "questions": [
+        {
+          "label": "1.1",
+          "text": "Will data centers in Texas lead to more power plants being built?",
+          "subTopic": "power generation",
+          "concern": "new power plants"
+        },
+        {
+          "label": "1.2",
+          "text": "Can Texas generate enough electricity for data centers without relying more on natural gas?",
+          "subTopic": "power generation",
+          "concern": "power sources"
+        },
+        {
+          "label": "1.3",
+          "text": "How much water do data centers use, and where does that water come from?",
+          "subTopic": "water use",
+          "concern": "water supply"
+        },
+        {
+          "label": "1.4",
+          "text": "Could data centers make water shortages worse for Texas communities?",
+          "subTopic": "water use",
+          "concern": "water shortages"
+        },
+        {
+          "label": "1.5",
+          "text": "How loud are data centers for people who live nearby?",
+          "subTopic": "noise",
+          "concern": "noise near homes"
+        },
+        {
+          "label": "1.6",
+          "text": "What can Texas communities do if a data center’s noise bothers nearby residents?",
+          "subTopic": "noise",
+          "concern": "noise complaints"
+        },
+        {
+          "label": "1.7",
+          "text": "Will data centers raise electric bills for people in Texas?",
+          "subTopic": null,
+          "concern": "electric bills"
+        },
+        {
+          "label": "1.8",
+          "text": "What do Texas communities gain from having data centers nearby?",
+          "subTopic": null,
+          "concern": "local benefits"
+        }
+      ]
+    },
+    {
+      "watchItem": "Oil and gas in New Mexico",
+      "questions": [
+        {
+          "label": "1.1",
+          "text": "Will oil and gas production in New Mexico make my electric or heating bills go up or down?",
+          "subTopic": null,
+          "concern": "energy bills"
+        },
+        {
+          "label": "1.2",
+          "text": "How much do oil and gas jobs help people who live in New Mexico?",
+          "subTopic": null,
+          "concern": "local jobs"
+        },
+        {
+          "label": "1.3",
+          "text": "Does New Mexico use oil and gas tax money for schools, roads, and other public services?",
+          "subTopic": null,
+          "concern": "public revenue"
+        },
+        {
+          "label": "1.4",
+          "text": "Could New Mexico keep the lights on reliably if it produced less oil and gas?",
+          "subTopic": null,
+          "concern": "grid reliability"
+        },
+        {
+          "label": "1.5",
+          "text": "How does oil and gas production affect New Mexico's water supply?",
+          "subTopic": null,
+          "concern": "water supply"
+        },
+        {
+          "label": "1.6",
+          "text": "What happens to land and wildlife where oil and gas are produced in New Mexico?",
+          "subTopic": null,
+          "concern": "land and wildlife"
+        },
+        {
+          "label": "1.7",
+          "text": "What health or safety risks should people living near oil and gas operations know about?",
+          "subTopic": null,
+          "concern": "health and safety"
+        },
+        {
+          "label": "1.8",
+          "text": "Who decides where oil and gas can be produced in New Mexico, and how can residents have a say?",
+          "subTopic": null,
+          "concern": "public input"
+        }
+      ]
+    },
+    {
+      "watchItem": "Renewables in Texas",
+      "questions": [
+        {
+          "label": "1.1",
+          "text": "Do wind farms in Texas lower electric bills, or can they make them higher?",
+          "subTopic": "wind",
+          "concern": "electric bills"
+        },
+        {
+          "label": "1.2",
+          "text": "How do wind farms affect birds and other wildlife in Texas?",
+          "subTopic": "wind",
+          "concern": "wildlife impacts"
+        },
+        {
+          "label": "1.3",
+          "text": "How much water do large solar farms use in Texas?",
+          "subTopic": "solar",
+          "concern": "water use"
+        },
+        {
+          "label": "1.4",
+          "text": "Can solar farms share land with crops or grazing in Texas?",
+          "subTopic": "solar",
+          "concern": "land use"
+        },
+        {
+          "label": "1.5",
+          "text": "Can big batteries help keep the Texas grid reliable when wind and solar output changes?",
+          "subTopic": "BESS",
+          "concern": "grid reliability"
+        },
+        {
+          "label": "1.6",
+          "text": "What fire risks do large battery storage sites pose to people living nearby?",
+          "subTopic": "BESS",
+          "concern": "fire safety"
+        },
+        {
+          "label": "1.7",
+          "text": "Who benefits most from renewable energy growth in Texas, and who might be left out?",
+          "subTopic": null,
+          "concern": "who benefits"
+        },
+        {
+          "label": "1.8",
+          "text": "How do Texas renewable energy projects affect jobs and local tax revenue?",
+          "subTopic": null,
+          "concern": "jobs and local taxes"
+        }
+      ]
+    }
+  ]
+}

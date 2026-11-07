@@ -15,6 +15,7 @@
     "models:seed": "tsx scripts/seed-model-registry.ts",
     "pipeline:run": "tsx scripts/run-pipeline.ts",
     "entities:merge": "tsx scripts/run-pipeline.ts --merge",
+    "questions": "tsx scripts/question-sets.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

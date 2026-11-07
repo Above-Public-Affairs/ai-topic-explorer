@@ -3,6 +3,13 @@
 > Reusable rules this project taught us the hard way. Appended at the Compound step
 > (see `build-methodology`), newest at top. Not a changelog — the rule, not the play-by-play.
 
+## A new Postgres enum value goes in one migration, its first use in the next (Nov 2026)
+
+`ALTER TYPE … ADD VALUE` can't be used by a statement in the same transaction. Adding the
+`questions` model role and seeding its row in one migration would fail on deploy. Split
+them: one migration adds the value, the next inserts rows that use it (task 4.2 did
+`20261107230000_question_sets` then `20261107230100_seed_watch_items`).
+
 ## Keep logic out of Next route files so it can be tested (Nov 2026)
 
 A Next.js `route.ts` may export only route handlers and route config; exporting a helper

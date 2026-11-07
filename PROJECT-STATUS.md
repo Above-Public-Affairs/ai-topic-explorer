@@ -44,6 +44,13 @@ call cut off by the deadline. Local proof: 4/4 answered and extracted in ~40s, $
 Task 2.6 (real cost) is done: 40 answers cost $1.46. Real per answer: Claude $0.040, OpenAI $0.030,
 Gemini ~$0.002 (search free inside the allowance), Grok $0.053. About **$83/month** for 3 watch
 items against the $60 estimate, mostly Grok's searching. Figures in `PROJECT-PLAN.md`.
+Task 4.2 (watch items and question sets) is built: the three watch items are seeded by
+migration, `lib/questions/` writes anchor and fresh sets and applies the promotion rule
+(3 of the last 4 snapshots; written down in `PROJECT-PLAN.md` §4B). Proven locally: anchor
+sets for all three items ($0.0007) and one fresh set each ($0.068). **Waiting on Josh:** read
+the anchor questions in `scripts/anchor-sets/2026-11-07.json`; on his OK a migration inserts
+them locked (`npm run questions -- --migration=… --reviewed=<date>`). Until then
+`questionsForSnapshot()` refuses to run in production, by design.
 
 Key findings from the Nov 6 codebase review that drive phase 1:
 - Perplexity's Sonar Chat Completions API ended Sep 27, 2026. Perplexity is being

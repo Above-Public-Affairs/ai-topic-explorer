@@ -29,6 +29,12 @@ export interface RunPipelineOptions {
   /** Providers to ask. Defaults to all four. */
   providers?: ProviderId[];
   watchItemId?: string;
+  /**
+   * An existing Run (status running) to store the answers on, instead of
+   * creating one: a snapshot creates its Run first so its fresh question set
+   * can be tied to it (lib/questions questionsForSnapshot).
+   */
+  runId?: string;
   /** Sub-topics themes can be tied to (name → id). */
   subTopics?: { id: string; name: string }[];
   note?: string;
@@ -98,19 +104,21 @@ export async function runPipeline(db: PrismaClient, options: RunPipelineOptions)
   const questions = options.questions?.length ? options.questions : [{ text: topic }];
   const subTopicIds = Object.fromEntries((options.subTopics ?? []).map((s) => [s.name, s.id]));
 
-  const run = await db.run.create({
-    data: {
-      kind: options.kind,
-      topic,
-      watchItemId: options.watchItemId ?? null,
-      askCity: location?.city ?? null,
-      askRegion: location?.region ?? null,
-      askCountry: location?.country ?? null,
-      askTimezone: location?.timezone ?? null,
-      note: options.note ?? null,
-    },
-    select: { id: true },
-  });
+  const run = options.runId
+    ? { id: options.runId }
+    : await db.run.create({
+        data: {
+          kind: options.kind,
+          topic,
+          watchItemId: options.watchItemId ?? null,
+          askCity: location?.city ?? null,
+          askRegion: location?.region ?? null,
+          askCountry: location?.country ?? null,
+          askTimezone: location?.timezone ?? null,
+          note: options.note ?? null,
+        },
+        select: { id: true },
+      });
 
   // Each provider's current model from the registry (task 2.4), read once per run.
   const models = await getModels();

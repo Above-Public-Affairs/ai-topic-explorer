@@ -43,6 +43,28 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
     fix), 16 (entity grid dead space). Dark theme not started.
   - A real VoiceOver pass over the dialogs and progress announcements (DOM checked only).
 
+## Question sets (task 4.2)
+- `lib/questions/`: `rules.ts` (sizes, `checkVoterVoice`, `selectQuestions`, the promotion
+  rule `findPromotions`), `generate.ts` (`generateSet("anchor" | "fresh")` with the model
+  list's `questions` row, strict JSON, one retry), `sets.ts` (`draftAnchorSet`,
+  `lockAnchorSet`, `retireQuestion`, `promoteRecurring`, `questionsForSnapshot`), `review.ts`
+  (reviewed file → migration SQL), `watch-items.ts` (`WATCH_ITEMS`, matched by the seed
+  migration in a test).
+- For 4.4 (weekly worker): create the `Run` (kind weekly, watch item, ask location), call
+  `questionsForSnapshot(db, { watchItemId, runId })`, then `runPipeline(db, { runId, questions:
+  [...locked × repeats (4.3), ...fresh], ... })`. Labels are "set.position" (1.3, 5.2).
+- **Production anchor sets wait on Josh.** He reads `scripts/anchor-sets/2026-11-07.json`.
+  On approval: `npm run questions -- --migration=scripts/anchor-sets/2026-11-07.json
+  --reviewed=YYYY-MM-DD > prisma/migrations/<ts>_anchor_sets/migration.sql`, commit, push. If
+  he wants changes, edit the file (still a draft) and re-check with `npm test` (a test runs
+  every question through `checkVoterVoice` and checks sub-topic coverage).
+- Locked questions can't be edited or deleted (trigger `question_locked_guard`); retire with
+  `npm run questions -- --retire=<id> --reason="…"`.
+- Local scripts: `railway run -- env DATABASE_URL=<local> npm run questions -- --draft-anchor`
+  then `--lock-anchor`, `--fresh`, `--list`, `--export=`. Writes refuse non-local databases.
+- DB tests: `TEST_DATABASE_URL=<local migrated db> npx vitest run tests/question-sets.db.test.ts`
+  (skipped in CI, which has no database).
+
 ## Measured cost (task 2.6)
 - Real cost per answer and the monthly figure (~$83 vs the $60 estimate) are in
   `PROJECT-PLAN.md` under "Measured cost". Rerun with
