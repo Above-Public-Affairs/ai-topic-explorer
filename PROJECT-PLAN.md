@@ -294,6 +294,51 @@ Free-tier default models, 4 providers, web search on. These are estimates from N
   19 snapshots, or roughly **$60**. The watchers add about $5.
 - Railway cost isn't a constraint.
 
+### Measured cost (task 2.6, 2026-11-07)
+
+A test batch through the new pipeline: 8 voter-style questions across the three watch items
+(data centers in Texas and renewables in Texas asked from Austin, oil and gas in New Mexico
+asked from Albuquerque), each asked once and 2 of them twice, so **10 questions, 40 answers**
+(39 extractions). Models from the model list: `claude-sonnet-5-5` (medium effort),
+`gpt-6-luna` (no reasoning), `gemini-3.5-flash-lite` (low thinking), `grok-4.3` (low effort);
+extraction on `gpt-6-luna`. Total recorded spend **$1.46**. Script: `scripts/cost-batch.ts`
+(local database only).
+
+| Provider | Estimate | Real mean | Median | Range | Avg searches | Cost recorded as |
+|---|---|---|---|---|---|---|
+| Claude | ~$0.048 | **$0.040** | $0.045 | $0.012–$0.050 | 0.8 | computed |
+| OpenAI | ~$0.021 | **$0.030** | $0.029 | $0.012–$0.057 | 2.6 | computed |
+| Gemini | ~$0.003 | **$0.026** as recorded, **~$0.002** real | $0.023 | $0.015–$0.045 | 1.7 queries | computed |
+| Grok | ~$0.023 | **$0.053** | $0.045 | $0.040–$0.081 | 3.8 | reported by xAI |
+| Extraction (per answer) | — | **$0.0007** | — | $0.0003–$0.0013 | — | computed |
+
+- **What drives it.** Search fees, not tokens. Claude is ~$0.032 of tokens plus $0.01 a
+  search; its two cheapest answers ($0.012) didn't search at all. OpenAI's tokens are ~$0.004;
+  the rest is $0.01 per search action, and it ran 1 to 5. Grok runs the most searches and has
+  the largest token count (~28k in, ~1.7k out). Repeats of the same question vary up to 4×
+  for OpenAI ($0.012 vs. $0.057) and ~2× for Gemini; Claude and Grok stay within ~10%.
+- **Gemini's recorded cost overstates it.** $0.024 of its $0.026 is search priced at list
+  ($14 per 1,000 queries). The first 5,000 grounding requests a month are free, and 19
+  snapshots × 32 questions is ~600 requests (~1,000 queries), well inside it, so Gemini's
+  real cost is its tokens, ~$0.002. That holds only while nothing else on the same key (the
+  public site after task 2.5) eats the allowance. Its input tokens average ~70 because
+  grounding results aren't counted as tokens; worth one look in the AI Studio billing page.
+- **Grok's reported charge checks out.** xAI's `cost_in_usd_ticks` matched a list-price
+  recompute from its tokens and searches to the cent ($0.0529 mean both ways). One of 10 Grok
+  calls failed with a 429 "model at capacity", not a cost issue but a reliability one.
+- **Not yet checked against the consoles.** Claude and OpenAI are computed from the price
+  table. For a console check: the batch ran 2026-11-07 12:27–12:37 PT and recorded Claude
+  $0.40, OpenAI $0.30 + $0.025 extraction, Gemini $0.26 (list) and Grok $0.48.
+
+**Per question** (4 answers + 4 extractions): $0.15 as recorded, **~$0.13** with Gemini
+search inside the free allowance (estimate ~$0.10).
+**Per snapshot** (32 questions): $4.83 as recorded, **~$4.10** (estimate ~$3).
+**Per month** (19 snapshots, 3 watch items): $92 as recorded, **~$78** real, plus ~$5 for the
+watchers, so **~$83 against the ~$60 estimate, about 35–40% higher.** The gap is Grok (2.3×
+its estimate, from heavy searching) and OpenAI (1.4×, more search actions than assumed);
+Claude came in a bit under. Grok is now the largest share (~42%), then Claude (~31%) and
+OpenAI (~24%).
+
 ---
 
 ## Shipped (v1, Feb–Oct 2026)
