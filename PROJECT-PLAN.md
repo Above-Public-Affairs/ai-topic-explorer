@@ -236,8 +236,17 @@ Snapshots can run before that.
   the Internal Tools project.
 
 ### Email (5A, 5B)
-- Use the same sending setup as Above's other emailing tools (Agenda Briefings). Confirm
-  which before building. That's an investigation, not a Josh decision.
+- **Decided (task 5.1, 2026-11-06): SendGrid**, the setup every other Above emailer uses
+  (Agenda Briefings, Development Email Updates, TCEQ Comment Email, StackAdapt Daily
+  Report, the Error Reporter digest). No project disagreed. One shared account, and
+  `abovepublicaffairs.com` is already domain-authenticated, so no DNS work.
+- Sender: **AI Topic Explorer `<topic-explorer@abovepublicaffairs.com>`**, send-only;
+  replies go to joshua@abovepublicaffairs.com (`REPLY_TO`).
+- Key: 1Password → Development → "API Key - SendGrid General" (`credential`), on Railway as
+  `SENDGRID_API_KEY`. Other vars: `SENDGRID_FROM`, `SENDGRID_FROM_NAME`, `REPLY_TO`
+  (see `.env.example`).
+- Code: `lib/email/send.ts` (`sendEmail`: v3 mail/send over `fetch`, plain text + optional
+  HTML, 30 s timeout, `email_error` reports). Test: `railway run npm run email:test`.
 
 ### Promote the location detail
 Every report, alert and connector answer states how the AIs were asked, e.g. **"Asked as a

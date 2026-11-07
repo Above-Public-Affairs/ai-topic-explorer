@@ -9,7 +9,8 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "email:test": "node scripts/send-test-email.ts"
   },
   "dependencies": {
     "@above-public-affairs/error-reporter": "^0.2.0",
