@@ -26,7 +26,7 @@ export default function EntityList({ entities }: Props) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {CATEGORIES.map(({ key, label }) => (
           <div key={key}>
-            <h4 className="font-semibold text-(--accent-cyan) mb-3">{label}</h4>
+            <h3 className="font-semibold text-(--accent-cyan) mb-3">{label}</h3>
             {entities[key].length > 0 ? (
               <ul className="space-y-1.5">
                 {entities[key].map((entity, idx) => (
