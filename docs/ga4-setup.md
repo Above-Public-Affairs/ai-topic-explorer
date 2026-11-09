@@ -6,7 +6,7 @@ The public site sends to GA4 property **G-6WT4RP9NQD** (set as `NEXT_PUBLIC_GA_M
 
 | Event | When | Params |
 |---|---|---|
-| `page_view` | Every route, including client-side navigation (sent by the site, not by GA) | `page_location`, `page_referrer`, `page_title` |
+| `page_view` | Landing page (sent by GA's config), then every client-side route change (sent by the site) | `page_location`, `page_referrer`, `page_title` |
 | `topic_searched` | Analyze pressed | `topic` (as typed; GA keeps the first 100 characters), `topic_length` |
 | `example_topic_clicked` | An example topic pill | `topic` |
 | `analysis_started` | Analysis begins | `topic_length` |
@@ -30,7 +30,7 @@ No user IDs, emails or full source URLs are sent. GA4 doesn't log IP addresses; 
 ## Admin checklist (one time, in GA)
 
 1. **Enhanced measurement** (Admin → Data streams → the web stream → Enhanced measurement → gear):
-   - Turn **off** "Page changes based on browser history events". The site sends its own page views on navigation; leaving this on counts every in-app page twice.
+   - Under **Page views → Show advanced settings**, untick "Page changes based on browser history events" and leave "Page loads" ticked (the Page views switch itself can't be turned off). The site sends its own page views on navigation; leaving this on counts every in-app page twice.
    - Turn **off** "Outbound clicks". It sends the full URL of every link clicked; `source_link_opened` replaces it with the domain only.
    - Leave scrolls, file downloads and form interactions as they are.
 2. **Key events** (Admin → Events, after each event has fired once, or Admin → Key events → New key event and type the name):

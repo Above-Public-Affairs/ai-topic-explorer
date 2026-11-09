@@ -50,20 +50,27 @@ describe("trackEvent", () => {
 });
 
 describe("page views on route changes", () => {
-  it("sends one page view per URL, with the previous page as referrer", () => {
+  it("leaves the landing page to GA, then sends one page view per new URL with the previous page as referrer", () => {
     const browser = fakeBrowser("https://aitopicexplorer.app/", "https://www.google.com/");
-    trackPageView();
-    trackPageView(); // React's double effect, or a re-render: not counted again
+    trackPageView(); // landing page: GA's config already counts it
+    trackPageView(); // React's double effect, or a re-render: not counted
     browser.navigate("https://aitopicexplorer.app/results/abc", "Housing – AI Topic Explorer");
+    trackPageView();
     trackPageView();
     browser.navigate("https://aitopicexplorer.app/");
     trackPageView();
 
     expect(browser.gtag.mock.calls).toEqual([
-      ["event", "page_view", { page_location: "https://aitopicexplorer.app/", page_referrer: "https://www.google.com/", page_title: "AI Topic Explorer" }],
       ["event", "page_view", { page_location: "https://aitopicexplorer.app/results/abc", page_referrer: "https://aitopicexplorer.app/", page_title: "Housing – AI Topic Explorer" }],
       ["event", "page_view", { page_location: "https://aitopicexplorer.app/", page_referrer: "https://aitopicexplorer.app/results/abc", page_title: "AI Topic Explorer" }],
     ]);
+  });
+
+  it("can be given the URL captured when the route changed", () => {
+    const browser = fakeBrowser("https://aitopicexplorer.app/");
+    trackPageView();
+    trackPageView("https://aitopicexplorer.app/results/xyz");
+    expect(browser.gtag.mock.calls[0][2]).toMatchObject({ page_location: "https://aitopicexplorer.app/results/xyz" });
   });
 });
 
@@ -81,13 +88,13 @@ describe("gaBootstrapScript", () => {
     return { ctx, dataLayer, store };
   }
 
-  it("configures the property with no automatic page view and no ad signals", () => {
+  it("configures the property with Google signals and ad personalization off", () => {
     const { dataLayer } = run("");
     expect(dataLayer[0][0]).toBe("js");
     expect(dataLayer[1]).toEqual([
       "config",
       "G-TEST123",
-      { send_page_view: false, allow_google_signals: false, allow_ad_personalization_signals: false },
+      { allow_google_signals: false, allow_ad_personalization_signals: false },
     ]);
   });
 

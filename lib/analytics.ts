@@ -100,17 +100,21 @@ export function trackEvent<E extends AnalyticsEventName>(
 let lastPageLocation: string | null = null;
 
 /**
- * Send a page view for the current URL. The App Router changes pages without
- * a reload, so this runs on every route change; the initial page view from
- * gtag's `config` is switched off, and a repeat of the same URL (React's
- * double effects in development, a re-render) is skipped.
+ * Page views. GA's `config` sends the first one when the page loads (it does
+ * so even with `send_page_view: false`, so the site doesn't fight it). The
+ * App Router changes pages without a reload, so this is called on every
+ * route change: the first call only notes the landing URL, and each later
+ * URL gets one page view, never the same URL twice in a row (React's double
+ * effects in development, a re-render). GA's own "browser history" page
+ * views must be off in the stream's enhanced measurement settings.
  */
-export function trackPageView(): void {
+export function trackPageView(href?: string): void {
   if (typeof window === "undefined" || !window.gtag) return;
-  const location = window.location.href;
+  const location = href ?? window.location.href;
   if (location === lastPageLocation) return;
-  const referrer = lastPageLocation ?? document.referrer;
+  const referrer = lastPageLocation;
   lastPageLocation = location;
+  if (referrer === null) return; // the landing page: GA counted it
   window.gtag("event", "page_view", {
     page_location: location,
     page_referrer: referrer,
@@ -152,7 +156,7 @@ export function gaBootstrapScript(measurementId: string, forceDebug = false): st
     "window.gtag=gtag;",
     `var d=${forceDebug ? "true" : "false"};`,
     "try{if(/[?&]ga_debug=1(&|$)/.test(location.search))sessionStorage.setItem('ga_debug','1');d=d||sessionStorage.getItem('ga_debug')==='1';}catch(e){}",
-    "var c={send_page_view:false,allow_google_signals:false,allow_ad_personalization_signals:false};",
+    "var c={allow_google_signals:false,allow_ad_personalization_signals:false};",
     // Any debug_mode value, even false, turns DebugView on, so only set it when wanted.
     "if(d)c.debug_mode=true;",
     "gtag('js',new Date());",
