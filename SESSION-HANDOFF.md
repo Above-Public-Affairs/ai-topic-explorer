@@ -17,6 +17,20 @@ The app is becoming an internal topic-tracking tool.
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
 Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search) and 5.1.
 
+## Snapshots, repeats and noise bands (task 4.3)
+- `lib/snapshots/runSnapshot(db, watchItemId)` is what the weekly worker (4.4) calls: locked
+  questions ×3 (`DEFAULT_REPEATS`), fresh ×1, optional `maxCostUsd` cap and `askConcurrency`.
+  Held vs noisy findings and the noise band go on `Run.stats` (version 1); no schema change.
+- `compareRuns(db, before, after)` lists swings beyond the band; 5.2 alerts and 5.3 report
+  build on it. Method and calibration in `PROJECT-PLAN.md` §4C.
+- `npm run snapshot` (local DB only): `--item=… [--repeats] [--cap]`, `--report=<run> [--as-repeats=2]`,
+  `--restat=<run>` (recompute stats after a method change, no AI calls), `--compare=a,b`.
+- Gotchas: themes match word for word, so only ~14% hold (merge them like entities to fix);
+  per-AI tone and argument-lean bands are wide (14–50 pts). If the rule or repeat count
+  changes, re-run the A/A check (two snapshots minutes apart should show ~0 swings).
+- Proof runs `cmw9ti9320000xki11tqnrozy` and `cmw9tp9zn00008wi15ujm7yxt` live only in the
+  local DB `ate_task43`.
+
 ## Google Analytics (task 6.8)
 - Property `G-6WT4RP9NQD` via Railway `NEXT_PUBLIC_GA_MEASUREMENT_ID` (build-time: a change
   needs a rebuild). Event names and params live only in `lib/analytics.ts`; a test fails on
