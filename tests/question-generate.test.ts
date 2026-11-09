@@ -246,8 +246,12 @@ describe("the reviewed anchor sets file", () => {
     expect(sql.match(/INSERT INTO "Question" /g)).toHaveLength(24);
     expect(sql).toContain(`'anchor'::"QuestionSetKind", 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP`);
     for (const it of file.items) for (const x of it.questions) expect(sql).toContain(`'${x.text.replace(/'/g, "''")}'`);
-    expect(sql.match(/'negative'::"QuestionLean"/g)).toHaveLength(12);
-    expect(sql.match(/'positive'::"QuestionLean"/g)).toHaveLength(12);
+    expect(sql.match(/'negative'::"QuestionLean"/g)).toHaveLength(11);
+    expect(sql.match(/'positive'::"QuestionLean"/g)).toHaveLength(11);
+    // Josh's two neutral rewordings (data centers 1.2 and 1.3).
+    expect(sql.match(/'neutral'::"QuestionLean"/g)).toHaveLength(2);
+    expect(sql).toContain("'will all these data centers make my electric bill go up'");
+    expect(sql).toContain("'how much water does a data center actually use'");
     expect(sql).not.toMatch(/\bDROP\b|\bDELETE\b|\bUPDATE\b/);
   });
 });

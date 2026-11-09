@@ -72,11 +72,12 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
 - For 4.4 (weekly worker): create the `Run` (kind weekly, watch item, ask location), call
   `questionsForSnapshot(db, { watchItemId, runId })`, then `runPipeline(db, { runId, questions:
   [...locked × repeats (4.3), ...fresh], ... })`. Labels are "set.position" (1.3, 5.2).
-- **Production anchor sets wait on Josh.** He reads `scripts/anchor-sets/2026-11-09.json`.
-  On approval: `npm run questions -- --migration=scripts/anchor-sets/2026-11-09.json
-  --reviewed=YYYY-MM-DD > prisma/migrations/<ts>_anchor_sets/migration.sql`, commit, push. If
-  he wants changes, edit the file (still a draft) and re-check with `npm test` (a test runs
-  every question through `checkVoterVoice` and checks sub-topic coverage, balance and mix).
+- **Anchor sets are locked in production** (Josh approved Nov 9; migration
+  `20261109180000_lock_anchor_sets`, from `scripts/anchor-sets/2026-11-09.json`). They're
+  never edited: retire a stale one with `--retire`. A future watch item follows the same path:
+  draft locally, export, Josh reads it, then `npm run questions -- --migration=<file>
+  --reviewed=YYYY-MM-DD > prisma/migrations/<ts>_anchor_sets/migration.sql` (the SQL skips
+  items that already have set 1).
   To load a reviewed file into a local DB: `--draft-anchor --from=<file>`.
 - Locked questions can't be edited or deleted (trigger `question_locked_guard`); retire with
   `npm run questions -- --retire=<id> --reason="…"`.

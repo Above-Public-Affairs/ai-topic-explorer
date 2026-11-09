@@ -1,14 +1,14 @@
 {
   "writtenAt": "2026-11-09T16:30:00.000Z",
-  "model": "gpt-6-luna (prompt 2026-11-09.1), hand-edited",
+  "model": "gpt-6-luna (prompt 2026-11-09.1), hand-edited; 1.2 and 1.3 of data centers reworded by Josh",
   "promptVersion": "2026-11-09.1",
   "items": [
     {
       "watchItem": "Data centers in Texas",
       "questions": [
         { "label": "1.1", "text": "data centers straining the ercot grid", "subTopic": "power generation", "concern": "electricity supply", "lean": "negative", "style": "fragment" },
-        { "label": "1.2", "text": "can all these data centers actually make the texas grid stronger", "subTopic": "power generation", "concern": "electricity supply", "lean": "positive", "style": "plain" },
-        { "label": "1.3", "text": "is it a bad idea to build more data centers in texas when they use so much water", "subTopic": "water use", "concern": "water supply", "lean": "negative", "style": "stance" },
+        { "label": "1.2", "text": "will all these data centers make my electric bill go up", "subTopic": "power generation", "concern": "electric bills", "lean": "neutral", "style": "plain" },
+        { "label": "1.3", "text": "how much water does a data center actually use", "subTopic": "water use", "concern": "water supply", "lean": "neutral", "style": "plain" },
         { "label": "1.4", "text": "data centers using recycled water instead of drinking water", "subTopic": "water use", "concern": "water supply", "lean": "positive", "style": "fragment" },
         { "label": "1.5", "text": "will a data center near my neighborhood make it hard to sleep from the noise", "subTopic": "noise", "concern": "noise near homes", "lean": "negative", "style": "plain" },
         { "label": "1.6", "text": "can data centers be built quiet enough that neighbors don't notice", "subTopic": "noise", "concern": "noise near homes", "lean": "positive", "style": "plain" },

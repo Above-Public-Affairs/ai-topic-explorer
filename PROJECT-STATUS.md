@@ -52,11 +52,11 @@ items against the $60 estimate, mostly Grok's searching. Figures in `PROJECT-PLA
 Task 4.2 (watch items and question sets) is built: the three watch items are seeded by
 migration, `lib/questions/` writes anchor and fresh sets and applies the promotion rule
 (3 of the last 4 snapshots; written down in `PROJECT-PLAN.md` §4B). Proven locally: anchor
-sets for all three items ($0.0007) and one fresh set each ($0.068). **Waiting on Josh:** read
-the anchor questions in `scripts/anchor-sets/2026-11-09.json` (rewritten Nov 9 in a
-real-person voice, balanced leans, `Question.lean` recorded); on his OK a migration inserts
-them locked (`npm run questions -- --migration=… --reviewed=<date>`). Until then
-`questionsForSnapshot()` refuses to run in production, by design.
+sets for all three items ($0.0007) and one fresh set each ($0.068). **Anchor sets
+approved by Josh on Nov 9** (real-person voice, balanced leans, `Question.lean` recorded; he
+reworded data centers 1.2 and 1.3 as neutral questions) and locked into production by
+migration `20261109180000_lock_anchor_sets` from `scripts/anchor-sets/2026-11-09.json`.
+Snapshots can now run; the weekly worker is 4.4.
 
 Key findings from the Nov 6 codebase review that drive phase 1:
 - Perplexity's Sonar Chat Completions API ended Sep 27, 2026. Perplexity is being

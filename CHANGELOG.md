@@ -4,6 +4,9 @@ All notable changes to AI Topic Explorer will be documented in this file.
 
 ## [2026-11-09]
 
+### Added (task 4.2: anchor sets locked)
+- The three watch items' anchor sets, as Josh approved them, are inserted locked by migration `20261109180000_lock_anchor_sets` (24 questions, each with its sub-topic, concern and lean). Josh reworded data centers 1.2 ("will all these data centers make my electric bill go up") and 1.3 ("how much water does a data center actually use") as neutral questions. Snapshots can now run
+
 ### Changed (task 4.2 rework: questions in a real person's voice)
 - Question sets now sound like real people typing into ChatGPT or Gemini, not a pollster (Josh's call): lowercase, fragments, first person and local, stances allowed. Each anchor set mixes about 4 plain questions, 2 fragments and 2 stances, and balances leans (as many positive as negative). Each question stores its lean (`Question.lean`: neutral, negative or positive; migration `20261109120000_question_lean`, additive). The loaded-word check is gone; the balance check replaces it. New reviewed anchor drafts in `scripts/anchor-sets/2026-11-09.json` (replaces 2026-11-07.json), hand-edited; solar now covers land and property values, and every positive anchor question has a negative counterpart. Prompt version `2026-11-09.1`. Local proof: 3 fresh sets, all balanced; $0.048 spent
 
