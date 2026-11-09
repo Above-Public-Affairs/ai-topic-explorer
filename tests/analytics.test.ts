@@ -112,6 +112,15 @@ describe("gaBootstrapScript", () => {
     expect(debug.dataLayer[1][2]).toHaveProperty("debug_mode", true);
     expect(debug.store.get("ga_debug")).toBe("1");
     expect(run("", true).dataLayer[1][2]).toHaveProperty("debug_mode", true);
+    expect(run("?ga_debug=1").ctx.__gaDebug).toBe(true);
+    expect(run("").ctx.__gaDebug).toBeUndefined();
+  });
+
+  it("marks every event for DebugView when debug is on", () => {
+    const { gtag } = fakeBrowser("https://aitopicexplorer.app/");
+    (globalThis.window as { __gaDebug?: boolean }).__gaDebug = true;
+    trackEvent("modal_opened", { modal: "changelog" });
+    expect(gtag).toHaveBeenCalledWith("event", "modal_opened", { modal: "changelog", debug_mode: true });
   });
 });
 

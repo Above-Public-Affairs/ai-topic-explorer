@@ -85,6 +85,8 @@ declare global {
   interface Window {
     gtag?: (...args: unknown[]) => void;
     dataLayer?: unknown[];
+    /** Set by the bootstrap script when GA DebugView is on for this tab. */
+    __gaDebug?: boolean;
   }
 }
 
@@ -94,7 +96,15 @@ export function trackEvent<E extends AnalyticsEventName>(
   ...[params]: AnalyticsEvents[E] extends Record<string, never> ? [] : [AnalyticsEvents[E]]
 ): void {
   if (typeof window === "undefined" || !window.gtag) return;
-  window.gtag("event", name, params ?? {});
+  window.gtag("event", name, withDebug({ ...params }));
+}
+
+/**
+ * DebugView only sees hits that carry `debug_mode` themselves: set on
+ * `config` it doesn't reach the hits (checked against gtag.js, Nov 2026).
+ */
+function withDebug<T extends object>(params: T): T & { debug_mode?: true } {
+  return window.__gaDebug ? { ...params, debug_mode: true } : params;
 }
 
 let lastPageLocation: string | null = null;
@@ -115,11 +125,11 @@ export function trackPageView(href?: string): void {
   const referrer = lastPageLocation;
   lastPageLocation = location;
   if (referrer === null) return; // the landing page: GA counted it
-  window.gtag("event", "page_view", {
-    page_location: location,
-    page_referrer: referrer,
-    page_title: document.title,
-  });
+  window.gtag(
+    "event",
+    "page_view",
+    withDebug({ page_location: location, page_referrer: referrer, page_title: document.title })
+  );
 }
 
 /** For tests: forget the last page view. */
@@ -158,7 +168,7 @@ export function gaBootstrapScript(measurementId: string, forceDebug = false): st
     "try{if(/[?&]ga_debug=1(&|$)/.test(location.search))sessionStorage.setItem('ga_debug','1');d=d||sessionStorage.getItem('ga_debug')==='1';}catch(e){}",
     "var c={allow_google_signals:false,allow_ad_personalization_signals:false};",
     // Any debug_mode value, even false, turns DebugView on, so only set it when wanted.
-    "if(d)c.debug_mode=true;",
+    "if(d){c.debug_mode=true;window.__gaDebug=true;}",
     "gtag('js',new Date());",
     `gtag('config',${id},c);`,
   ].join("");
