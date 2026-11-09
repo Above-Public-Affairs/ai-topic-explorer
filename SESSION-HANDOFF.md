@@ -1,6 +1,6 @@
 # Session Handoff — AI Topic Explorer
 
-**Last Updated:** November 7, 2026
+**Last Updated:** November 9, 2026
 
 ## Where we are
 Live in production (beta) on Railway with four providers: Claude, ChatGPT, Gemini
@@ -16,6 +16,22 @@ The app is becoming an internal topic-tracking tool.
 **Plan and tracker.** The roadmap is in `PROJECT-PLAN.md`. Work runs from the project
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
 Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search) and 5.1.
+
+## Google Analytics (task 6.8)
+- Property `G-6WT4RP9NQD` via Railway `NEXT_PUBLIC_GA_MEASUREMENT_ID` (build-time: a change
+  needs a rebuild). Event names and params live only in `lib/analytics.ts`; a test fails on
+  stray names, dead catalog entries, direct `gtag("event")` calls or the old property ID.
+- An inline `<head>` stub queues events until the lazy-loaded gtag.js arrives.
+- GA's config sends the landing page view even with `send_page_view: false`, so the site
+  lets it and sends `page_view` only on later route changes (`components/AnalyticsTracker.tsx`,
+  after Next swaps in the new `<title>`). GA's own "browser history" page views must stay off
+  in the stream's enhanced measurement, or in-app pages count twice.
+- `debug_mode` on `config` never reaches the hits, so `trackEvent` adds it per hit when
+  `?ga_debug=1` (or `NEXT_PUBLIC_GA_DEBUG=1`) is on.
+- Admin checklist: `docs/ga4-setup.md`.
+- **Open:** the site links no privacy policy, and Above's policy names only
+  abovepublicaffairs.com and the TX tracker, not aitopicexplorer.app (GA, topic text, bug
+  reports). Needs a decision from Josh.
 
 ## Public-site review fixes (task 6.7)
 - Reviews: `docs/reviews/accessibility-2026-11.md` (6.3), `speed-2026-11.md` (6.4),

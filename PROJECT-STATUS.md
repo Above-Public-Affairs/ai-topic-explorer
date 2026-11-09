@@ -4,6 +4,11 @@
 
 ## Current Status: Live in production (beta), new direction planned
 
+**Task 6.8 (new GA4 property, Nov 9):** the site sends to GA4 `G-6WT4RP9NQD` (Railway
+`NEXT_PUBLIC_GA_MEASUREMENT_ID`), with page views on every route and a typed event catalog in
+`lib/analytics.ts`. GA admin setup (key events, custom dimensions, retention) is the checklist
+in `docs/ga4-setup.md`.
+
 **Task 6.7 (public-site review fixes, Nov 7):** the critical/high accessibility findings
 (6.3), the design P0s and P1s (6.5) and speed fixes 1–3 (6.4) are fixed; reviews are in
 `docs/reviews/`. What's left for 6.6 is listed in `SESSION-HANDOFF.md` under "Public-site
