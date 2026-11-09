@@ -52,49 +52,58 @@ export function normalizeQuestion(text: string): string {
   return normalizeConcern(text);
 }
 
-/** Policy and industry terms an ordinary voter wouldn't type. */
+/**
+ * Policy and industry terms people don't type into a chatbot. Names people
+ * have heard of (ERCOT, fracking, blackouts, BESS near a project) are fine.
+ */
 const JARGON =
-  /\b(stakeholders?|externalit(y|ies)|ratepayers?|BESS|load growth|interconnection|curtailment|curtail(ed|ing)?|dispatchable|baseload|ancillary services|levelized|LCOE|ESG|decarboni[sz]\w*|PPAs?|offtake|midstream|severance tax|royalt(y|ies) rates?|leverage|paradigm|synerg\w*|narrative|discourse|framing|sentiment|socioeconomic|mitigat\w*)\b/i;
-/** Words that load the question or assume its answer. */
-const LOADED =
-  /\b(scam|hoax|greedy|greed|destroy(s|ing)?|ruin(s|ing)?|radical|so-called|corrupt\w*|evil|disaster|catastroph\w*|killing|poison(ing|ed)?|rip(ping)? off|shady|propaganda|war on)\b/i;
+  /\b(stakeholders?|externalit(y|ies)|ratepayers?|load growth|interconnection|curtailment|dispatchable|baseload|ancillary services|levelized|LCOE|ESG|decarboni[sz]\w*|PPAs?|offtake|midstream|leverage|paradigm|synerg\w*|narrative|discourse|framing|sentiment|socioeconomic|mitigat\w*)\b/i;
 /** Companies a voter might name. We track industries, not companies (or clients), so none appear. */
 const COMPANIES =
   /\b(google|alphabet|meta|facebook|microsoft|amazon|aws|apple|openai|oracle|nvidia|tesla|xai|stargate|crusoe|exxon\w*|chevron|conocophillips|occidental|oxy|devon|eog|diamondback|mewbourne|nextera|vistra|nrg|oncor|centerpoint|aep|xcel|pnm|txnm|ercot inc|intersect power|invenergy|orsted|ørsted|enbridge|kinder morgan|energy transfer|halliburton|blackrock)\b/i;
 /** Talking about the chatbot or the study, not the topic. */
-const META = /\b(as an ai|ai chatbot|this survey|watch item|anchor|sub-?topic)\b/i;
+const META = /\b(as an ai|ai chatbot|chatgpt|gemini|claude|grok|this survey|watch item|anchor set|sub-?topic)\b/i;
 
-export const MAX_WORDS = 30;
-export const MIN_WORDS = 5;
+export const MAX_WORDS = 25;
+export const MIN_WORDS = 2;
 
 /**
- * Why a question doesn't read the way a voter asks, or [] when it does: one
- * plain question ending in "?", 5–30 words, no jargon, no loaded words, no
- * company names, nothing about AI or this study.
+ * Why an entry doesn't read like something a real person types into a
+ * chatbot, or [] when it does. Lowercase, fragments, run-ons, first person
+ * and stances are all fine ("why are data centers bad for texas", "ercot
+ * blackout risk this winter"). The hard rules: one question per entry, 2–25
+ * words, no policy jargon, no company names, nothing about AI or this study.
+ * Loaded wording is allowed; sets balance it instead (checkSetShape).
  */
 export function checkVoterVoice(text: string): string[] {
   const issues: string[] = [];
   const t = text.trim();
   const words = t.split(/\s+/).filter(Boolean).length;
-  if (!t.endsWith("?")) issues.push("not a question");
-  if ((t.match(/\?/g) ?? []).length > 1) issues.push("more than one question");
+  if (/\n/.test(t) || (t.match(/\?/g) ?? []).length > 1) issues.push("more than one question");
   if (words > MAX_WORDS) issues.push(`too long (${words} words)`);
   if (words < MIN_WORDS) issues.push(`too short (${words} words)`);
   const jargon = t.match(JARGON);
   if (jargon) issues.push(`jargon: "${jargon[0]}"`);
-  const loaded = t.match(LOADED);
-  if (loaded) issues.push(`loaded word: "${loaded[0]}"`);
   const company = t.match(COMPANIES);
   if (company) issues.push(`names a company: "${company[0]}"`);
   if (META.test(t)) issues.push("about the AI or the study, not the topic");
   return issues;
 }
 
+/** Which way a question leans toward the industry or topic. */
+export type Lean = "neutral" | "negative" | "positive";
+export const LEANS: Lean[] = ["neutral", "negative", "positive"];
+/** plain: an everyday question. fragment: a few typed words. stance: takes a side. */
+export type Style = "plain" | "fragment" | "stance";
+export const STYLES: Style[] = ["plain", "fragment", "stance"];
+
 export interface Candidate {
   text: string;
   /** The sub-topic name exactly as stored, or null for an overall question. */
   subTopic: string | null;
   concern: string;
+  lean: Lean;
+  style: Style;
   why?: string | null;
 }
 
@@ -103,16 +112,51 @@ export interface Rejected extends Candidate {
 }
 
 /**
+ * The anchor mix: about half plain, a quarter fragments, a quarter stances
+ * (2 / 2 / 4 of 8), each count within one of its target.
+ */
+export function mixTargets(size: number): Record<Style, number> {
+  const fragment = Math.round(size / 4);
+  const stance = Math.round(size / 4);
+  return { plain: size - fragment - stance, fragment, stance };
+}
+
+/**
+ * What's wrong with a set's shape, or [] when it's fine:
+ * - balance (every set): as many negative-leaning as positive-leaning
+ *   questions, so every worry has a hopeful counterpart;
+ * - a stance always leans one way;
+ * - mix (anchor sets, `mix: true`): style counts within one of mixTargets().
+ */
+export function checkSetShape(questions: Pick<Candidate, "lean" | "style">[], options: { mix?: boolean } = {}): string[] {
+  const issues: string[] = [];
+  const negative = questions.filter((q) => q.lean === "negative").length;
+  const positive = questions.filter((q) => q.lean === "positive").length;
+  if (negative > positive) issues.push(`${negative - positive} more positive-leaning (to balance ${negative} negative)`);
+  if (positive > negative) issues.push(`${positive - negative} more negative-leaning (to balance ${positive} positive)`);
+  const neutralStances = questions.filter((q) => q.style === "stance" && q.lean === "neutral").length;
+  if (neutralStances) issues.push(`${neutralStances} stance question(s) marked neutral: a stance leans one way`);
+  if (options.mix) {
+    const target = mixTargets(questions.length);
+    for (const style of STYLES) {
+      const n = questions.filter((q) => q.style === style).length;
+      if (Math.abs(n - target[style]) > 1) issues.push(`${n} ${style} questions; aim for about ${target[style]}`);
+    }
+  }
+  return issues;
+}
+
+/**
  * Keep the candidates that pass checkVoterVoice and aren't duplicates (of each
  * other or of `existing`), up to `size`. With `perSubTopic`, each sub-topic
  * first gets that many (in the model's order), then overall questions fill
  * up to `overall`, then anything left fills the rest. `missing` says what the
- * set still lacks, for one retry.
+ * set still lacks; `shape` is checkSetShape() of what was kept.
  */
 export function selectQuestions(
   candidates: Candidate[],
-  options: { size: number; subTopics: string[]; perSubTopic?: number; overall?: number; existing?: string[] }
-): { kept: Candidate[]; rejected: Rejected[]; missing: string[] } {
+  options: { size: number; subTopics: string[]; perSubTopic?: number; overall?: number; existing?: string[]; mix?: boolean }
+): { kept: Candidate[]; rejected: Rejected[]; missing: string[]; shape: string[] } {
   const seen = new Set((options.existing ?? []).map(normalizeQuestion));
   const rejected: Rejected[] = [];
   const valid: Candidate[] = [];
@@ -151,13 +195,13 @@ export function selectQuestions(
   if (kept.length < options.size && missing.length === 0) missing.push(`${options.size - kept.length} more`);
   // Keep the model's order within the set, sub-topics grouped as it wrote them.
   kept.sort((a, b) => valid.indexOf(a) - valid.indexOf(b));
-  return { kept, rejected, missing };
+  return { kept, rejected, missing, shape: checkSetShape(kept, { mix: options.mix }) };
 }
 
 export interface FreshSetHistory {
   setId: string;
   startedAt: Date;
-  questions: { id: string; text: string; concern: string | null; subTopicId: string | null }[];
+  questions: { id: string; text: string; concern: string | null; subTopicId: string | null; lean?: Lean | null }[];
 }
 
 export interface Promotion {
@@ -166,6 +210,7 @@ export interface Promotion {
   fromQuestionId: string;
   text: string;
   subTopicId: string | null;
+  lean: Lean | null;
   /** In how many of the window's fresh sets the concern came up. */
   seenIn: number;
 }
@@ -209,6 +254,7 @@ export function findPromotions(
       fromQuestionId: e.latest.q.id,
       text: e.latest.q.text,
       subTopicId: e.latest.q.subTopicId,
+      lean: e.latest.q.lean ?? null,
       seenIn: e.sets.size,
     }));
 }

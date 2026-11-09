@@ -6,7 +6,9 @@ import {
   WATCH_ITEMS,
   anchorMigrationSql,
   anchorPlan,
+  checkSetShape,
   checkVoterVoice,
+  cleanWhy,
   generateSet,
   parseCandidates,
   type ResponsesClient,
@@ -32,17 +34,24 @@ function fakeClient(...replies: unknown[]) {
   replies.forEach((r) => create.mockResolvedValueOnce(r));
   return { client: { responses: { create } } as unknown as ResponsesClient, create };
 }
-const q = (text: string, subTopic: string | null, concern = "x", why: string | null = null) => ({ text, subTopic, concern, why });
+const q = (text: string, subTopic: string | null, concern = "x", lean = "neutral", style = "plain", why: string | null = null) => ({
+  text,
+  subTopic,
+  concern,
+  lean,
+  style,
+  why,
+});
 
 const DC_ANCHOR = [
-  q("Will data centers in Texas lead to more power plants being built?", "power generation", "new power plants"),
-  q("Can Texas make enough electricity for data centers and everyone else?", "Power Generation", "enough power"),
-  q("How much water do data centers use, and where does it come from?", "water use", "water supply"),
-  q("Could data centers make water shortages worse for Texas towns?", "water use", "water shortages"),
-  q("How loud are data centers for people who live nearby?", "noise", "noise near homes"),
-  q("What can neighbors do if a data center is too loud at night?", "noise", "noise complaints"),
-  q("Will data centers raise electric bills for people in Texas?", null, "electric bills"),
-  q("What do Texas towns gain from having data centers nearby?", null, "local benefits"),
+  q("data centers straining the ercot grid", "power generation", "electricity supply", "negative", "fragment"),
+  q("can all these data centers make the texas grid stronger", "Power Generation", "electricity supply", "positive"),
+  q("is it a bad idea to build more data centers when they use so much water", "water use", "water supply", "negative", "stance"),
+  q("data centers using recycled water instead of drinking water", "water use", "water supply", "positive", "fragment"),
+  q("will a data center near my neighborhood keep me up at night", "noise", "noise near homes"),
+  q("can data centers be built quiet enough that neighbors don't notice", "noise", "noise near homes"),
+  q("why are data centers a bad deal for people in texas", null, "community impact", "negative", "stance"),
+  q("could data centers bring good jobs to my part of texas", null, "jobs", "positive"),
 ];
 
 afterEach(() => {
@@ -61,34 +70,48 @@ describe("generateSet", () => {
     expect(req.reasoning).toEqual({ effort: "low" });
     expect(req.text.format).toMatchObject({ type: "json_schema", strict: true });
     expect(req.instructions).toContain("Write 2 about each sub-topic listed");
+    expect(req.instructions).toContain("Mix: about 4 plain, 2 fragments and 2 stances");
+    expect(req.instructions).toContain("ChatGPT or Gemini");
     expect(req.instructions).toContain("Never name a company");
+    expect(req.text.format.schema.properties.questions.items.required).toEqual(["text", "subTopic", "concern", "lean", "style", "why"]);
     expect(set.questions).toHaveLength(8);
     // Sub-topic names are matched to the stored ones, case ignored.
     expect(set.questions[1].subTopic).toBe("power generation");
     expect(set.missing).toEqual([]);
+    expect(set.shape).toEqual([]);
+    expect(set.questions.map((x) => x.lean)).toEqual(["negative", "positive", "negative", "positive", "neutral", "neutral", "negative", "positive"]);
     expect(set).toMatchObject({ kind: "anchor", modelRegistryId: "reg-q", model: "gpt-6-luna-2026-10-01", calls: 1, searches: 0 });
     // 1000 in × $0.10/M + 500 out × $0.50/M.
     expect(set.costUsd).toBeCloseTo(0.00035, 8);
   });
 
-  it("retries once for a sub-topic left short, and keeps what passed", async () => {
-    const first = DC_ANCHOR.filter((x) => x.subTopic !== "noise").concat(q("Is the data center boom a scam on Texas?", null));
-    const { client, create } = fakeClient(reply(first), reply(DC_ANCHOR.filter((x) => x.subTopic === "noise")));
+  it("asks once for the whole set again when a sub-topic is short or the leans don't balance", async () => {
+    const first = DC_ANCHOR.filter((x) => x.subTopic !== "noise").concat(q("why are data centers ruining texas", null, "harm", "negative", "stance"));
+    const { client, create } = fakeClient(reply(first), reply(DC_ANCHOR));
     const set = await generateSet("anchor", { item, subTopics: DC.subTopics, client, settings });
     expect(create).toHaveBeenCalledTimes(2);
     const retryInput: string = create.mock.calls[1][0].input;
     expect(retryInput).toContain("2 more about noise");
-    expect(retryInput).toContain('loaded word: "scam"');
-    expect(set.questions.filter((x) => x.subTopic === "noise")).toHaveLength(2);
-    expect(set.questions).toHaveLength(8);
+    expect(retryInput).toContain("more positive-leaning");
+    expect(retryInput).toContain("[overall; stance; negative]");
+    expect(retryInput).toContain("Write the whole set of 8 again");
+    expect(set.questions.map((x) => x.text)).toEqual(DC_ANCHOR.map((x) => x.text));
     expect(set.calls).toBe(2);
+  });
+
+  it("keeps the first attempt when the retry is worse", async () => {
+    const unbalanced = DC_ANCHOR.map((x) => (x.lean === "positive" ? { ...x, lean: "neutral" } : x));
+    const { client } = fakeClient(reply(unbalanced), reply([]));
+    const set = await generateSet("anchor", { item, subTopics: DC.subTopics, client, settings });
+    expect(set.questions).toHaveLength(8);
+    expect(set.shape).toEqual(["3 more positive-leaning (to balance 3 negative)"]);
   });
 
   it("writes a fresh set with web search from the watch item's location, without repeating locked questions", async () => {
     const fresh = [
-      q("What could a pause on new data centers mean for projects already planned in Texas?", null, "project approvals", "Election news"),
-      q("Will data centers raise electric bills for people in Texas?", null, "electric bills", "Repeat of a locked one"),
-      q("What does the new study say about data center water use in Texas by 2040?", "water use", "future water demand", "A study"),
+      q("what does the data center pause mean for projects already planned", null, "project approvals", "neutral", "plain", "Election news ([texastribune.org](https://www.texastribune.org/x?utm_source=openai))"),
+      q("Will data centers raise electric bills for people in Texas?", null, "electric bills", "negative", "plain", "Repeat of a locked one"),
+      q("new study data center water use texas 2040", "water use", "future water demand", "neutral", "fragment", "A study"),
     ];
     const { client, create } = fakeClient(
       reply(fresh, {
@@ -113,10 +136,12 @@ describe("generateSet", () => {
       { type: "web_search", user_location: { type: "approximate", city: "Austin", region: "Texas", country: "US", timezone: "America/Chicago" } },
     ]);
     expect(req.instructions).toContain("Today is 2026-11-07");
+    expect(req.text.format.schema).toBeDefined();
     expect(req.instructions).toContain("- Will data centers raise electric bills for people in Texas?");
     expect(req.instructions).toContain("- project approvals");
     expect(set.questions.map((x) => x.text)).toEqual([fresh[0].text, fresh[2].text]);
     expect(set.questions[0].why).toBe("Election news");
+    expect(set.shape).toEqual([]);
     expect(set.rejected[0].issues).toEqual(["duplicate"]);
     expect(set.searches).toBe(2);
     expect(set.searchQueries).toEqual(["texas data centers news", "austin data center vote"]);
@@ -131,9 +156,11 @@ describe("generateSet", () => {
   });
 
   it("parses only well-formed candidates", () => {
-    expect(parseCandidates([{ text: "A b c d e?", subTopic: " ", concern: "x", why: "" }, { text: 1 }, null, "x"])).toEqual([
-      { text: "A b c d e?", subTopic: null, concern: "x", why: null },
+    expect(parseCandidates([{ text: "A b c d e?", subTopic: " ", concern: "x", lean: "sideways", style: "rant", why: "" }, { text: 1 }, null, "x"])).toEqual([
+      { text: "A b c d e?", subTopic: null, concern: "x", lean: "neutral", style: "plain", why: null },
     ]);
+    expect(cleanWhy("ERCOT set a deadline. ([ercot.com](https://www.ercot.com/a?utm_source=openai))")).toBe("ERCOT set a deadline.");
+    expect(cleanWhy("Per [the Tribune](https://t.org/x), prices rose")).toBe("Per the Tribune, prices rose");
     expect(parseCandidates(undefined)).toEqual([]);
   });
 });
@@ -184,7 +211,7 @@ describe("watch item seed migration", () => {
   });
 
   it("is additive and writes no question sets (anchor sets wait for Josh)", () => {
-    for (const file of ["20261107230000_question_sets", "20261107230100_seed_watch_items"]) {
+    for (const file of ["20261107230000_question_sets", "20261107230100_seed_watch_items", "20261109120000_question_lean"]) {
       const m = readFileSync(`prisma/migrations/${file}/migration.sql`, "utf8");
       expect(m).not.toMatch(/\bDROP\b|\bRENAME\b|\bDELETE FROM\b|\bUPDATE\s+"/);
     }
@@ -193,9 +220,9 @@ describe("watch item seed migration", () => {
 });
 
 describe("the reviewed anchor sets file", () => {
-  const file = JSON.parse(readFileSync("scripts/anchor-sets/2026-11-07.json", "utf8")) as ReviewedFile;
+  const file = JSON.parse(readFileSync("scripts/anchor-sets/2026-11-09.json", "utf8")) as ReviewedFile;
 
-  it("has 8 questions per watch item, each in a voter's voice, covering every sub-topic", () => {
+  it("has 8 entries per watch item in a real person's voice, covering every sub-topic, balanced and mixed", () => {
     expect(file.items.map((i) => i.watchItem)).toEqual(WATCH_ITEMS.map((w) => w.name));
     for (const it of file.items) {
       const w = WATCH_ITEMS.find((x) => x.name === it.watchItem)!;
@@ -204,7 +231,12 @@ describe("the reviewed anchor sets file", () => {
       for (const x of it.questions) expect(checkVoterVoice(x.text), x.text).toEqual([]);
       const plan = anchorPlan(w.subTopics);
       for (const sub of w.subTopics) expect(it.questions.filter((x) => x.subTopic === sub)).toHaveLength(plan.perSubTopic);
+      expect(it.questions.filter((x) => x.subTopic === null)).toHaveLength(plan.overall);
+      expect(checkSetShape(it.questions.map((x) => ({ lean: x.lean, style: x.style ?? "plain" })), { mix: true }), it.watchItem).toEqual([]);
     }
+    // Josh's notes: solar covers land and property values, not water.
+    const solar = file.items[2].questions.filter((x) => x.subTopic === "solar");
+    expect(solar.map((x) => x.concern)).toEqual(["land and property values", "landowner income"]);
   });
 
   it("turns into an additive migration that inserts each set locked, word for word", () => {
@@ -214,6 +246,8 @@ describe("the reviewed anchor sets file", () => {
     expect(sql.match(/INSERT INTO "Question" /g)).toHaveLength(24);
     expect(sql).toContain(`'anchor'::"QuestionSetKind", 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP`);
     for (const it of file.items) for (const x of it.questions) expect(sql).toContain(`'${x.text.replace(/'/g, "''")}'`);
+    expect(sql.match(/'negative'::"QuestionLean"/g)).toHaveLength(12);
+    expect(sql.match(/'positive'::"QuestionLean"/g)).toHaveLength(12);
     expect(sql).not.toMatch(/\bDROP\b|\bDELETE\b|\bUPDATE\b/);
   });
 });

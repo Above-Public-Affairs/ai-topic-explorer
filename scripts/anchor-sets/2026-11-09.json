@@ -1,0 +1,46 @@
+{
+  "writtenAt": "2026-11-09T16:30:00.000Z",
+  "model": "gpt-6-luna (prompt 2026-11-09.1), hand-edited",
+  "promptVersion": "2026-11-09.1",
+  "items": [
+    {
+      "watchItem": "Data centers in Texas",
+      "questions": [
+        { "label": "1.1", "text": "data centers straining the ercot grid", "subTopic": "power generation", "concern": "electricity supply", "lean": "negative", "style": "fragment" },
+        { "label": "1.2", "text": "can all these data centers actually make the texas grid stronger", "subTopic": "power generation", "concern": "electricity supply", "lean": "positive", "style": "plain" },
+        { "label": "1.3", "text": "is it a bad idea to build more data centers in texas when they use so much water", "subTopic": "water use", "concern": "water supply", "lean": "negative", "style": "stance" },
+        { "label": "1.4", "text": "data centers using recycled water instead of drinking water", "subTopic": "water use", "concern": "water supply", "lean": "positive", "style": "fragment" },
+        { "label": "1.5", "text": "will a data center near my neighborhood make it hard to sleep from the noise", "subTopic": "noise", "concern": "noise near homes", "lean": "negative", "style": "plain" },
+        { "label": "1.6", "text": "can data centers be built quiet enough that neighbors don't notice", "subTopic": "noise", "concern": "noise near homes", "lean": "positive", "style": "plain" },
+        { "label": "1.7", "text": "why are data centers a bad deal for people living in texas", "subTopic": null, "concern": "local community impact", "lean": "negative", "style": "stance" },
+        { "label": "1.8", "text": "could data centers bring good jobs and more tax money to my part of texas", "subTopic": null, "concern": "jobs and local taxes", "lean": "positive", "style": "plain" }
+      ]
+    },
+    {
+      "watchItem": "Oil and gas in New Mexico",
+      "questions": [
+        { "label": "1.1", "text": "why is my energy bill so high when new mexico produces so much oil and gas", "subTopic": null, "concern": "energy bills", "lean": "negative", "style": "plain" },
+        { "label": "1.2", "text": "do oil and gas jobs in the permian actually help people in albuquerque", "subTopic": null, "concern": "local jobs", "lean": "positive", "style": "plain" },
+        { "label": "1.3", "text": "is fracking contaminating water in new mexico", "subTopic": null, "concern": "water supply", "lean": "negative", "style": "plain" },
+        { "label": "1.4", "text": "does oil and gas money help pay for my kids school here in new mexico", "subTopic": null, "concern": "school funding", "lean": "positive", "style": "plain" },
+        { "label": "1.5", "text": "drilling noise and trucks near homes new mexico", "subTopic": null, "concern": "noise near homes", "lean": "negative", "style": "fragment" },
+        { "label": "1.6", "text": "new mexico oil and gas money for state budget", "subTopic": null, "concern": "public revenue", "lean": "positive", "style": "fragment" },
+        { "label": "1.7", "text": "is oil and gas pollution making people near the permian sick", "subTopic": null, "concern": "health and pollution", "lean": "negative", "style": "stance" },
+        { "label": "1.8", "text": "isn't oil and gas the only thing keeping rural new mexico towns going", "subTopic": null, "concern": "rural livelihoods", "lean": "positive", "style": "stance" }
+      ]
+    },
+    {
+      "watchItem": "Renewables in Texas",
+      "questions": [
+        { "label": "1.1", "text": "why are wind farms ruining the view and land values out in west texas", "subTopic": "wind", "concern": "land and property values", "lean": "negative", "style": "stance" },
+        { "label": "1.2", "text": "are wind farms good for texas ranchers who lease their land", "subTopic": "wind", "concern": "landowner income", "lean": "positive", "style": "plain" },
+        { "label": "1.3", "text": "will a solar farm next to my property lower my home value", "subTopic": "solar", "concern": "land and property values", "lean": "negative", "style": "plain" },
+        { "label": "1.4", "text": "solar farm lease money for texas landowners", "subTopic": "solar", "concern": "landowner income", "lean": "positive", "style": "fragment" },
+        { "label": "1.5", "text": "battery storage fire risk near homes", "subTopic": "BESS", "concern": "fire safety", "lean": "negative", "style": "fragment" },
+        { "label": "1.6", "text": "can big batteries help keep the lights on when ercot is stretched", "subTopic": "BESS", "concern": "blackout risk", "lean": "positive", "style": "plain" },
+        { "label": "1.7", "text": "are renewables bringing good jobs and tax money to my town", "subTopic": null, "concern": "jobs and taxes", "lean": "positive", "style": "plain" },
+        { "label": "1.8", "text": "why are wind and solar making the texas grid less reliable", "subTopic": null, "concern": "grid reliability", "lean": "negative", "style": "stance" }
+      ]
+    }
+  ]
+}

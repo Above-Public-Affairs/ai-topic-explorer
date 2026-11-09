@@ -12,7 +12,7 @@
  *
  * questionsForSnapshot() is the one entry point a snapshot uses.
  */
-import type { PrismaClient, QuestionSetKind } from "@/app/generated/prisma/client";
+import type { PrismaClient, QuestionLean, QuestionSetKind } from "@/app/generated/prisma/client";
 import { generateSet, type GenerateOptions, type GeneratedSet, type SetKind, type WatchItemForQuestions } from "./generate";
 import { PROMOTION_WINDOW, findPromotions, normalizeConcern, type Candidate, type Promotion } from "./rules";
 
@@ -38,6 +38,7 @@ export interface SnapshotQuestion {
   setNumber: number;
   subTopicId: string | null;
   concern: string | null;
+  lean: QuestionLean | null;
 }
 
 export function questionLabel(setNumber: number, position: number): string {
@@ -79,6 +80,8 @@ function generationJson(g: GeneratedSet) {
     priceIds: g.priceIds,
     rejected: g.rejected.map((r) => ({ text: r.text, issues: r.issues })),
     missing: g.missing,
+    shape: g.shape,
+    styles: g.questions.map((q) => q.style),
   };
 }
 
@@ -88,6 +91,7 @@ function questionRows(questions: Candidate[], subTopicIds: Map<string, string>) 
     text: q.text,
     subTopicId: q.subTopic ? (subTopicIds.get(q.subTopic) ?? null) : null,
     concern: q.concern ? normalizeConcern(q.concern) : null,
+    lean: q.lean,
     why: q.why ?? null,
   }));
 }
@@ -183,6 +187,7 @@ export async function lockedQuestions(db: Db, watchItemId: string): Promise<Snap
       setNumber: s.number,
       subTopicId: q.subTopicId,
       concern: q.concern,
+      lean: q.lean,
     }))
   );
 }
@@ -231,6 +236,7 @@ export async function promoteRecurring(
             text: p.text,
             subTopicId: p.subTopicId,
             concern: p.concern,
+            lean: p.lean,
             promotedFromId: p.fromQuestionId,
           })),
         },
@@ -338,7 +344,7 @@ export async function questionsForSnapshot(
 
 function toSnapshotQuestion(
   set: { number: number; kind: QuestionSetKind },
-  q: { id: string; position: number; text: string; subTopicId: string | null; concern: string | null }
+  q: { id: string; position: number; text: string; subTopicId: string | null; concern: string | null; lean: QuestionLean | null }
 ): SnapshotQuestion {
   return {
     id: q.id,
@@ -348,5 +354,6 @@ function toSnapshotQuestion(
     setNumber: set.number,
     subTopicId: q.subTopicId,
     concern: q.concern,
+    lean: q.lean,
   };
 }

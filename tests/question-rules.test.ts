@@ -6,42 +6,85 @@ import {
   PROMOTION_MIN_SNAPSHOTS,
   PROMOTION_WINDOW,
   anchorPlan,
+  checkSetShape,
   checkVoterVoice,
   findPromotions,
+  mixTargets,
   normalizeConcern,
   selectQuestions,
   type Candidate,
   type FreshSetHistory,
+  type Lean,
+  type Style,
 } from "@/lib/questions";
 
-describe("checkVoterVoice", () => {
-  it("passes plain questions a voter would type", () => {
+describe("checkVoterVoice (real-person voice)", () => {
+  it("passes what real people type: lowercase, fragments, run-ons, first person, stances", () => {
     for (const t of [
+      "why are data centers bad for texas",
+      "is fracking contaminating water in new mexico",
+      "ercot blackout risk this winter",
+      "my electric bill went up is it the data centers",
+      "are wind farms good for texas ranchers who lease their land",
       "Will data centers raise my electric bill?",
-      "How much water do data centers use, and where does that water come from?",
-      "Can big batteries help keep the Texas grid reliable when wind and solar output changes?",
-      "Who decides where oil and gas can be produced in New Mexico, and how can residents have a say?",
-      "Is the water downstream from the new plant safe to drink?",
+      "is the data center boom a scam on texas families",
+      "why are greedy oil companies drilling near my town",
+      "big batteries near me safe?",
     ]) {
       expect(checkVoterVoice(t), t).toEqual([]);
     }
   });
 
-  it("flags jargon, loaded words, company names and talk about the AI", () => {
-    expect(checkVoterVoice("How will BESS deployment affect ERCOT prices for families?")).toContain('jargon: "BESS"');
-    expect(checkVoterVoice("What do stakeholders think about data centers in Texas?")[0]).toMatch(/jargon/);
-    expect(checkVoterVoice("Is the data center boom a scam on Texas families?")[0]).toMatch(/loaded/);
-    expect(checkVoterVoice("Why are greedy oil companies drilling near my town?")[0]).toMatch(/loaded/);
-    expect(checkVoterVoice("Is the Google data center near Midlothian using too much water?")[0]).toMatch(/company/);
-    expect(checkVoterVoice("Does ExxonMobil pay its fair share in New Mexico taxes?")[0]).toMatch(/company/);
-    expect(checkVoterVoice("As an AI, what do you think about solar farms in Texas?")).toContain("about the AI or the study, not the topic");
+  it("still flags jargon, company names, talk about the AI, and more than one question", () => {
+    expect(checkVoterVoice("what do stakeholders think about data centers in texas")[0]).toMatch(/jargon/);
+    expect(checkVoterVoice("dispatchable generation shortfall texas")[0]).toMatch(/jargon/);
+    expect(checkVoterVoice("is the google data center near midlothian using too much water")[0]).toMatch(/company/);
+    expect(checkVoterVoice("does exxonmobil pay its fair share in new mexico")[0]).toMatch(/company/);
+    expect(checkVoterVoice("as an AI what do you think about solar farms")).toContain("about the AI or the study, not the topic");
+    expect(checkVoterVoice("what does chatgpt say about fracking")).toContain("about the AI or the study, not the topic");
+    expect(checkVoterVoice("are data centers good? are they bad for texas?")).toContain("more than one question");
+    expect(checkVoterVoice("wind farms\nsolar farms")).toContain("more than one question");
   });
 
-  it("wants one short question ending in a question mark", () => {
-    expect(checkVoterVoice("Data centers are raising bills in Texas.")).toContain("not a question");
-    expect(checkVoterVoice("Are data centers good? Are they bad for Texas?")).toContain("more than one question");
-    expect(checkVoterVoice("Wind?")[0]).toMatch(/too short/);
-    expect(checkVoterVoice(`Is ${"it really true that ".repeat(8)}wind farms help?`)[0]).toMatch(/too long/);
+  it("wants 2 to 25 words", () => {
+    expect(checkVoterVoice("fracking")[0]).toMatch(/too short/);
+    expect(checkVoterVoice(`is ${"it really true that ".repeat(7)}wind farms help`)[0]).toMatch(/too long/);
+  });
+});
+
+describe("checkSetShape (balance and mix)", () => {
+  const q = (lean: Lean, style: Style = "plain") => ({ lean, style });
+
+  it("wants as many positive as negative leans", () => {
+    expect(checkSetShape([q("negative"), q("positive"), q("neutral")])).toEqual([]);
+    expect(checkSetShape([q("negative"), q("negative"), q("positive")])).toEqual(["1 more positive-leaning (to balance 2 negative)"]);
+    expect(checkSetShape([q("positive")])).toEqual(["1 more negative-leaning (to balance 1 positive)"]);
+  });
+
+  it("never lets a stance be neutral", () => {
+    expect(checkSetShape([q("neutral", "stance")])[0]).toMatch(/stance question\(s\) marked neutral/);
+  });
+
+  it("checks the anchor mix: about half plain, a quarter fragments, a quarter stances", () => {
+    expect(mixTargets(8)).toEqual({ plain: 4, fragment: 2, stance: 2 });
+    const good = [
+      ...Array.from({ length: 2 }, () => q("neutral")),
+      q("negative"),
+      q("positive"),
+      q("negative", "fragment"),
+      q("positive", "fragment"),
+      q("negative", "stance"),
+      q("positive", "stance"),
+    ];
+    expect(checkSetShape(good, { mix: true })).toEqual([]);
+    const allPlain = Array.from({ length: 8 }, (_, i) => q(i % 2 ? "negative" : "positive"));
+    expect(checkSetShape(allPlain, { mix: true })).toEqual([
+      "8 plain questions; aim for about 4",
+      "0 fragment questions; aim for about 2",
+      "0 stance questions; aim for about 2",
+    ]);
+    // Fresh sets don't check the mix.
+    expect(checkSetShape(allPlain)).toEqual([]);
   });
 });
 
@@ -55,48 +98,50 @@ describe("anchorPlan", () => {
   });
 });
 
-const c = (text: string, subTopic: string | null = null, concern = "c"): Candidate => ({ text, subTopic, concern });
+const c = (text: string, subTopic: string | null = null, concern = "c", lean: Lean = "neutral"): Candidate => ({ text, subTopic, concern, lean, style: "plain" });
 
 describe("selectQuestions", () => {
   const subTopics = ["wind", "solar"];
 
   it("fills each sub-topic first, then overall, in the model's order", () => {
     const cands = [
-      c("Do wind farms lower my electric bill in Texas?", "wind"),
-      c("Are solar farms good for rural Texas counties?", "solar"),
-      c("Who benefits from renewable energy in Texas?"),
-      c("Do wind farms hurt birds and other wildlife here?", "wind"),
-      c("Do wind turbines make noise for people living nearby?", "wind"),
-      c("Can solar farms share land with cattle in Texas?", "solar"),
+      c("do wind farms lower my electric bill", "wind"),
+      c("are solar farms good for rural texas counties", "solar"),
+      c("who benefits from renewable energy in texas"),
+      c("do wind farms hurt birds around here", "wind"),
+      c("wind turbine noise near homes", "wind"),
+      c("solar farms and cattle grazing texas", "solar"),
     ];
     const r = selectQuestions(cands, { size: 5, subTopics, perSubTopic: 2, overall: 1 });
     expect(r.kept.map((q) => q.text)).toEqual([
-      "Do wind farms lower my electric bill in Texas?",
-      "Are solar farms good for rural Texas counties?",
-      "Who benefits from renewable energy in Texas?",
-      "Do wind farms hurt birds and other wildlife here?",
-      "Can solar farms share land with cattle in Texas?",
+      "do wind farms lower my electric bill",
+      "are solar farms good for rural texas counties",
+      "who benefits from renewable energy in texas",
+      "do wind farms hurt birds around here",
+      "solar farms and cattle grazing texas",
     ]);
     expect(r.missing).toEqual([]);
+    expect(r.shape).toEqual([]);
   });
 
-  it("drops failing and duplicate questions and says what's missing", () => {
+  it("drops failing and duplicate entries, says what's missing, and reports the shape", () => {
     const r = selectQuestions(
       [
-        c("Do wind farms lower my electric bill in Texas?", "wind"),
-        c("do wind farms lower my electric bill in texas", "wind"),
-        c("Is BESS safe for neighbors in rural Texas?", "solar"),
-        c("Already asked every single week here?"),
+        c("do wind farms lower my electric bill", "wind", "bills", "negative"),
+        c("Do wind farms lower my electric bill?", "wind"),
+        c("what do stakeholders say about solar", "solar"),
+        c("already asked every single week here"),
       ],
       { size: 4, subTopics, perSubTopic: 1, overall: 1, existing: ["Already asked every single week here?"] }
     );
     expect(r.kept).toHaveLength(1);
-    expect(r.rejected.map((x) => x.issues[0])).toEqual(["not a question", 'jargon: "BESS"', "duplicate"]);
+    expect(r.rejected.map((x) => x.issues[0])).toEqual(["duplicate", 'jargon: "stakeholders"', "duplicate"]);
     expect(r.missing).toEqual(["1 more about solar", "1 more about the topic overall"]);
+    expect(r.shape).toEqual(["1 more positive-leaning (to balance 1 negative)"]);
   });
 
   it("normalizes concern labels", () => {
-    const r = selectQuestions([c("Will data centers raise my electric bill?", null, "  Electric Bills! ")], { size: 1, subTopics: [] });
+    const r = selectQuestions([c("will data centers raise my electric bill", null, "  Electric Bills! ")], { size: 1, subTopics: [] });
     expect(r.kept[0].concern).toBe("electric bills");
     expect(normalizeConcern("Jobs & local taxes")).toBe("jobs local taxes");
   });
@@ -118,7 +163,7 @@ describe("findPromotions (the promotion rule)", () => {
 
   it("promotes a concern seen in 3 of the last 4 sets, with its latest wording", () => {
     const p = findPromotions(history([["bills"], ["water"], ["bills"], ["bills", "noise"]]), [], 0);
-    expect(p).toEqual([{ concern: "bills", fromQuestionId: "q0-0", text: "Question about bills (week -0)?", subTopicId: null, seenIn: 3 }]);
+    expect(p).toEqual([{ concern: "bills", fromQuestionId: "q0-0", text: "Question about bills (week -0)?", subTopicId: null, lean: null, seenIn: 3 }]);
   });
 
   it("doesn't promote at 2 of 4, or what only recurred before the window", () => {

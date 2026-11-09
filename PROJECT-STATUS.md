@@ -53,7 +53,8 @@ Task 4.2 (watch items and question sets) is built: the three watch items are see
 migration, `lib/questions/` writes anchor and fresh sets and applies the promotion rule
 (3 of the last 4 snapshots; written down in `PROJECT-PLAN.md` §4B). Proven locally: anchor
 sets for all three items ($0.0007) and one fresh set each ($0.068). **Waiting on Josh:** read
-the anchor questions in `scripts/anchor-sets/2026-11-07.json`; on his OK a migration inserts
+the anchor questions in `scripts/anchor-sets/2026-11-09.json` (rewritten Nov 9 in a
+real-person voice, balanced leans, `Question.lean` recorded); on his OK a migration inserts
 them locked (`npm run questions -- --migration=… --reviewed=<date>`). Until then
 `questionsForSnapshot()` refuses to run in production, by design.
 

@@ -47,6 +47,7 @@ describe.skipIf(!local)("question sets in Postgres", () => {
       questions,
       rejected: [],
       missing: [],
+      shape: [],
       model: "fake",
       modelRegistryId: null,
       promptVersion: "test",
@@ -62,9 +63,9 @@ describe.skipIf(!local)("question sets in Postgres", () => {
   }
 
   const ANCHOR: Candidate[] = [
-    { text: "Do wind farms lower my electric bill in Texas?", subTopic: "wind", concern: "electric bills" },
-    { text: "Are solar farms good for rural Texas counties?", subTopic: "solar", concern: "rural counties" },
-    { text: "Who benefits from renewable energy in Texas?", subTopic: null, concern: "who benefits" },
+    { text: "do wind farms raise my electric bill", subTopic: "wind", concern: "electric bills", lean: "negative", style: "plain" },
+    { text: "are solar farms good for rural texas counties", subTopic: "solar", concern: "rural counties", lean: "positive", style: "plain" },
+    { text: "who benefits from renewable energy in texas", subTopic: null, concern: "who benefits", lean: "neutral", style: "plain" },
   ];
   const anchorGen: Generator = async (kind) => generated(kind, ANCHOR);
 
@@ -76,7 +77,14 @@ describe.skipIf(!local)("question sets in Postgres", () => {
       const concerns = concernsPerCall[call++] ?? [];
       return generated(
         kind,
-        concerns.map((concern, i) => ({ text: `Snapshot ${call} question ${i + 1} about ${concern}?`, subTopic: i === 0 ? "solar" : null, concern, why: "news" }))
+        concerns.map((concern, i) => ({
+          text: `Snapshot ${call} question ${i + 1} about ${concern}?`,
+          subTopic: i === 0 ? "solar" : null,
+          concern,
+          lean: i === 0 ? ("negative" as const) : ("positive" as const),
+          style: "plain" as const,
+          why: "news",
+        }))
       );
     };
   }
@@ -93,6 +101,7 @@ describe.skipIf(!local)("question sets in Postgres", () => {
     expect(draft.questions.map((q) => q.text)).toEqual(ANCHOR.map((q) => q.text));
     const solar = await db.subTopic.findFirstOrThrow({ where: { watchItemId: item.id, name: "solar" } });
     expect(draft.questions[1].subTopicId).toBe(solar.id);
+    expect(draft.questions.map((q) => q.lean)).toEqual(["negative", "positive", "neutral"]);
 
     const run = await db.run.create({ data: { kind: "weekly", watchItemId: item.id, topic: "R" } });
     await expect(Q.questionsForSnapshot(db, { watchItemId: item.id, runId: run.id }, { generate: freshGen([["x"]]) })).rejects.toThrow(/no locked anchor set/);
@@ -133,7 +142,7 @@ describe.skipIf(!local)("question sets in Postgres", () => {
     const a = await snapshot(item.id, gen, new Date("2026-11-02T12:00:00Z"));
     expect(a.result.locked.map((q) => q.label)).toEqual(["1.1", "1.2", "1.3"]);
     expect(a.result.fresh.map((q) => q.label)).toEqual(["2.1", "2.2"]);
-    expect(a.result.fresh[0]).toMatchObject({ setKind: "fresh", concern: "grid outages" });
+    expect(a.result.fresh[0]).toMatchObject({ setKind: "fresh", concern: "grid outages", lean: "negative" });
     expect(a.result.costUsd).toBe(0.001);
     // The generator is told the locked questions so it doesn't repeat them.
     expect(seen[0].locked?.map((q) => q.text)).toEqual(ANCHOR.map((q) => q.text));
@@ -183,7 +192,7 @@ describe.skipIf(!local)("question sets in Postgres", () => {
     // The latest wording, word for word, from set 5 (the fourth fresh set).
     expect(five.result.promoted[0].text).toBe("Snapshot 4 question 1 about grid outages?");
     const promoted = five.result.locked.filter((q) => q.setKind === "promoted");
-    expect(promoted.map((q) => [q.label, q.text])).toEqual([["6.1", "Snapshot 4 question 1 about grid outages?"]]);
+    expect(promoted.map((q) => [q.label, q.text, q.lean])).toEqual([["6.1", "Snapshot 4 question 1 about grid outages?", "negative"]]);
     expect(five.result.fresh.map((q) => q.label)).toEqual(["7.1"]);
 
     const set = await db.questionSet.findFirstOrThrow({ where: { watchItemId: item.id, kind: "promoted" }, include: { questions: true } });
@@ -208,8 +217,8 @@ describe.skipIf(!local)("question sets in Postgres", () => {
         {
           watchItem: item.name,
           questions: [
-            { label: "1.1", text: "How loud are data centers for people who live nearby?", subTopic: "noise", concern: "noise near homes" },
-            { label: "1.2", text: "What do Texas towns get from data centers, and what's it cost them?", subTopic: null, concern: "Local Benefits" },
+            { label: "1.1", text: "how loud are data centers for people who live nearby", subTopic: "noise", concern: "noise near homes", lean: "negative" },
+            { label: "1.2", text: "what do texas towns get from data centers, and what's it cost them", subTopic: null, concern: "Local Benefits", lean: "positive" },
           ],
         },
       ],
@@ -227,9 +236,9 @@ describe.skipIf(!local)("question sets in Postgres", () => {
     expect(sets).toHaveLength(1);
     expect(sets[0]).toMatchObject({ kind: "anchor", number: 1, model: "gpt-6-luna" });
     expect(sets[0].lockedAt).toBeInstanceOf(Date);
-    expect(sets[0].questions.map((q) => [q.position, q.text, q.concern])).toEqual([
-      [1, "How loud are data centers for people who live nearby?", "noise near homes"],
-      [2, "What do Texas towns get from data centers, and what's it cost them?", "local benefits"],
+    expect(sets[0].questions.map((q) => [q.position, q.text, q.concern, q.lean])).toEqual([
+      [1, "how loud are data centers for people who live nearby", "noise near homes", "negative"],
+      [2, "what do texas towns get from data centers, and what's it cost them", "local benefits", "positive"],
     ]);
     const noise = await db.subTopic.findFirstOrThrow({ where: { watchItemId: item.id, name: "noise" } });
     expect(sets[0].questions[0].subTopicId).toBe(noise.id);

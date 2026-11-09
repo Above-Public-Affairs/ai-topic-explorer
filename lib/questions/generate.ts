@@ -13,14 +13,19 @@ import { roundUsd, uniqueQueries } from "@/lib/answers/shared";
 import {
   ANCHOR_SIZE,
   FRESH_SIZE,
+  LEANS,
+  STYLES,
   anchorPlan,
+  mixTargets,
   selectQuestions,
   type Candidate,
+  type Lean,
   type Rejected,
+  type Style,
 } from "./rules";
 
 /** Bumped whenever the prompts change, so sets written by different prompts can be told apart. */
-export const QUESTIONS_PROMPT_VERSION = "2026-11-07.1";
+export const QUESTIONS_PROMPT_VERSION = "2026-11-09.1";
 
 export type SetKind = "anchor" | "fresh";
 
@@ -56,6 +61,8 @@ export interface GeneratedSet {
   rejected: Rejected[];
   /** What the set still lacked after the retry; empty when it's complete. */
   missing: string[];
+  /** Balance or mix problems left after the retry (rules.ts checkSetShape); empty when it's fine. */
+  shape: string[];
   model: string;
   modelRegistryId: string | null;
   promptVersion: string;
@@ -87,11 +94,13 @@ export const QUESTIONS_JSON_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["text", "subTopic", "concern", "why"],
+        required: ["text", "subTopic", "concern", "lean", "style", "why"],
         properties: {
-          text: { type: "string", description: "The question, word for word as a voter would type it." },
+          text: { type: "string", description: "Exactly what a real person would type into the chat box." },
           subTopic: { type: ["string", "null"], description: "One of the listed sub-topics, written exactly as listed, or null." },
           concern: { type: "string", description: "2–5 lowercase words naming what the question is really about." },
+          lean: { type: "string", enum: ["neutral", "negative", "positive"], description: "Which way it leans toward the industry or topic." },
+          style: { type: "string", enum: ["plain", "fragment", "stance"], description: "plain everyday question, short fragment, or one that takes a side." },
           why: { type: ["string", "null"], description: "Fresh sets: the current news that prompted it. Anchor sets: null." },
         },
       },
@@ -99,13 +108,18 @@ export const QUESTIONS_JSON_SCHEMA = {
   },
 } as const;
 
-const VOICE_RULES = `How every question reads:
-- The way an ordinary voter types into a chatbot: plain, everyday words; first person or everyday phrasing ("Will this raise my electric bill?", "Is it true that…", "Should Texas…"). One question, one sentence, ending in a question mark, under 25 words.
-- No jargon or policy and industry terms most voters wouldn't use. Spell acronyms out in everyday words (say "big batteries" or "battery storage", not "BESS"; "the state grid", not "the ISO").
-- Fair and neutral: no loaded or emotional words, no assumed answer, nothing that leads. Across the set, mix worried, curious and supportive angles, but each question on its own reads fair to people on either side.
-- Never name a company, a project developer, a campaign, a trade group or an advocacy group. Places, public agencies, the grid operator, and laws or ballot measures are fine when a voter would name them.
-- Don't mention AI, chatbots or this study.
-- No two questions ask the same thing.`;
+const VOICE_RULES = `How every entry reads: exactly what a real person types into ChatGPT or Gemini, not a pollster's question.
+- Often lowercase, short, no question mark; sometimes a fragment ("ercot blackout risk this winter") or a run-on ("my electric bill went up is it the data centers"). Typos are fine but don't overdo them.
+- First person and local: "near me", "my bill", "my town", "my kids' school", "here in Albuquerque".
+- Use the names people have heard of: ERCOT, fracking, blackouts, the Permian, the grid, the legislature. Spell out true industry jargon in everyday words ("big batteries" or "battery storage" for BESS).
+- Stances and worries are fine ("why are data centers bad for texas", "is fracking contaminating water in new mexico"), and so is hope or support ("are wind farms good for rural texas").
+- Never name a company, a project developer, a campaign, a trade group or an advocacy group. Places, public agencies, ERCOT, and laws or ballot measures are fine.
+- Don't mention AI, chatbots or this study. One question per entry. No two entries ask the same thing.
+
+For each entry, set:
+- "style": "plain" (an everyday question), "fragment" (a few typed words, like a search) or "stance" (takes a side).
+- "lean": which way it leans toward the industry or topic: "negative" (worried, critical), "positive" (hopeful, supportive) or "neutral". A stance is never neutral.
+- Balance: as many positive-leaning as negative-leaning entries in the set, so every worry has a hopeful counterpart on a related point.`;
 
 const CONCERN_RULE = `For each question, "concern" is 2–5 lowercase words naming what it's really about (for example "electric bills", "water supply", "jobs and local taxes", "noise near homes"). Questions about the same underlying thing get the same concern.`;
 
@@ -120,14 +134,17 @@ function subTopicLines(subTopics: string[]) {
 /** The instructions for the anchor set: lasting questions, asked word for word for a year or more. */
 export function anchorInstructions(o: GenerateOptions, size: number): string {
   const plan = anchorPlan(o.subTopics, size);
+  const mix = mixTargets(size);
   const coverage = o.subTopics.length
     ? `Write ${plan.perSubTopic} about each sub-topic listed (set "subTopic" to it, exactly as listed) and ${plan.overall} about ${o.item.topic.toLowerCase()} overall ("subTopic": null).`
     : `There are no sub-topics: all ${size} are about ${o.item.topic.toLowerCase()} overall ("subTopic": null).`;
-  return `You write the questions an ordinary voter living in ${place(o.item)} might ask an AI chatbot about ${o.item.name.toLowerCase()}. They will be asked word for word every week for a year or more, to see how chatbots' answers change, so they must stay meaningful over that time.
+  return `You write what ordinary people living in ${place(o.item)} actually type into ChatGPT or Gemini about ${o.item.name.toLowerCase()}. These will be asked word for word every week for a year or more, to see how chatbots' answers change, so they must stay meaningful over that time.
 
-Write ${size} questions. ${coverage}
+Write ${size} entries. ${coverage}
 
-They are the lasting questions people have: costs and bills, jobs and taxes, the grid and reliability, water, land, health and safety, the environment, who decides and who benefits. Not about one news story, date, bill number or project, so each still makes sense a year from now.
+Mix: about ${mix.plain} plain, ${mix.fragment} fragments and ${mix.stance} stances. Spread the leans so the set is balanced (equal negative and positive).
+
+They are the lasting things people wonder and worry about: bills, jobs and taxes, the grid and blackouts, water, land and property values, noise, health and safety, the environment, who decides and who benefits. For each sub-topic, ask what people living near it actually worry about or hope for, not technical details. Not about one news story, date, bill number or project, so each still makes sense a year from now.
 
 ${VOICE_RULES}
 
@@ -141,11 +158,11 @@ export function freshInstructions(o: GenerateOptions, size: number): string {
   const today = (o.today ?? new Date()).toISOString().slice(0, 10);
   const locked = o.locked?.length ? o.locked.map((q) => `- ${q.text}`).join("\n") : "(none)";
   const concerns = o.recentConcerns?.length ? o.recentConcerns.map((c) => `- ${c}`).join("\n") : "(none yet)";
-  return `Today is ${today}. You write the questions an ordinary voter living in ${place(o.item)} might ask an AI chatbot this week about ${o.item.name.toLowerCase()}, because of what's in the news.
+  return `Today is ${today}. You write what ordinary people living in ${place(o.item)} would type into ChatGPT or Gemini this week about ${o.item.name.toLowerCase()}, because of what's in the news.
 
-First search the web for what people in ${o.item.geography ?? o.item.askRegion} are seeing and hearing about ${o.item.topic.toLowerCase()} right now: the last few weeks' news, local fights, votes, bills, prices, outages, studies, public meetings. Then write ${size} questions a voter might ask because of it. Spread them across different stories and angles${o.subTopics.length ? `, and where a question fits one of the sub-topics listed, set "subTopic" to it exactly as listed (otherwise null)` : ` ("subTopic": null)`}.
+First search the web for what people in ${o.item.geography ?? o.item.askRegion} are seeing and hearing about ${o.item.topic.toLowerCase()} right now: the last few weeks' news, local fights, votes, bills, prices, outages, studies, public meetings. Then write ${size} entries people might type because of it, with a mix of plain questions, fragments and stances. Spread them across different stories and angles${o.subTopics.length ? `, and where a question fits one of the sub-topics listed, set "subTopic" to it exactly as listed (otherwise null)` : ` ("subTopic": null)`}.
 
-These can be about current events, but describe a project by what and where it is ("the big data center planned near Abilene"), never by the company behind it.
+These can be about current events, but describe a project by what and where it is ("that big data center near abilene"), never by the company behind it.
 
 Don't repeat the questions already asked every week (the locked set below); ask about what's new or newly in the news.
 
@@ -165,22 +182,31 @@ Recent concern labels:
 ${concerns}`;
 }
 
-function userMessage(kind: SetKind, o: GenerateOptions, size: number, retry?: { missing: string[]; rejected: Rejected[]; kept: Candidate[] }) {
+type Attempt = ReturnType<typeof selectQuestions>;
+
+function userMessage(kind: SetKind, o: GenerateOptions, size: number, retry?: Attempt) {
   const lines = [
     `<watch_item>${o.item.name}</watch_item>`,
     `<asked_from>${place(o.item)}</asked_from>`,
     `<sub_topics>\n${subTopicLines(o.subTopics)}\n</sub_topics>`,
   ];
   if (!retry) {
-    lines.push(`Write the ${kind === "anchor" ? "anchor" : "fresh"} set: ${size} questions.`);
+    lines.push(`Write the ${kind === "anchor" ? "anchor" : "fresh"} set: ${size} entries.`);
     return lines.join("\n\n");
   }
+  const tag = (q: Candidate) => `[${q.subTopic ?? "overall"}; ${q.style}; ${q.lean}]`;
   lines.push(
-    `You already wrote these, which are kept:\n${retry.kept.map((q) => `- ${q.text}`).join("\n") || "(none)"}`,
-    `These were rejected:\n${retry.rejected.map((q) => `- ${q.text} (${q.issues.join("; ")})`).join("\n") || "(none)"}`,
-    `Write replacements only: ${retry.missing.join(", ")}. Follow the rules above; don't repeat any question listed here.`
+    `Your last set:\n${retry.kept.map((q) => `- ${q.text} ${tag(q)}`).join("\n") || "(none)"}`,
+    `Rejected:\n${retry.rejected.map((q) => `- ${q.text} (${q.issues.join("; ")})`).join("\n") || "(none)"}`,
+    `Problems to fix: ${[...retry.missing, ...retry.shape].join("; ")}.`,
+    `Write the whole set of ${size} again with these fixed. Keep the entries that were fine, word for word; change or replace only what's needed.`
   );
   return lines.join("\n\n");
+}
+
+/** Fewer problems is better; ties go to the earlier attempt. */
+function problems(a: Attempt): number {
+  return a.missing.length + a.shape.length;
 }
 
 async function call(kind: SetKind, o: GenerateOptions, settings: ModelChoice, instructions: string, input: string) {
@@ -234,6 +260,14 @@ async function call(kind: SetKind, o: GenerateOptions, settings: ModelChoice, in
   };
 }
 
+/** A "why" line without the markdown source links web search leaves in it. */
+export function cleanWhy(why: string): string {
+  return why
+    .replace(/\s*\(\[[^\]]*\]\([^)]*\)\)/g, "")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .trim();
+}
+
 /** The model's questions as candidates; malformed entries are dropped. */
 export function parseCandidates(raw: unknown): Candidate[] {
   if (!Array.isArray(raw)) return [];
@@ -241,12 +275,16 @@ export function parseCandidates(raw: unknown): Candidate[] {
     if (!q || typeof q !== "object") return [];
     const r = q as Record<string, unknown>;
     if (typeof r.text !== "string" || typeof r.concern !== "string") return [];
+    const lean = LEANS.includes(r.lean as Lean) ? (r.lean as Lean) : "neutral";
+    const style = STYLES.includes(r.style as Style) ? (r.style as Style) : "plain";
     return [
       {
         text: r.text,
+        lean,
+        style,
         subTopic: typeof r.subTopic === "string" && r.subTopic.trim() ? r.subTopic.trim() : null,
         concern: r.concern,
-        why: typeof r.why === "string" && r.why.trim() ? r.why.trim() : null,
+        why: typeof r.why === "string" && cleanWhy(r.why) ? cleanWhy(r.why) : null,
       },
     ];
   });
@@ -259,8 +297,10 @@ function matchSubTopics(candidates: Candidate[], subTopics: string[]): Candidate
 }
 
 /**
- * Write one set: call the model, keep what passes the rules, and retry once
- * for whatever's missing (a sub-topic short, or too few questions).
+ * Write one set: call the model, keep what passes the rules, and if anything
+ * is missing (a sub-topic short, too few questions) or the shape is off
+ * (unbalanced leans, the anchor mix), ask once for the whole set again with
+ * the problems listed. The attempt with fewer problems is kept.
  */
 export async function generateSet(kind: SetKind, o: GenerateOptions): Promise<GeneratedSet> {
   const settings = o.settings ?? (await getQuestionModel());
@@ -269,7 +309,7 @@ export async function generateSet(kind: SetKind, o: GenerateOptions): Promise<Ge
   const instructions = kind === "anchor" ? anchorInstructions(o, size) : freshInstructions(o, size);
   const existing = (o.locked ?? []).map((q) => q.text);
   const select = (cands: Candidate[]) =>
-    selectQuestions(matchSubTopics(cands, o.subTopics), { size, subTopics: o.subTopics, ...plan, existing });
+    selectQuestions(matchSubTopics(cands, o.subTopics), { size, subTopics: o.subTopics, ...plan, existing, mix: kind === "anchor" });
 
   const totals = { usd: 0, calls: 0, inputTokens: 0, outputTokens: 0, searches: 0, queries: [] as string[], sources: [] as string[], priceIds: new Set<string>() };
   let model = settings.model;
@@ -287,13 +327,12 @@ export async function generateSet(kind: SetKind, o: GenerateOptions): Promise<Ge
 
   const first = await call(kind, o, settings, instructions, userMessage(kind, o, size));
   add(first);
-  let all = first.candidates;
-  let result = select(all);
-  if (result.missing.length) {
+  let result = select(first.candidates);
+  if (problems(result) > 0) {
     const retry = await call(kind, o, settings, instructions, userMessage(kind, o, size, result));
     add(retry);
-    all = [...all, ...retry.candidates];
-    result = select(all);
+    const second = select(retry.candidates);
+    if (problems(second) < problems(result)) result = second;
   }
 
   return {
@@ -301,6 +340,7 @@ export async function generateSet(kind: SetKind, o: GenerateOptions): Promise<Ge
     questions: result.kept,
     rejected: result.rejected,
     missing: result.missing,
+    shape: result.shape,
     model,
     modelRegistryId: settings.registryId,
     promptVersion: QUESTIONS_PROMPT_VERSION,

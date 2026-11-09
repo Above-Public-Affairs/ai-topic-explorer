@@ -192,6 +192,16 @@ model QuestionSet {
   @@unique([watchItemId, number])
 }
 
+/// Which way a question leans toward the industry or topic (task 4.2): a
+/// worried question ("why are data centers bad for texas") is negative, a
+/// hopeful one positive. Each set balances them, and analysis can account
+/// for the lean of the question an answer came from.
+enum QuestionLean {
+  neutral
+  negative
+  positive
+}
+
 /// One question, written the way a voter would ask it. Text never changes
 /// after creation; a stale question gets `retiredAt` instead.
 model Question {
@@ -209,6 +219,8 @@ model Question {
   concern        String?
   /// For a fresh question: the current news that prompted it.
   why            String?
+  /// Null on questions written before the lean was recorded.
+  lean           QuestionLean?
   createdAt      DateTime  @default(now())
   retiredAt      DateTime?
   /// Why a locked question was retired (it's never edited).

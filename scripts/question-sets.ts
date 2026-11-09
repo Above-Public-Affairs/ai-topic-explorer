@@ -3,10 +3,11 @@
  *
  *   npm run questions -- --list
  *   railway run -- env DATABASE_URL=<local> npm run questions -- --draft-anchor [--item="Data centers in Texas"]
+ *   npm run questions -- --draft-anchor --from=scripts/anchor-sets/<file>.json   (store a reviewed file as drafts, local only)
  *   npm run questions -- --lock-anchor --item="…"          (local only)
  *   railway run -- env DATABASE_URL=<local> npm run questions -- --fresh [--item="…"]   (local only)
- *   npm run questions -- --export=scripts/anchor-sets/2026-11-07.json
- *   npm run questions -- --migration=scripts/anchor-sets/2026-11-07.json --reviewed=2026-11-10
+ *   npm run questions -- --export=scripts/anchor-sets/2026-11-09.json
+ *   npm run questions -- --migration=scripts/anchor-sets/2026-11-09.json --reviewed=2026-11-10
  *   npm run questions -- --retire=<questionId> --reason="…"
  *
  * Without --item, draft/lock/fresh run for every active watch item.
@@ -29,6 +30,7 @@ import {
   questionsForSnapshot,
   retireQuestion,
   type ReviewedFile,
+  type Style,
 } from "@/lib/questions";
 
 const args = process.argv.slice(2);
@@ -55,11 +57,11 @@ async function items() {
   return rows;
 }
 
-function printSet(title: string, number: number, questions: { position: number; text: string; concern: string | null; why?: string | null; subTopicId: string | null; retiredAt?: Date | null }[], subTopics: Map<string, string>) {
+function printSet(title: string, number: number, questions: { position: number; text: string; concern: string | null; lean?: string | null; why?: string | null; subTopicId: string | null; retiredAt?: Date | null }[], subTopics: Map<string, string>, styles: string[] = []) {
   console.log(`\n${title}`);
   for (const q of questions) {
     const sub = q.subTopicId ? subTopics.get(q.subTopicId) : null;
-    const tags = [sub ? `sub-topic: ${sub}` : "overall", q.concern ? `concern: ${q.concern}` : null, q.retiredAt ? "RETIRED" : null].filter(Boolean).join("; ");
+    const tags = [sub ? `sub-topic: ${sub}` : "overall", styles[q.position - 1] ?? null, q.lean ? `lean: ${q.lean}` : null, q.concern ? `concern: ${q.concern}` : null, q.retiredAt ? "RETIRED" : null].filter(Boolean).join("; ");
     console.log(`  ${questionLabel(number, q.position)}  ${q.text}\n        (${tags})${q.why ? `\n        why: ${q.why}` : ""}`);
   }
 }
@@ -87,14 +89,20 @@ async function main() {
 
   if (has("draft-anchor")) {
     localOnly("--draft-anchor");
+    const from = flag("from");
+    const reviewed = from ? (JSON.parse(readFileSync(from, "utf8")) as ReviewedFile) : null;
     let total = 0;
     for (const item of await items()) {
-      const set = await draftAnchorSet(prisma, item.id);
+      const fromFile = reviewed?.items.find((i) => i.watchItem === item.name);
+      if (reviewed && !fromFile) continue;
+      const set = await draftAnchorSet(prisma, item.id, fromFile ? { questions: fromFile.questions.map((q) => ({ ...q, style: q.style ?? "plain" })) } : {});
       total += set.costUsd ?? 0;
-      const g = set.generation as { rejected?: { text: string; issues: string[] }[]; missing?: string[] } | null;
-      printSet(`${item.name}: draft anchor set ($${(set.costUsd ?? 0).toFixed(4)})`, set.number, set.questions, new Map(item.subTopics.map((s) => [s.id, s.name])));
+      const g = set.generation as { rejected?: { text: string; issues: string[] }[]; missing?: string[]; shape?: string[]; styles?: string[] } | null;
+      const styles = g?.styles ?? fromFile?.questions.map((q) => q.style ?? "") ?? [];
+      printSet(`${item.name}: draft anchor set ($${(set.costUsd ?? 0).toFixed(4)})`, set.number, set.questions, new Map(item.subTopics.map((s) => [s.id, s.name])), styles);
       for (const r of g?.rejected ?? []) console.log(`  rejected: ${r.text} — ${r.issues.join("; ")}`);
       if (g?.missing?.length) console.log(`  STILL MISSING: ${g.missing.join(", ")}`);
+      if (g?.shape?.length) console.log(`  SHAPE: ${g.shape.join("; ")}`);
     }
     console.log(`\nTotal $${total.toFixed(4)}`);
     return;
@@ -130,11 +138,12 @@ async function main() {
       const result = await questionsForSnapshot(prisma, { watchItemId: item.id, runId: run.id });
       total += result.costUsd;
       const set = await prisma.questionSet.findUniqueOrThrow({ where: { runId: run.id }, include: { questions: { orderBy: { position: "asc" } } } });
-      const g = set.generation as { searches?: number; searchQueries?: string[]; rejected?: { text: string; issues: string[] }[] } | null;
+      const g = set.generation as { searches?: number; searchQueries?: string[]; rejected?: { text: string; issues: string[] }[]; shape?: string[]; styles?: string[] } | null;
       console.log(`\n=== ${item.name}: snapshot ${run.id} asks ${result.locked.length} locked + ${result.fresh.length} fresh`);
       if (result.promoted.length) console.log(`  promoted: ${result.promoted.map((p) => p.text).join(" | ")}`);
-      printSet(`Fresh set ${set.number} ($${result.costUsd.toFixed(4)}, ${g?.searches ?? 0} searches: ${(g?.searchQueries ?? []).join(" | ")})`, set.number, set.questions, new Map(item.subTopics.map((s) => [s.id, s.name])));
+      printSet(`Fresh set ${set.number} ($${result.costUsd.toFixed(4)}, ${g?.searches ?? 0} searches: ${(g?.searchQueries ?? []).join(" | ")})`, set.number, set.questions, new Map(item.subTopics.map((s) => [s.id, s.name])), g?.styles);
       for (const r of g?.rejected ?? []) console.log(`  rejected: ${r.text} — ${r.issues.join("; ")}`);
+      if (g?.shape?.length) console.log(`  SHAPE: ${g.shape.join("; ")}`);
     }
     console.log(`\nTotal $${total.toFixed(4)}`);
     return;
@@ -154,7 +163,14 @@ async function main() {
       file.promptVersion = set.promptVersion;
       file.items.push({
         watchItem: item.name,
-        questions: set.questions.map((q) => ({ label: questionLabel(set.number, q.position), text: q.text, subTopic: q.subTopic?.name ?? null, concern: q.concern ?? "" })),
+        questions: set.questions.map((q) => ({
+          label: questionLabel(set.number, q.position),
+          text: q.text,
+          subTopic: q.subTopic?.name ?? null,
+          concern: q.concern ?? "",
+          lean: q.lean ?? "neutral",
+          style: ((set.generation as { styles?: Style[] } | null)?.styles ?? [])[q.position - 1],
+        })),
       });
     }
     mkdirSync(dirname(exportTo), { recursive: true });

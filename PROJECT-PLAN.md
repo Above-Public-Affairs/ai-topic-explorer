@@ -200,9 +200,17 @@ Snapshots can run before that.
 - **Built (task 4.2, `lib/questions/`).** Each set is written by the model list's
   `questions` model (GPT-6 Luna, low effort): 8 anchor questions per item, 2 per sub-topic
   plus 2 overall (all 8 overall without sub-topics), no web search; 8 fresh questions per
-  snapshot, with web search from the item's city. Code checks each question (one plain
-  question, 5–30 words, no jargon, loaded words, company names or talk about the AI) and
-  the set gets one retry for whatever it lacks. Every question carries a short **concern**
+  snapshot, with web search from the item's city.
+- **Real-person voice (Josh, 2026-11-09).** Entries read like what people type into ChatGPT
+  or Gemini, not a pollster: often lowercase, short, sometimes fragments or run-ons, first
+  person and local ("near me", "my bill"), names people know (ERCOT, fracking, blackouts).
+  Stances and worries are allowed. Each anchor set of 8 mixes about 4 plain questions, 2
+  fragments and 2 stances, keeps 2 per sub-topic plus 2 overall, and is **balanced**: as
+  many positive-leaning as negative-leaning entries. Every question stores its **lean**
+  (neutral / negative / positive) so analysis can account for it. Fresh sets are balanced
+  too. Hard rules kept: one question per entry, 2–25 words, no policy jargon, no company or
+  client names, nothing about AI. If a set is short, unbalanced or off-mix, the model
+  rewrites it once and the better attempt is kept. Every question carries a short **concern**
   label; fresh sets reuse recent labels when they ask about the same thing.
 - **Promotion rule (task 4.2).** A fresh concern is promoted when it came up in **at least 3
   of the last 4 fresh sets** and no question still in a locked set has that concern. At most

@@ -60,7 +60,10 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
   - A real VoiceOver pass over the dialogs and progress announcements (DOM checked only).
 
 ## Question sets (task 4.2)
-- `lib/questions/`: `rules.ts` (sizes, `checkVoterVoice`, `selectQuestions`, the promotion
+- Voice (Nov 9, Josh): entries read like real people typing into ChatGPT/Gemini, with a
+  mix of plain, fragment and stance, balanced leans, and `Question.lean` stored. See
+  PROJECT-PLAN §4B.
+- `lib/questions/`: `rules.ts` (sizes, `checkVoterVoice`, `checkSetShape` (balance and mix), `selectQuestions`, the promotion
   rule `findPromotions`), `generate.ts` (`generateSet("anchor" | "fresh")` with the model
   list's `questions` row, strict JSON, one retry), `sets.ts` (`draftAnchorSet`,
   `lockAnchorSet`, `retireQuestion`, `promoteRecurring`, `questionsForSnapshot`), `review.ts`
@@ -69,11 +72,12 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
 - For 4.4 (weekly worker): create the `Run` (kind weekly, watch item, ask location), call
   `questionsForSnapshot(db, { watchItemId, runId })`, then `runPipeline(db, { runId, questions:
   [...locked × repeats (4.3), ...fresh], ... })`. Labels are "set.position" (1.3, 5.2).
-- **Production anchor sets wait on Josh.** He reads `scripts/anchor-sets/2026-11-07.json`.
-  On approval: `npm run questions -- --migration=scripts/anchor-sets/2026-11-07.json
+- **Production anchor sets wait on Josh.** He reads `scripts/anchor-sets/2026-11-09.json`.
+  On approval: `npm run questions -- --migration=scripts/anchor-sets/2026-11-09.json
   --reviewed=YYYY-MM-DD > prisma/migrations/<ts>_anchor_sets/migration.sql`, commit, push. If
   he wants changes, edit the file (still a draft) and re-check with `npm test` (a test runs
-  every question through `checkVoterVoice` and checks sub-topic coverage).
+  every question through `checkVoterVoice` and checks sub-topic coverage, balance and mix).
+  To load a reviewed file into a local DB: `--draft-anchor --from=<file>`.
 - Locked questions can't be edited or deleted (trigger `question_locked_guard`); retire with
   `npm run questions -- --retire=<id> --reason="…"`.
 - Local scripts: `railway run -- env DATABASE_URL=<local> npm run questions -- --draft-anchor`

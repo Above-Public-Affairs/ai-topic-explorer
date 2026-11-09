@@ -5,13 +5,16 @@
  * inserts each set already locked, word for word. Nothing else writes anchor
  * sets to production.
  */
-import { normalizeConcern } from "./rules";
+import { normalizeConcern, type Lean, type Style } from "./rules";
 
 export interface ReviewedQuestion {
   label: string;
   text: string;
   subTopic: string | null;
   concern: string;
+  lean: Lean;
+  /** For the reader and the mix check; not stored. */
+  style?: Style;
 }
 
 export interface ReviewedFile {
@@ -52,8 +55,8 @@ export function anchorMigrationSql(file: ReviewedFile, reviewedOn: string): stri
         ? `(SELECT st."id" FROM "SubTopic" st WHERE st."watchItemId" = w."id" AND st."name" = ${q(question.subTopic)})`
         : "NULL";
       out.push(
-        `INSERT INTO "Question" ("id", "setId", "position", "text", "subTopicId", "concern", "createdAt")`,
-        `SELECT gen_random_uuid()::text, s."id", ${i + 1}, ${q(question.text)}, ${subTopic}, ${q(normalizeConcern(question.concern))}, CURRENT_TIMESTAMP`,
+        `INSERT INTO "Question" ("id", "setId", "position", "text", "subTopicId", "concern", "lean", "createdAt")`,
+        `SELECT gen_random_uuid()::text, s."id", ${i + 1}, ${q(question.text)}, ${subTopic}, ${q(normalizeConcern(question.concern))}, '${question.lean}'::"QuestionLean", CURRENT_TIMESTAMP`,
         `FROM "QuestionSet" s JOIN "WatchItem" w ON w."id" = s."watchItemId"`,
         `WHERE w."name" = ${w} AND s."number" = 1 AND s."kind" = 'anchor'`,
         `AND NOT EXISTS (SELECT 1 FROM "Question" x WHERE x."setId" = s."id" AND x."position" = ${i + 1});`
