@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import ProgressTracker from "@/components/ProgressTracker";
 import Footer from "@/components/Footer";
@@ -17,6 +17,8 @@ interface Props {
   topic: string;
   subtitle?: string;
   analysisId: string;
+  /** Which results layout this is, for analytics: "new" pipeline runs or "old" saved results. */
+  layout: "new" | "old";
   sections: { id: string; label: string }[];
   providerStatuses: ProviderStatusItem[];
   partialFailureMessage: string | null;
@@ -24,6 +26,9 @@ interface Props {
   overlay?: React.ReactNode;
   children: React.ReactNode;
 }
+
+/** The `ref` value on links copied with the share button. */
+const SHARE_REF = "share";
 
 /** Topics are stored as typed; show them with a capital first letter. */
 export function displayTopic(topic: string): string {
@@ -35,6 +40,7 @@ export default function ResultsShell({
   topic,
   subtitle = "AI Topic Analysis",
   analysisId,
+  layout,
   sections,
   providerStatuses,
   partialFailureMessage,
@@ -43,9 +49,17 @@ export default function ResultsShell({
 }: Props) {
   const [copied, setCopied] = useState(false);
 
-  const handleShare = async () => {
-    trackEvent({ action: "share_clicked" });
-    const url = `${window.location.origin}/results/${analysisId}`;
+  const aisAnswered = providerStatuses.filter((p) => p.status === "done").length;
+  useEffect(() => {
+    const fromShare = new URLSearchParams(window.location.search).get("ref") === SHARE_REF;
+    trackEvent("results_viewed", { layout, ais_answered: aisAnswered, from_share: fromShare });
+    if (fromShare) trackEvent("shared_link_opened", { item_id: analysisId });
+  }, [analysisId, layout, aisAnswered]);
+
+  const handleShare = async (placement: "header" | "sidebar") => {
+    trackEvent("share", { method: "copy_link", content_type: "results", item_id: analysisId, placement });
+    // Tagged so a visit from a shared link can be told apart in analytics.
+    const url = `${window.location.origin}/results/${analysisId}?ref=${SHARE_REF}`;
     try {
       await navigator.clipboard.writeText(url);
     } catch {
@@ -73,14 +87,14 @@ export default function ResultsShell({
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
-                onClick={handleShare}
+                onClick={() => handleShare("header")}
                 className="pill-interactive px-3.5 py-2 rounded-full text-xs font-medium active:scale-[0.96]"
               >
                 {copied ? "Copied" : "Share"}
               </button>
               <Link
                 href="/"
-                onClick={() => trackEvent({ action: "new_topic_from_results" })}
+                onClick={() => trackEvent("new_topic_clicked", { placement: "header" })}
                 className="btn-primary px-3.5 py-2 rounded-full text-xs active:scale-[0.96]"
               >
                 New Topic
@@ -163,14 +177,14 @@ export default function ResultsShell({
           <div className="flex flex-col gap-2 mb-4">
             <button
               type="button"
-              onClick={handleShare}
+              onClick={() => handleShare("sidebar")}
               className="pill-interactive w-full px-4 py-2.5 rounded-xl text-sm font-medium text-center active:scale-[0.96]"
             >
               {copied ? "Link copied!" : "Share results"}
             </button>
             <Link
               href="/"
-              onClick={() => trackEvent({ action: "new_topic_from_results" })}
+              onClick={() => trackEvent("new_topic_clicked", { placement: "sidebar" })}
               className="btn-primary w-full px-4 py-2.5 rounded-xl text-sm text-center active:scale-[0.96]"
             >
               New Topic

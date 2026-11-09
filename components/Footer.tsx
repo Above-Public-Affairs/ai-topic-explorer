@@ -3,8 +3,15 @@
 import { useId, useState } from "react";
 import Dialog from "@/components/Dialog";
 import CloseButton from "@/components/CloseButton";
+import { trackEvent } from "@/lib/analytics";
 
 const CHANGELOG: { date: string; changes: string[] }[] = [
+  {
+    date: "Nov 9",
+    changes: [
+      "Usage stats now cover every page, including ones you reach without a reload, so we can see which features help people most. Sources you open are counted by website, not by full address",
+    ],
+  },
   {
     date: "Nov 7",
     changes: [
@@ -148,7 +155,10 @@ export default function Footer({ hideChangelog = false }: { hideChangelog?: bool
               <span className="mx-1.5">&middot;</span>
               <button
                 type="button"
-                onClick={() => setShowChangelog(true)}
+                onClick={() => {
+                  setShowChangelog(true);
+                  trackEvent("modal_opened", { modal: "changelog" });
+                }}
                 className="py-2 hover:text-(--accent-cyan) transition-colors underline underline-offset-2"
               >
                 Changelog

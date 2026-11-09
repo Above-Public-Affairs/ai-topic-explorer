@@ -63,6 +63,7 @@ export default function AnswerProse({ text, sources = [] }: { text: string; sour
         return (
           <a
             href={href}
+            data-source-link="answer_inline"
             target="_blank"
             rel="noopener noreferrer"
             aria-label={source ? `Source ${n}: ${source.title} (opens in a new tab)` : "Source (opens in a new tab)"}
@@ -76,6 +77,7 @@ export default function AnswerProse({ text, sources = [] }: { text: string; sour
       return (
         <a
           href={href}
+          data-source-link="answer_inline"
           target="_blank"
           rel="noopener noreferrer"
           className="text-(--accent-cyan) underline decoration-(--accent-cyan)/30 underline-offset-2 hover:decoration-(--accent-cyan) transition-colors break-words"

@@ -14,7 +14,7 @@ import Footer from "@/components/Footer";
 import Dialog from "@/components/Dialog";
 import CloseButton from "@/components/CloseButton";
 import AnalysisProgressPanel from "@/components/AnalysisProgressPanel";
-import { trackEvent } from "@/lib/analytics";
+import { secondsSince, trackEvent, type ErrorType } from "@/lib/analytics";
 import { MAX_TOPIC_LENGTH } from "@/lib/guards/limits";
 
 const ALL_TOPICS = [
@@ -305,6 +305,28 @@ export default function Home() {
     [isClient]
   );
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // The analysis in flight, for analytics: when it started, how far it got,
+  // and how many AIs have answered. Null when none is running.
+  const runRef = useRef<{ startedAt: number; stage: string; answered: number; asked: number } | null>(null);
+
+  // Leaving (closing the tab, navigating away) while an analysis runs.
+  useEffect(() => {
+    const reportAbandoned = () => {
+      const run = runRef.current;
+      if (!run) return;
+      runRef.current = null;
+      trackEvent("analysis_abandoned", {
+        duration_sec: secondsSince(run.startedAt),
+        stage: run.stage,
+        ais_answered: run.answered,
+      });
+    };
+    window.addEventListener("pagehide", reportAbandoned);
+    return () => {
+      window.removeEventListener("pagehide", reportAbandoned);
+      reportAbandoned();
+    };
+  }, []);
 
   const getPlaceholderTopic = useCallback(() => {
     const remaining = ALL_TOPICS.filter((t) => !exampleTopics.includes(t));
@@ -380,7 +402,13 @@ export default function Home() {
       providerErrors: {},
       elapsedSeconds: 0,
     });
-    trackEvent({ action: "topic_searched", params: { topic: trimmedTopic } });
+    trackEvent("topic_searched", { topic: trimmedTopic, topic_length: trimmedTopic.length });
+    trackEvent("analysis_started", { topic_length: trimmedTopic.length });
+    runRef.current = { startedAt: performance.now(), stage: "starting", answered: 0, asked: 0 };
+    const fail = (errorType: ErrorType) => {
+      runRef.current = null;
+      trackEvent("error_shown", { error_type: errorType, error_area: "analysis" });
+    };
 
     const abortController = new AbortController();
     const streamTimeout = setTimeout(() => {
@@ -398,14 +426,14 @@ export default function Home() {
       // Handle non-streaming error responses (rate limit, 503, validation)
       if (!response.ok) {
         if (response.status === 429) {
-          trackEvent({ action: "analysis_error", params: { error_type: "rate_limit" } });
+          fail("rate_limit");
           setError("You've reached the analysis limit. Please try again in a few minutes.");
         } else if (response.status === 503) {
-          trackEvent({ action: "analysis_error", params: { error_type: "unavailable" } });
+          fail("unavailable");
           setError("Analysis is temporarily unavailable. Please try again later.");
         } else {
           const data = await response.json();
-          trackEvent({ action: "analysis_error", params: { error_type: "api_error" } });
+          fail("api_error");
           setError(data.error || "Analysis failed. Please try again.");
         }
         setIsLoading(false);
@@ -436,6 +464,10 @@ export default function Home() {
             case "querying": {
               const providerMap: Record<string, ProviderStatus> = {};
               for (const p of event.providers) providerMap[p] = "loading";
+              if (runRef.current) {
+                runRef.current.stage = "querying";
+                runRef.current.asked = event.providers.length;
+              }
               setProgress((prev) =>
                 prev ? { ...prev, stage: "querying", providers: providerMap } : prev
               );
@@ -443,6 +475,7 @@ export default function Home() {
             }
 
             case "provider_done":
+              if (runRef.current) runRef.current.answered += 1;
               setProgress((prev) => {
                 if (!prev) return prev;
                 return {
@@ -467,6 +500,7 @@ export default function Home() {
               break;
 
             case "merging":
+              if (runRef.current) runRef.current.stage = "merging";
               setProgress((prev) =>
                 prev ? { ...prev, stage: "merging" } : prev
               );
@@ -477,7 +511,15 @@ export default function Home() {
               setProgress((prev) =>
                 prev ? { ...prev, stage: "complete", active: false } : prev
               );
-              trackEvent({ action: "analysis_completed", params: { topic: trimmedTopic } });
+              if (runRef.current) {
+                const run = runRef.current;
+                runRef.current = null;
+                trackEvent("analysis_completed", {
+                  duration_sec: secondsSince(run.startedAt),
+                  ais_answered: run.answered,
+                  ais_asked: run.asked,
+                });
+              }
               router.push(`/results/${event.id}`);
               return;
 
@@ -488,7 +530,7 @@ export default function Home() {
                   ? { ...prev, stage: "error", active: false, errorMessage: event.message }
                   : prev
               );
-              trackEvent({ action: "analysis_error", params: { error_type: "stream_error" } });
+              fail("stream_error");
               setError(event.message || "Analysis failed. Please try again.");
               setIsLoading(false);
               return;
@@ -498,16 +540,17 @@ export default function Home() {
 
       // Stream ended without complete/error event
       clearTimeout(streamTimeout);
+      fail("ended_early");
       setError("Analysis ended unexpectedly. Please try again.");
       setIsLoading(false);
       setProgress(null);
     } catch (err) {
       clearTimeout(streamTimeout);
       if (err instanceof DOMException && err.name === "AbortError") {
-        trackEvent({ action: "analysis_error", params: { error_type: "timeout" } });
+        fail("timeout");
         setError("Analysis took too long. Please try again.");
       } else {
-        trackEvent({ action: "analysis_error", params: { error_type: "network" } });
+        fail("network");
         setError("Something went wrong. Please try again.");
       }
       setIsLoading(false);
@@ -606,7 +649,7 @@ export default function Home() {
                         style={isClient ? { animationDelay: `${i * 60}ms`, animationFillMode: "both" } : undefined}
                         onClick={() => {
                           setTopic(example);
-                          trackEvent({ action: "example_topic_clicked", params: { topic: example } });
+                          trackEvent("example_topic_clicked", { topic: example });
                         }}
                         type="button"
                         className={`pill-interactive px-4 py-2 rounded-full text-sm active:scale-[0.96] ${isClient ? "animate-fade-in" : "invisible"}`}
@@ -619,7 +662,7 @@ export default function Home() {
                   <button
                     onClick={() => {
                       setShowMethodology(true);
-                      trackEvent({ action: "methodology_opened" });
+                      trackEvent("modal_opened", { modal: "how_it_works" });
                     }}
                     type="button"
                     className="mt-3 py-2 text-(--accent-cyan) hover:text-(--accent-violet) transition-colors underline underline-offset-2"

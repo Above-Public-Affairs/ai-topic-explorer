@@ -18,13 +18,12 @@ export default function BugReportButton() {
     setOpen(true);
     setStatus("idle");
     setDescription("");
-    trackEvent({ action: "bug_report_opened" });
+    trackEvent("modal_opened", { modal: "bug_report" });
   };
 
   const handleSubmit = async () => {
     if (!description.trim()) return;
     setStatus("submitting");
-    trackEvent({ action: "bug_report_submitted" });
 
     try {
       const res = await fetch("/api/bug-report", {
@@ -39,6 +38,7 @@ export default function BugReportButton() {
       });
 
       if (res.ok) {
+        trackEvent("bug_report_sent");
         setStatus("success");
         setDescription("");
         setTimeout(() => {
@@ -46,9 +46,11 @@ export default function BugReportButton() {
           setStatus("idle");
         }, 2000);
       } else {
+        trackEvent("error_shown", { error_type: "send_failed", error_area: "bug_report" });
         setStatus("error");
       }
     } catch {
+      trackEvent("error_shown", { error_type: "network", error_area: "bug_report" });
       setStatus("error");
     }
   };

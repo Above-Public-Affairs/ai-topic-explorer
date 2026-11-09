@@ -47,7 +47,7 @@ export default function RunResultsContent({ view, analysisId, providerStatuses, 
 
   const handleThemeClick = useCallback(
     (theme: string) => {
-      trackEvent({ action: "theme_click", params: { theme } });
+      trackEvent("theme_clicked", { theme });
       setContextModal({ word: theme, matches: findWordContext(theme, answerTexts) });
     },
     [answerTexts]
@@ -56,6 +56,7 @@ export default function RunResultsContent({ view, analysisId, providerStatuses, 
   return (
     <ResultsShell
       topic={view.topic}
+      layout="new"
       analysisId={analysisId}
       sections={SECTIONS}
       providerStatuses={providerStatuses}

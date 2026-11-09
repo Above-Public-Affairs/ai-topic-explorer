@@ -3,9 +3,14 @@ import { Inter, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import BetaBanner from "@/components/BetaBanner";
 import BugReportButton from "@/components/BugReportButton";
+import AnalyticsTracker from "@/components/AnalyticsTracker";
+import { gaBootstrapScript } from "@/lib/analytics";
 import "./globals.css";
 
-const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
+// Only a well-formed GA4 ID is written into the page.
+const rawGaId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID?.trim();
+const GA_ID = rawGaId && /^G-[A-Z0-9]+$/.test(rawGaId) ? rawGaId : null;
+const GA_DEBUG = process.env.NEXT_PUBLIC_GA_DEBUG === "1";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -60,6 +65,9 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: betaBannerScript }} />
+        {/* The gtag queue exists from the start, so events fired before
+            gtag.js lazy-loads are kept and sent when it arrives. */}
+        {GA_ID && <script dangerouslySetInnerHTML={{ __html: gaBootstrapScript(GA_ID, GA_DEBUG) }} />}
       </head>
       <body
         className={`${inter.variable} ${geistMono.variable} antialiased`}
@@ -70,9 +78,7 @@ export default function RootLayout({
               src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
               strategy="lazyOnload"
             />
-            <Script id="ga4-init" strategy="lazyOnload">
-              {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}');`}
-            </Script>
+            <AnalyticsTracker />
           </>
         )}
         <a href="#content" className="skip-link">

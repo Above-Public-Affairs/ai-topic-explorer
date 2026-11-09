@@ -57,7 +57,7 @@ export default function ResultsContent({
 
   const handleWordClick = useCallback(
     (word: string) => {
-      trackEvent({ action: "word_cloud_click", params: { word } });
+      trackEvent("word_clicked", { word });
       const matches = findWordContext(word, providerTexts);
       setContextModal({ word, matches });
     },
@@ -66,7 +66,7 @@ export default function ResultsContent({
 
   const handleThemeClick = useCallback(
     (theme: string) => {
-      trackEvent({ action: "theme_click", params: { theme } });
+      trackEvent("theme_clicked", { theme });
       const matches = findWordContext(theme, providerTexts);
       setContextModal({ word: theme, matches });
     },
@@ -76,6 +76,7 @@ export default function ResultsContent({
   return (
     <ResultsShell
       topic={topic}
+      layout="old"
       analysisId={analysisId}
       sections={sections}
       providerStatuses={providerStatuses}

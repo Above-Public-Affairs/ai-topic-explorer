@@ -55,6 +55,7 @@ export default function CitationList({
                 <li key={idx} className="flex flex-wrap items-baseline gap-x-2 gap-y-1 min-w-0">
                   <a
                     href={citation.url}
+                    data-source-link="citation_list"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-(--text-primary) underline decoration-black/15 hover:text-(--accent-cyan) hover:decoration-(--accent-cyan)/40 text-sm font-medium leading-snug transition-colors break-words min-w-0"

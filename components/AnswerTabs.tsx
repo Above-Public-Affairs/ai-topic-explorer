@@ -100,7 +100,7 @@ function AnswerPanel({ answer }: { answer: AnswerView }) {
         <button
           type="button"
           onClick={() => {
-            if (!expanded) trackEvent({ action: "answer_expanded", params: { provider: answer.provider } });
+            if (!expanded) trackEvent("answer_expanded", { provider: answer.provider });
             setExpanded((v) => !v);
           }}
           aria-expanded={expanded}
@@ -124,6 +124,7 @@ function AnswerPanel({ answer }: { answer: AnswerView }) {
                   <span className="sr-only">{i + 1}. </span>
                   <a
                     href={s.url}
+                    data-source-link="answer_sources"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="font-medium text-(--text-primary) underline decoration-black/15 underline-offset-2 hover:text-(--accent-cyan) hover:decoration-(--accent-cyan)/40 transition-colors break-words text-pretty"
@@ -155,7 +156,7 @@ export default function AnswerTabs({ answers }: { answers: AnswerView[] }) {
 
   const select = (i: number) => {
     setActive(i);
-    trackEvent({ action: "answer_tab", params: { provider: answers[i].provider } });
+    trackEvent("answer_tab_selected", { provider: answers[i].provider });
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
