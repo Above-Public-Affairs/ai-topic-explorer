@@ -1,6 +1,6 @@
 # AI Topic Explorer - Project Status
 
-**Last Updated:** November 7, 2026
+**Last Updated:** November 9, 2026
 
 ## Current Status: Live in production (beta), new direction planned
 
@@ -57,6 +57,12 @@ approved by Josh on Nov 9** (real-person voice, balanced leans, `Question.lean` 
 reworded data centers 1.2 and 1.3 as neutral questions) and locked into production by
 migration `20261109180000_lock_anchor_sets` from `scripts/anchor-sets/2026-11-09.json`.
 Snapshots can now run; the weekly worker is 4.4.
+Task 4.3 (repeats and noise bands) is built: `lib/snapshots/` runs a snapshot (locked
+questions ×3, fresh ×1), stores held vs noisy findings and the noise band on `Run.stats`,
+and `compareSnapshots()` lists changes beyond the band. 3 repeats chosen from the proof
+(~$4.30–4.70 a snapshot, ~$85/month); method and numbers in `PROJECT-PLAN.md` §4C. Two
+local snapshots 5 minutes apart compare with 0 swings. Themes hold poorly (~14%) because
+they're matched word for word; merging them is a worthwhile follow-up.
 
 Key findings from the Nov 6 codebase review that drive phase 1:
 - Perplexity's Sonar Chat Completions API ended Sep 27, 2026. Perplexity is being

@@ -40,6 +40,8 @@ export interface RunPipelineOptions {
   note?: string;
   /** Answers extracted at once. */
   extractionConcurrency?: number;
+  /** Provider calls in flight at once. Defaults to all at once. */
+  askConcurrency?: number;
   /** Aborts the provider calls (an aborted call is stored as a timeout). */
   signal?: AbortSignal;
   /** Aborts extractions. Defaults to `signal`; set it later to leave extraction time after a deadline. */
@@ -100,6 +102,7 @@ export async function runPipeline(db: PrismaClient, options: RunPipelineOptions)
   const { topic, location, signal } = options;
   const extractionSignal = options.extractionSignal ?? signal;
   const extractSlot = limiter(options.extractionConcurrency ?? 4);
+  const askSlot = options.askConcurrency ? limiter(options.askConcurrency) : <R>(task: () => Promise<R>) => task();
   const providerIds = options.providers ?? (Object.keys(PROVIDERS) as ProviderId[]);
   const questions = options.questions?.length ? options.questions : [{ text: topic }];
   const subTopicIds = Object.fromEntries((options.subTopics ?? []).map((s) => [s.name, s.id]));
@@ -137,7 +140,11 @@ export async function runPipeline(db: PrismaClient, options: RunPipelineOptions)
       const ctx = { runId: run.id, question: q.text, questionId: q.questionId, repeat: q.repeat };
       let result: AskResult;
       try {
-        result = await PROVIDERS[provider].ask(q.text, { location, signal, settings: models[provider] });
+        result = await askSlot(() => {
+          // A call still queued when the run is stopped isn't made.
+          if (signal?.aborted) throw signal.reason ?? new DOMException("Aborted", "AbortError");
+          return PROVIDERS[provider].ask(q.text, { location, signal, settings: models[provider] });
+        });
       } catch (err) {
         const error = toProviderError(provider, err);
         safely(() => options.onAnswer?.({ provider, question: q.text, ok: false, error }));

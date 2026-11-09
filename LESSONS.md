@@ -3,6 +3,16 @@
 > Reusable rules this project taught us the hard way. Appended at the Compound step
 > (see `build-methodology`), newest at top. Not a changelog — the rule, not the play-by-play.
 
+## Calibrate a change detector with an A/A test before trusting it (Nov 2026)
+
+Two snapshots of the same watch item run minutes apart can't differ for real, so every
+"swing" between them is a false alarm. The textbook rule (2 noise widths, one pooled noise
+figure per kind of finding) flagged 29 there: a comparison tests hundreds of findings, and
+some single findings (a source Gemini cites in 0 of 8 answers, then 3) are far noisier than
+their kind. Raise the bar to 3 widths, use a finding's own spread when it's larger, require a
+move of a few whole answers, then check it still catches an injected change. Re-run this
+check whenever the rule or the repeat count changes.
+
 ## A new Postgres enum value goes in one migration, its first use in the next (Nov 2026)
 
 `ALTER TYPE … ADD VALUE` can't be used by a statement in the same transaction. Adding the

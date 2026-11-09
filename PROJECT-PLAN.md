@@ -228,6 +228,68 @@ Snapshots can run before that.
   automatic.
 - Agreement across repeats separates stable findings from noise. The spread between runs
   sets each snapshot's **noise band**, and only changes beyond it count as swings.
+- **Built (task 4.3, `lib/snapshots/`).** `runSnapshot()` creates the Run, gets its
+  questions from `questionsForSnapshot()`, asks every locked question (anchor and promoted)
+  N times as separate, identical calls (`Answer.repeat` 1…N) and each fresh question once,
+  from the watch item's own city. Results go on `Run.stats` (no schema change).
+- **What's compared.** From each answer's extraction: canonical entities (merged names),
+  themes, cited domains, the lean of its arguments (more for, more against, even, none) and
+  its tone.
+- **Hold rule.** For each locked question × AI, a finding **holds** when it shows up in more
+  than half of that pair's repeats and in at least two of them: with 2 repeats, both; with 3,
+  any 2. Everything else that pair said is **noisy**. A pair left with one usable repeat (a
+  call or its extraction failed) isn't judged. Fresh questions are asked once and aren't
+  judged. `Run.stats.agreement` stores held and noisy findings per pair, with totals.
+- **Noise band, in plain words.** A finding's **share** is the fraction of a snapshot's
+  locked-question answers that contain it (ERCOT named in 40% of answers; texastribune.org
+  cited in 25%; 30% of answers critical). One repeat round, every locked question asked once
+  by every AI, is a **pass**. Nothing changes in the world between passes, yet shares still
+  move; that movement is the noise. For each kind of finding we take the findings in at least
+  10% of answers, measure how far each one's share moves from pass to pass, and pool them
+  into one spread (σ). A snapshot's share averages its N passes, and comparing two snapshots
+  carries the noise of both, so a change counts as a **swing** only when:
+  - it is more than **three times** the combined noise, 3·√(σ₁²/N₁ + σ₂²/N₂), and at least
+    5 points. Three, not the textbook two, because each comparison tests hundreds of findings
+    at once, and at two the proof's back-to-back snapshots still showed false swings;
+  - for a finding that moves more between passes than its kind does (a volatile source, such
+    as one Gemini cites in 0 of 8 answers one pass and 3 the next), its own spread is used
+    instead of the pooled one;
+  - the finding is in at least **4 answers** on one side and its count moved by at least
+    **3 answers**, so a one- or two-answer wobble never counts.
+
+  Bands are worked out across all AIs and for each AI on its own (each AI has a quarter of
+  the answers, so its band is wider). `Run.stats.noise` stores σ, passes and the band
+  against a like snapshot, per kind and per AI.
+- **Comparing snapshots.** `compareSnapshots()` / `compareRuns()` take two snapshots of a
+  watch item and list the changes beyond the band (rose, fell, new, gone), over the locked
+  questions both asked, biggest relative to its band first. Alerts (5.2) and the monthly
+  report (5.3) build on it.
+- **Repeats: 3 (task 4.3 proof, 2026-11-09).** Two snapshots of Data centers in Texas, 5
+  minutes apart, 3 repeats each: 128 calls each, none failed, **$4.28 and $4.69** (answers,
+  extractions and the fresh set). Recomputing the first from only 2 of its repeats:
+  - With 2, each AI's noise is measured from a single pair of passes and comes out erratic:
+    Gemini's tone σ read 0 (pure luck) while OpenAI's tone band was 53 points. With 3 it
+    settles, and the all-AI bands shrink by 20–35% (entities 9.1 → 7.1 points at the
+    two-width rule, argument lean 12.5 → 8.3, tone 15.6 → 11.2).
+  - The majority rule lets one odd repeat through: with 3 repeats 44% of entity findings
+    held, with 2 only 36%.
+  - Cost: about **$4.30–4.70 a snapshot with 3 repeats vs ~$3.30 with 2**, so ~19 snapshots a
+    month is ~$85 vs ~$65. The extra ~$20 a month buys bands tight enough to alert per AI;
+    with 2, per-AI alerts would either miss everything or misfire. `DEFAULT_REPEATS = 3`.
+  - **Calibration (A/A test).** Since the two snapshots were minutes apart, any swing between
+    them is a false alarm. The first rule (two widths, pooled σ only, 3 answers) flagged 29;
+    the rule above flags **0**. Checked it still sees real change by injecting one: a new
+    entity in 4 of the 32 question × AI pairs (13% of answers) is flagged across all AIs, and
+    one in 2 pairs of a single AI is flagged for that AI.
+  - **Held vs noisy, per snapshot** (snapshot 1 / snapshot 2): entities 159 held, 203 noisy /
+    161, 229; themes 73, 438 / 74, 434; domains 156, 180 / 162, 179; argument lean 32, 17 /
+    30, 24; tone 32, 10 / 32, 11.
+  - **Bands at 3 repeats** (all AIs, snapshot 2): entities 9.8 points, themes 13.3, domains
+    8.8, argument lean 10.5, tone 9.9. Per AI they run 7–27 points, except argument lean and
+    tone, at 14–50, so a single AI's tone needs a big move to count.
+  - **Themes are the weak spot:** only ~14% of themes held, because they are free-text labels
+    ("power demand" vs "electricity demand") matched word for word. Merging them the way
+    entities are merged (2.7) would make theme swings far more useful.
 
 ### 4D. Scheduling and watchers
 - **Weekly snapshots** for every watch item, run by a Railway worker with no human input.
@@ -314,7 +376,7 @@ Free-tier default models, 4 providers, web search on. These are estimates from N
 | Gemini (Flash-Lite on the free tier; search within the free allowance) | ~$0.003 | ~3% |
 
 - **Per snapshot:** 8 anchor questions × 3 repeats plus 8 fresh questions = 32 questions,
-  about **$3**.
+  about **$3** (measured in task 4.3: $4.28 and $4.69; see §4C).
 - **Per month, 3 watch items:** weekly snapshots plus a few event-triggered ones is about
   19 snapshots, or roughly **$60**. The watchers add about $5.
 - Railway cost isn't a constraint.

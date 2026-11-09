@@ -4,6 +4,14 @@ All notable changes to AI Topic Explorer will be documented in this file.
 
 ## [2026-11-09]
 
+### Added (task 4.3: repeats and noise bands)
+- Snapshot runner `runSnapshot()` (`lib/snapshots/`): creates the Run, gets its questions from `questionsForSnapshot()`, asks each locked question 3 times (separate, identical calls, `Answer.repeat` 1–3) and each fresh question once, from the watch item's city, with an optional spending cap. `npm run snapshot` runs, reports, recomputes or compares snapshots against a local database
+- Agreement across repeats per locked question × AI over canonical entities, themes, cited domains, argument lean and tone. A finding holds when it appears in more than half of the repeats and at least 2 (2 repeats: both; 3: any 2). Held and noisy findings stored on `Run.stats.agreement`
+- Noise band per snapshot, per kind of finding, across all AIs and per AI, from the pass-to-pass spread of shares; stored on `Run.stats.noise`. `compareSnapshots()` / `compareRuns()` list changes beyond it (3 noise widths, a volatile finding judged by its own spread, at least 4 answers and a 3-answer move). Method in `PROJECT-PLAN.md` §4C
+- `runPipeline` takes `askConcurrency` (provider calls in flight); a call still queued when the run is stopped isn't made
+- No schema change: results go in the existing `Run.stats` column
+- Local proof: two Data centers in Texas snapshots 5 minutes apart, $4.28 and $4.69, 0 failed calls; 0 swings between them (29 under the first, looser rule), while an injected change in 13% of answers is caught
+
 ### Added (task 4.2: anchor sets locked)
 - The three watch items' anchor sets, as Josh approved them, are inserted locked by migration `20261109180000_lock_anchor_sets` (24 questions, each with its sub-topic, concern and lean). Josh reworded data centers 1.2 ("will all these data centers make my electric bill go up") and 1.3 ("how much water does a data center actually use") as neutral questions. Snapshots can now run
 
