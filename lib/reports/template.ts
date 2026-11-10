@@ -81,6 +81,7 @@ ${changes.length ? list(changes.map((w) => esc(plainChange(w)))) : p(esc(NOTHING
 ${img(chart)}
 ${steady ? p(esc(steady)) : ""}
 ${fresh ? p(esc(fresh)) : ""}
+${r.alerts.length ? `${h3("Alerts this month")}${list(r.alerts.map((a) => `A-${a.number}, ${day(a.createdAt)}: ${esc(a.subject)}`))}${r.alerts.every((a) => a.status === "suppressed") ? p("Alerts weren't being emailed yet, so these were recorded but not sent.", `color:${C.muted};font-size:13px;`) : ""}` : ""}
 ${marks.length ? `${h3("What happened this month")}${list(marks.map(({ n, mark }) => `${n != null ? `<strong style="color:${C.accent};">${n}</strong>&nbsp; ` : ""}${day(mark.at)}: ${esc(plainMark(mark))}`))}` : ""}
 </td></tr>
 <tr><td style="height:16px;line-height:16px;font-size:0;">&nbsp;</td></tr>`;
@@ -131,6 +132,7 @@ export function renderText(report: MonthlyReport): string {
     const fresh = newTopicsLine(r);
     if (fresh) out.push(fresh);
     const marks = numberedMarks(r);
+    if (r.alerts.length) out.push("", "Alerts this month:", ...r.alerts.map((a) => `- A-${a.number}, ${day(a.createdAt)}: ${a.subject}${a.status === "suppressed" ? " (recorded, not emailed)" : ""}`));
     if (marks.length) out.push("", "What happened this month:", ...marks.map(({ mark }) => `- ${day(mark.at)}: ${plainMark(mark)}`));
   }
   out.push("", HOW_IT_WORKS);

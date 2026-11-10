@@ -178,6 +178,8 @@ describe("built report", () => {
     expect(built.text).toContain("Asked as a user in Austin, Texas");
     expect(built.attachments).toHaveLength(3);
     for (const a of built.attachments) expect(built.html).toContain(`cid:${a.contentId}`);
+    expect(built.html).toContain("A-901, Dec 14: Sample alert");
+    expect(built.text).toContain("A-904, Dec 21: Sample alert: fewer AI answers about New Mexico oil and gas mention methane (recorded, not emailed)");
     expect(built.html).not.toMatch(/<script/i);
     for (const jargon of [/noise band/i, /locked question/i, /entit(y|ies)/i, /citation/i, /snapshot/i, /\bband\b/i])
       expect(built.text.replace(/SAMPLE DATA.*\n/, "")).not.toMatch(jargon);

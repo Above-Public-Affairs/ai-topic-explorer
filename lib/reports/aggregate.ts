@@ -160,6 +160,7 @@ export function buildItemReport(input: ItemMonthInput): ItemReport {
       newShare: { entity: b.entity.newShare, theme: b.theme.newShare, domain: b.domain.newShare },
       rows: { entity: b.entity.rows, theme: b.theme.rows, domain: b.domain.rows },
     },
+    alerts: input.alerts,
     marks: [...input.marks].sort((x, y) => x.at.getTime() - y.at.getTime()),
     band,
   };

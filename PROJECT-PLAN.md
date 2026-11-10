@@ -463,6 +463,7 @@ Snapshots can run before that.
     is written for a general reader: up to 3 changes per topic as "about 6 in 10 answers now,
     up from about 4 in 10", one chart, the top topics, what new questions raised, and what
     happened. No tables, bands or internal terms; the detail stays in the database for 5.4.
+  - **Alerts:** each topic lists the month's 5.2 alerts (sent, or recorded while off).
   - **First real report:** weekly runs started Nov 10, so November has 3 and its Dec 1 run
     skips; the Jan 1 run (December) is the first with 4+.
 

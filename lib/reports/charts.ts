@@ -66,7 +66,7 @@ function truncate(s: string, size: number, max: number): string {
 }
 
 function niceMax(x: number): number {
-  for (const step of [0.2, 0.4, 0.5, 0.6, 0.8, 1]) if (x <= step) return step;
+  for (const step of [0.2, 0.4, 0.6, 0.8, 1]) if (x <= step) return step;
   return 1;
 }
 

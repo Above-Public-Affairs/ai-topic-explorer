@@ -47,7 +47,7 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
   --out=…` renders real data to files without sending. `.reports/` is gitignored.
 - Charts need `lib/reports/fonts/*.ttf` (resvg loads no system fonts), and paths are from the
   repo root, so run from there.
-- TODO(5.2): list the month's alerts once `lib/alerts` lands (`MonthlyReport.alerts`).
+- Each topic lists its alerts from the month (`Alert` rows, sent or suppressed).
 
 ## Model watcher (task 4.5)
 - Railway cron service `model-watcher` runs `npm run worker:models` at `0 13 * * *` (daily

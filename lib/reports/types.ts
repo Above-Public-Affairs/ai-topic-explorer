@@ -49,6 +49,15 @@ export interface TimelineMark {
   sourceUrl?: string;
 }
 
+/** An alert (task 5.2) raised for the item during the month. */
+export interface MonthAlert {
+  number: number;
+  createdAt: Date;
+  subject: string;
+  /** "sent", or "suppressed" while alerts were switched off. */
+  status: string;
+}
+
 export interface ItemMonthInput {
   watchItem: { id: string; name: string; askedFrom: AskedFrom };
   month: ReportMonth;
@@ -59,6 +68,7 @@ export interface ItemMonthInput {
   /** Complete or partial weekly snapshots the item has, from its first through the month's end. */
   weeklyCount: number;
   marks: TimelineMark[];
+  alerts: MonthAlert[];
 }
 
 /** A finding's share of locked answers at the start and end of the month. */
@@ -122,6 +132,7 @@ export interface ItemReport {
     rows: Record<"entity" | "theme" | "domain", BreadthRow[]>;
   };
   marks: TimelineMark[];
+  alerts: MonthAlert[];
   /** The all-AI noise band at the end snapshot, per kind, in share points (0.09 = 9 points). */
   band: Partial<Record<Metric, number>>;
 }
@@ -139,6 +150,4 @@ export interface MonthlyReport {
   items: ItemReport[];
   skipped: SkippedItem[];
   summary: { text: string; source: "model" | "fallback"; costUsd: number; note?: string };
-  /** TODO(5.2): the month's alerts, once lib/alerts lands. */
-  alerts: null;
 }

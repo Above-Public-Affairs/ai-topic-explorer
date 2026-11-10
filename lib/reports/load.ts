@@ -45,7 +45,7 @@ export async function loadItemMonth(db: PrismaClient, watchItemId: string, month
     select: { id: true, name: true, geography: true, askCity: true, askRegion: true, askCountry: true },
   });
   const snapshotWhere = { watchItemId, kind: { in: ["weekly" as const, "event" as const] }, status: { in: [...DONE] } };
-  const [inMonth, before, weeklyCount, events, switches] = await Promise.all([
+  const [inMonth, before, weeklyCount, events, switches, alerts] = await Promise.all([
     db.run.findMany({ where: { ...snapshotWhere, startedAt: { gte: month.start, lt: month.end } }, orderBy: { startedAt: "asc" }, select: RUN_SELECT }),
     db.run.findFirst({ where: { ...snapshotWhere, startedAt: { lt: month.start } }, orderBy: { startedAt: "desc" }, select: RUN_SELECT }),
     countWeekly(db, watchItemId, month),
@@ -66,6 +66,12 @@ export async function loadItemMonth(db: PrismaClient, watchItemId: string, month
       where: { watchItemId, kind: "model_switch", startedAt: { gte: month.start, lt: month.end } },
       orderBy: { startedAt: "asc" },
       select: { id: true, startedAt: true, note: true },
+    }),
+    // Alerts that were raised: sent, or stored while sending was off. Failed and in-flight ones are left out.
+    db.alert.findMany({
+      where: { watchItemId, createdAt: { gte: month.start, lt: month.end }, status: { in: ["sent", "suppressed"] } },
+      orderBy: { number: "asc" },
+      select: { number: true, createdAt: true, subject: true, status: true },
     }),
   ]);
 
@@ -88,5 +94,6 @@ export async function loadItemMonth(db: PrismaClient, watchItemId: string, month
     snapshots: await Promise.all(inMonth.map((r) => snapshotInput(db, r))),
     weeklyCount,
     marks,
+    alerts,
   };
 }

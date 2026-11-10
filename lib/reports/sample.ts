@@ -59,6 +59,7 @@ interface SampleItem {
   freshOnly: Partial<Record<"entity" | "theme" | "domain", Rates>>;
   changes: Change[];
   events: { at: string; label: string; snapshot?: boolean }[];
+  alerts: { number: number; createdAt: string; subject: string }[];
 }
 
 const ITEMS: SampleItem[] = [
@@ -86,6 +87,10 @@ const ITEMS: SampleItem[] = [
       { from: "2026-12-10", metric: "tone", key: "critical", rate: 0.42 },
     ],
     events: [{ at: "2026-12-09", label: "Sample event: state water plan draft released", snapshot: true }],
+    alerts: [
+      { number: 901, createdAt: "2026-12-14", subject: "Sample alert: AI answers about Texas data centers talk more about water use" },
+      { number: 903, createdAt: "2026-12-17", subject: "Sample alert: Gemini points to Reddit far more after its model change" },
+    ],
   },
   {
     id: "sample-og-nm",
@@ -106,6 +111,7 @@ const ITEMS: SampleItem[] = [
     freshOnly: { theme: { "t:orphan-wells": 0.35 }, domain: { "krqe.com": 0.15 } },
     changes: [{ from: "2026-12-16", metric: "theme", key: "t:methane-emissions", rate: 0.22 }],
     events: [],
+    alerts: [{ number: 904, createdAt: "2026-12-21", subject: "Sample alert: fewer AI answers about New Mexico oil and gas mention methane" }],
   },
   {
     id: "sample-re-tx",
@@ -126,6 +132,7 @@ const ITEMS: SampleItem[] = [
     freshOnly: { entity: { "c:fort-bend": 0.2 }, theme: { "t:hail-damage": 0.25 } },
     changes: [{ from: "2026-12-10", metric: "domain", key: "eia.gov", rate: 0.5 }],
     events: [{ at: "2026-12-09", label: "Sample event: state water plan draft released" }],
+    alerts: [],
   },
 ];
 
@@ -245,6 +252,7 @@ export function sampleMonth(): ItemMonthInput[] {
       snapshots: snaps.filter((s) => s.startedAt >= month.start),
       weeklyCount: 8,
       marks,
+      alerts: item.alerts.map((a) => ({ ...a, createdAt: new Date(`${a.createdAt}T06:00:00Z`), status: "suppressed" })),
     };
   });
 }

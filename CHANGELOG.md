@@ -26,7 +26,7 @@ All notable changes to AI Topic Explorer will be documented in this file.
 - Sample mode (`--sample [--out=dir] [--send-to=…]`): seeded synthetic snapshots with injected changes, marked "SAMPLE DATA" in the subject, banner and every chart. `--preview --month=YYYY-MM` renders real data to files without sending
 - `sendEmail` takes optional `attachments` (inline when given a `contentId`). No schema change
 - Written for a general reader (Josh's review of the first sample): "What AI is saying: <Month>", a short version at the top, then per topic the location line, up to 3 plain changes ("about 6 in 10 answers now, up from about 4 in 10"), one chart, the top topics, what new questions brought up, and what happened that month. No tables or internal terms
-- TODO(5.2): list the month's alerts once `lib/alerts` lands
+- Each topic lists the month's alerts (task 5.2), sent or recorded while sending was off
 
 ### Added (task 4.8: merge themes worded different ways)
 - `lib/themes/`: each watch item's theme mentions link to one `CanonicalTheme` per idea ("power demand" and "electricity demand" are one theme), from a reviewed per-item vocabulary (`lib/themes/vocab.ts`): alias table first (no AI call, right after each extraction), then one batched label-mapper call per snapshot for unseen labels (stored, so each label is mapped once), with a "new" theme for labels that fit nothing. Each mention keeps its own label
