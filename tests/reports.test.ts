@@ -1,0 +1,224 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { PrismaClient } from "@/app/generated/prisma/client";
+import { buildItemReport, locationLine } from "@/lib/reports/aggregate";
+import { citationShiftSvg, svgToPng, themeTrendSvg } from "@/lib/reports/charts";
+import { historySkipReason, monthFromKey, previousMonth, reportJobKey } from "@/lib/reports/month";
+import { buildReport, enabledFromEnv, recipientsFromEnv, runMonthlyReport } from "@/lib/reports/monthly";
+import { SAMPLE_MONTH, sampleMonth } from "@/lib/reports/sample";
+import { fallbackSummary, numbersAreGrounded, writeSummary, type SummaryClient } from "@/lib/reports/summary";
+import { sendEmail } from "@/lib/email/send";
+import { EXTRACTION_DEFAULT, type ModelChoice } from "@/lib/answers/registry";
+
+const settings = EXTRACTION_DEFAULT as ModelChoice;
+
+describe("report month", () => {
+  it("covers the month before the run", () => {
+    expect(previousMonth(new Date("2026-12-01T14:00:00Z")).key).toBe("2026-11");
+    expect(previousMonth(new Date("2027-01-01T14:00:00Z"))).toMatchObject({ key: "2026-12", label: "December 2026" });
+    const m = monthFromKey("2026-12");
+    expect(m.start.toISOString()).toBe("2026-12-01T00:00:00.000Z");
+    expect(m.end.toISOString()).toBe("2027-01-01T00:00:00.000Z");
+    expect(reportJobKey(m)).toBe("report:monthly:2026-12");
+    expect(() => monthFromKey("2026-13")).toThrow();
+  });
+
+  it("waits for 4 weekly snapshots", () => {
+    expect(historySkipReason(0, 0)).toMatch(/^not enough history yet: 0 of 4/);
+    expect(historySkipReason(3, 3)).toMatch(/^not enough history yet: 3 of 4/);
+    expect(historySkipReason(4, 0)).toBe("no snapshots this month");
+    expect(historySkipReason(4, 1)).toBeNull();
+  });
+
+  it("first real report: November (3 Mondays from Nov 10) waits, December goes out", () => {
+    const mondays = ["2026-11-10", "2026-11-17", "2026-11-24", "2026-12-01", "2026-12-08"].map((d) => new Date(`${d}T05:15:00Z`));
+    const through = (key: string) => mondays.filter((d) => d < monthFromKey(key).end).length;
+    expect(historySkipReason(through("2026-11"), 3)).toMatch(/not enough history/);
+    expect(historySkipReason(through("2026-12"), 2)).toBeNull();
+  });
+});
+
+describe("aggregation (sample data)", () => {
+  const inputs = sampleMonth();
+  const reports = inputs.map(buildItemReport);
+
+  it("finds the injected changes, and only those", () => {
+    const [dc, og, re] = reports;
+    const key = (w: { scope: string; metric: string; key: string }) => `${w.scope}|${w.metric}|${w.key}`;
+    expect(dc.depthChanges.map(key)).toEqual(["all|theme|t:water-consumption"]);
+    expect(dc.citationChanges.map(key).sort()).toEqual(["all|domain|reddit.com", "gemini|domain|reddit.com", "openai|domain|texastribune.org"]);
+    expect(og.depthChanges.map(key)).toEqual(["all|theme|t:methane-emissions"]);
+    expect(og.citationChanges).toEqual([]);
+    expect(re.depthChanges).toEqual([]);
+    expect(re.citationChanges.map(key)).toContain("all|domain|eia.gov");
+  });
+
+  it("an A/A month (no change in rates) shows no all-AI swings and almost no per-AI ones", () => {
+    // The synthetic repeats agree less than real ones do, so one per-AI false swing in the
+    // hundreds tested is tolerated here; task 4.3's real A/A test had none.
+    let perAi = 0;
+    for (const input of inputs) {
+      const before = input.baseline!;
+      const after = input.snapshots.find((s) => s.kind === "weekly")!; // Dec 7, before any injected change
+      const r = buildItemReport({ ...input, baseline: before, snapshots: [after] });
+      const swings = [...r.depthChanges, ...r.citationChanges];
+      expect(swings.filter((w) => w.scope === "all")).toEqual([]);
+      perAi += swings.length;
+    }
+    expect(perAi).toBeLessThanOrEqual(1);
+  });
+
+  it("compares from last month's final snapshot and marks real rows", () => {
+    const dc = reports[0];
+    expect(dc.startIsBaseline).toBe(true);
+    expect(dc.startAt.toISOString().slice(0, 10)).toBe("2026-11-30");
+    expect(dc.questionsCompared).toBe(8);
+    const water = dc.top.theme.find((t) => t.key === "t:water-consumption")!;
+    expect(water.real).toBe(true);
+    expect(water.end).toBeGreaterThan(water.start);
+    expect(dc.top.theme.filter((t) => t.real)).toHaveLength(1);
+    expect(dc.topDomainsByAi.gemini?.find((d) => d.key === "reddit.com")?.real).toBe(true);
+  });
+
+  it("breadth lists what only the fresh questions named", () => {
+    const dc = reports[0];
+    expect(dc.breadth.freshAnswers).toBe(5 * 32);
+    expect(dc.breadth.rows.theme.map((r) => r.key)).toEqual(["t:drought-planning"]);
+    expect(dc.breadth.rows.entity.map((r) => r.key).sort()).toEqual(["c:hood-county", "c:lcra"]);
+    expect(dc.breadth.rows.domain.every((r) => !dc.top.domain.some((t) => t.key === r.key))).toBe(true);
+  });
+
+  it("states where the AIs were asked from", () => {
+    expect(reports.map((r) => r.locationLine)).toEqual([
+      "Asked as a user in Austin, Texas",
+      "Asked as a user in Albuquerque, New Mexico",
+      "Asked as a user in Austin, Texas",
+    ]);
+    const city = (c: string) => ({ city: c, region: "Texas", country: "US" });
+    expect(locationLine([city("Austin"), city("austin"), city("Houston")])).toBe("Asked as a user in Austin, Texas and Houston, Texas");
+    expect(locationLine([null])).toBe("Asked location not recorded");
+  });
+
+  it("theme series covers every snapshot with the month's top themes", () => {
+    const dc = reports[0];
+    expect(dc.themeSeries.points).toHaveLength(1 + inputs[0].snapshots.length);
+    expect(dc.themeSeries.keys).toHaveLength(4);
+    expect(dc.themeSeries.keys).toContain("t:water-consumption");
+  });
+});
+
+describe("charts", () => {
+  const r = buildItemReport(sampleMonth()[0]);
+  it("render to PNG and carry the sample stamp", () => {
+    const svg = themeTrendSvg(r, true);
+    expect(svg).toContain("SAMPLE DATA");
+    expect(citationShiftSvg(r, false)).not.toContain("SAMPLE DATA");
+    const png = svgToPng(svg);
+    expect(png.subarray(1, 4).toString()).toBe("PNG");
+    expect(png.readUInt32BE(16)).toBe(1200); // 600px at 2x
+  });
+});
+
+describe("summary", () => {
+  const items = sampleMonth().map(buildItemReport);
+  const reply = (text: string): SummaryClient => ({
+    responses: { create: vi.fn(async () => ({ output_text: text, usage: { input_tokens: 1000, output_tokens: 100 } })) } as unknown as SummaryClient["responses"],
+  });
+
+  it("only allows numbers that are in the facts", () => {
+    expect(numbersAreGrounded("rose from 39% to 60%", { a: "39%", b: "60%" }).ok).toBe(true);
+    expect(numbersAreGrounded("rose 21 points", { a: "39%", b: "60%" })).toEqual({ ok: false, unknown: ["21"] });
+  });
+
+  it("uses the model's text when every number checks out", async () => {
+    const s = await writeSummary(items, [], "December 2026", { client: reply("Water use rose from 39% to 60% for data centers in Texas."), settings });
+    expect(s.source).toBe("model");
+  });
+
+  it("falls back to code when the model invents a figure or fails", async () => {
+    const invented = await writeSummary(items, [], "December 2026", { client: reply("Water use rose by 21 points."), settings });
+    expect(invented).toMatchObject({ source: "fallback", note: expect.stringContaining("21") });
+    expect(invented.text).toBe(fallbackSummary(items, []));
+    const failing: SummaryClient = { responses: { create: vi.fn(async () => { throw new Error("boom"); }) } as unknown as SummaryClient["responses"] };
+    expect(await writeSummary(items, [], "December 2026", { client: failing, settings })).toMatchObject({ source: "fallback", note: expect.stringContaining("boom") });
+  });
+
+  it("fallback names each item and says when nothing moved", () => {
+    const text = fallbackSummary(items, []);
+    expect(text).toContain('the theme "Water use" rose from 39% to 60%');
+    expect(text).toContain("Renewables in Texas: citations of eia.gov rose");
+  });
+});
+
+describe("built report", () => {
+  it("is marked sample, has the location line and one inline image per chart", async () => {
+    const built = await buildReport(monthFromKey(SAMPLE_MONTH), sampleMonth(), [], {
+      sample: true,
+      summarize: async (items, skipped) => ({ text: fallbackSummary(items, skipped), source: "fallback", costUsd: 0 }),
+    });
+    expect(built.subject).toMatch(/^\[SAMPLE DATA\]/);
+    expect(built.html).toContain("SAMPLE DATA.");
+    expect(built.html).toContain("Asked as a user in Albuquerque, New Mexico");
+    expect(built.text).toContain("Asked as a user in Austin, Texas");
+    expect(built.attachments).toHaveLength(6);
+    for (const a of built.attachments) expect(built.html).toContain(`cid:${a.contentId}`);
+    expect(built.html).not.toMatch(/<script/i);
+  });
+});
+
+describe("env", () => {
+  it("is off unless REPORTS_ENABLED is true, and defaults recipients to Josh", () => {
+    expect(enabledFromEnv(undefined)).toBe(false);
+    expect(enabledFromEnv("false")).toBe(false);
+    expect(enabledFromEnv(" TRUE ")).toBe(true);
+    expect(recipientsFromEnv(undefined)).toEqual(["joshua@abovepublicaffairs.com"]);
+    expect(recipientsFromEnv("a@x.com, b@y.org")).toEqual(["a@x.com", "b@y.org"]);
+    expect(() => recipientsFromEnv("nope")).toThrow();
+  });
+});
+
+describe("runMonthlyReport waits for history", () => {
+  function fakeDb(weekly: number) {
+    const db = {
+      watchItem: { findMany: vi.fn(async () => [{ id: "w1", name: "Data centers in Texas" }]) },
+      run: { count: vi.fn(async (args: { where: { kind: unknown } }) => (args.where.kind === "weekly" ? weekly : 1)) },
+      watcherJob: { create: vi.fn() },
+    };
+    return db;
+  }
+
+  it("skips with a logged note before claiming the month or sending", async () => {
+    const db = fakeDb(1);
+    const send = vi.fn();
+    const lines: string[] = [];
+    const out = await runMonthlyReport(db as unknown as PrismaClient, { now: new Date("2026-12-01T14:00:00Z"), enabled: true, recipients: ["x@y.com"], send, log: (l) => lines.push(l) });
+    expect(out).toMatchObject({ outcome: "skipped", reason: "not enough history yet" });
+    expect(lines.at(-1)).toBe("Monthly report for November 2026: skipped, not enough history yet.");
+    expect(lines[0]).toContain("1 of 4 weekly snapshots");
+    expect(send).not.toHaveBeenCalled();
+    expect(db.watcherJob.create).not.toHaveBeenCalled();
+  });
+
+  it("builds and sends nothing while REPORTS_ENABLED is off", async () => {
+    const db = fakeDb(5);
+    const send = vi.fn();
+    const out = await runMonthlyReport(db as unknown as PrismaClient, { now: new Date("2027-01-01T14:00:00Z"), enabled: false, recipients: ["x@y.com"], send });
+    expect(out).toMatchObject({ outcome: "disabled", ready: ["Data centers in Texas"] });
+    expect(send).not.toHaveBeenCalled();
+    expect(db.watcherJob.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendEmail inline images", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it("sends cid attachments inline", async () => {
+    process.env.SENDGRID_API_KEY = "test";
+    process.env.SENDGRID_FROM = "from@example.com";
+    const fetchMock = vi.fn(async () => new Response(null, { status: 202, headers: { "x-message-id": "m1" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    await sendEmail({ to: "a@b.com", subject: "s", text: "t", html: "<img src='cid:c1'>", attachments: [{ filename: "c1.png", type: "image/png", content: Buffer.from("png"), contentId: "c1" }] });
+    const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+    expect(body.attachments).toEqual([{ content: Buffer.from("png").toString("base64"), type: "image/png", filename: "c1.png", disposition: "inline", content_id: "c1" }]);
+    delete process.env.SENDGRID_API_KEY;
+    delete process.env.SENDGRID_FROM;
+  });
+});

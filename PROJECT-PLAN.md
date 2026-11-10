@@ -440,6 +440,27 @@ Snapshots can run before that.
 - Emailed. Covers every watch item: charts of change over time, depth vs breadth, citation
   shifts, and model changes marked on the timeline.
 - **Wait:** at least 4 weekly snapshots of history.
+- **Built (task 5.3, `lib/reports/`).** Railway cron service `monthly-report`, 1st of the month
+  14:00 UTC, for the month just ended. For each item with 4+ weekly snapshots through the
+  month's end:
+  - **Depth:** last month's final snapshot (or the month's first) against the month's last,
+    through `compareSnapshots`, so only swings beyond the noise band are called real. Top
+    themes, names, tone and argument lean with start → end shares; a line chart of the four
+    most common themes at every snapshot.
+  - **Breadth:** what the month's fresh answers named that no locked answer did (share of
+    names, themes and sources, and the top ones by answer count).
+  - **Citation shifts:** domain swings across all AIs and per AI, a start-vs-end chart of the
+    top 8 sources, and each AI's top 3.
+  - **Timeline:** `new_model` and other approved events, `model_switch` runs, numbered on the
+    chart; event snapshots drawn as hollow dots.
+  - **Location line** on every item and in the summary block.
+  - **Summary:** one extraction-model call (about $0.0002) from the stored numbers only; any
+    number not in the facts sends it back to a code-written summary.
+  - **Email:** HTML tables with inline `cid:` PNGs (resvg, bundled Inter), ~400 KB for three
+    items, plus a plain-text twin. `REPORTS_ENABLED` (off until 8.2), `REPORT_RECIPIENTS`
+    (default Josh). Once per month (`WatcherJob` `report:monthly:<YYYY-MM>`).
+  - **First real report:** weekly runs started Nov 10, so November has 3 and its Dec 1 run
+    skips; the Jan 1 run (December) is the first with 4+.
 
 ### 5B. Notable-change alerts
 - Sent when a change goes beyond the noise band or a new insight appears.

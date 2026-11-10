@@ -17,6 +17,16 @@ All notable changes to AI Topic Explorer will be documented in this file.
 - Migration `20261110190000_alerts` (additive: enum `AlertStatus`, table `Alert` with readable `number`, A-1, A-2…)
 - `npm run alerts`: `--list`, `--run=<id>`, `--show=A-n [--html=<file>]`, `--send-test=A-n [--to=]`, `--compare=<before>,<after>` (local proofs)
 
+### Added (task 5.3: monthly health report)
+- `npm run report:monthly` (`scripts/monthly-report.ts`, `lib/reports/`): one email a month covering every watch item, run by Railway cron service `monthly-report` on the 1st at 14:00 UTC for the month just ended
+- Per item: depth (the locked questions from last month's final snapshot to this month's last, through `compareSnapshots`, so only changes beyond the noise band are called real), breadth (what the fresh sets named that no locked answer did), citation shifts (all AIs and per AI), model changes and events numbered on the timeline, and the "Asked as a user in …" line
+- A plain-English summary at the top from one extraction-model call that sees only the stored numbers; a guard rejects any number not in those facts and falls back to a summary written by code
+- Charts are SVG rendered to PNG with resvg (Inter fonts bundled in `lib/reports/fonts/`), sent as inline `cid:` images so Gmail and Outlook show them with no JavaScript; plain-text twin included
+- Waits for history: an item needs 4 weekly snapshots through the month's end; with none ready the run logs "not enough history yet" and stops. Off by default (`REPORTS_ENABLED=false`); recipients from `REPORT_RECIPIENTS` (default Josh). Once per month via `WatcherJob` key `report:monthly:<YYYY-MM>`; a send with no answer from SendGrid isn't retried
+- Sample mode (`--sample [--out=dir] [--send-to=…]`): seeded synthetic snapshots with injected changes, marked "SAMPLE DATA" in the subject, banner and every chart. `--preview --month=YYYY-MM` renders real data to files without sending
+- `sendEmail` takes optional `attachments` (inline when given a `contentId`). No schema change
+- TODO(5.2): list the month's alerts once `lib/alerts` lands
+
 ### Added (task 4.8: merge themes worded different ways)
 - `lib/themes/`: each watch item's theme mentions link to one `CanonicalTheme` per idea ("power demand" and "electricity demand" are one theme), from a reviewed per-item vocabulary (`lib/themes/vocab.ts`): alias table first (no AI call, right after each extraction), then one batched label-mapper call per snapshot for unseen labels (stored, so each label is mapped once), with a "new" theme for labels that fit nothing. Each mention keeps its own label
 - Snapshot findings key themes by canonical theme (`t:<slug>`); `runSnapshot()` links the snapshot's themes before computing stats (signature unchanged; mapper cost added to the run's cost)

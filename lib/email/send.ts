@@ -28,6 +28,17 @@ export interface OutgoingEmail {
   /** Plain-text fallback. Always required: some clients and filters read only this. */
   text: string;
   html?: string;
+  /** Files sent with the message; `contentId` + inline shows one in the HTML as <img src="cid:…">. */
+  attachments?: EmailAttachment[];
+}
+
+export interface EmailAttachment {
+  filename: string;
+  /** MIME type, e.g. "image/png". */
+  type: string;
+  content: Buffer;
+  /** Set for inline images, referenced from the HTML as cid:<contentId>. */
+  contentId?: string;
 }
 
 export interface SendOptions {
@@ -84,6 +95,17 @@ export async function sendEmail(email: OutgoingEmail, options: SendOptions = {})
     reply_to: { email: process.env.REPLY_TO?.trim() || DEFAULT_REPLY_TO },
     subject: email.subject,
     content,
+    ...(email.attachments?.length
+      ? {
+          attachments: email.attachments.map((a) => ({
+            content: a.content.toString("base64"),
+            type: a.type,
+            filename: a.filename,
+            disposition: a.contentId ? "inline" : "attachment",
+            ...(a.contentId ? { content_id: a.contentId } : {}),
+          })),
+        }
+      : {}),
   };
 
   // Error context carries counts, never addresses.

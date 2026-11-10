@@ -31,6 +31,24 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
   localhost:5432. DB test: `tests/alerts.db.test.ts` (env in its header).
 - First real weekly alerts can come from the Nov 16 snapshot (vs the Nov 10 baselines).
 
+## Monthly report (task 5.3)
+- Railway cron service `monthly-report` (same project, same repo) runs `npm run report:monthly`
+  at `0 14 1 * *` for the previous month. Code: `scripts/monthly-report.ts`, `lib/reports/`
+  (aggregate, load, charts, summary, template, monthly, sample). Env: references to the web
+  service (`DATABASE_URL`, `OPENAI_API_KEY`, `SENDGRID_*`, `ERROR_API_*`), plus
+  `REPORTS_ENABLED` (false; 8.2 switches it on) and `REPORT_RECIPIENTS` (empty = Josh).
+- An item goes in once it has 4 weekly snapshots through the month's end; with none ready the
+  log says "Monthly report for <Month>: skipped, not enough history yet." Nothing is claimed,
+  so a later run that month can still send.
+- Once sent, `WatcherJob` `report:monthly:<YYYY-MM>` is complete; to resend a month, delete
+  that row. A SendGrid timeout marks it complete too (it may have been delivered).
+- `--sample --out=.reports/sample [--send-to=…]` renders the synthetic sample (no DB; the
+  summary needs `OPENAI_API_KEY`, else the code-written one). `--preview --month=2026-12
+  --out=…` renders real data to files without sending. `.reports/` is gitignored.
+- Charts need `lib/reports/fonts/*.ttf` (resvg loads no system fonts), and paths are from the
+  repo root, so run from there.
+- TODO(5.2): list the month's alerts once `lib/alerts` lands (`MonthlyReport.alerts`).
+
 ## Model watcher (task 4.5)
 - Railway cron service `model-watcher` runs `npm run worker:models` at `0 13 * * *` (daily
   13:00 UTC). Code: `scripts/model-watcher.ts`, `lib/watchers/models.ts` (loop, switch,
