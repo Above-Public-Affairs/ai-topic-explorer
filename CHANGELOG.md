@@ -5,6 +5,7 @@ All notable changes to AI Topic Explorer will be documented in this file.
 ## [2026-11-10]
 
 ### Changed (task 5.2: simpler alert email, from Josh's feedback on A-2)
+- The HTML email now matches the public site (cream background, cyan-to-violet accent, Inter, white rounded card, pill tags) and shows the change as two rows of ten dots ("5 in 10" → "1 in 10"), with small before/now bars per AI when all four moved. Built from table cells, so it shows with images off and fits a phone screen
 - Each alert now leads with one plain sentence built from the numbers, such as "Gemini's new model cites reddit.com in about 1 in 10 answers, down from 5 in 10 with the old one", then a one-line "Why" for model changes, one sentence on what it could mean (the only AI-written line), how the AIs were asked, two examples and a shorter Claude prompt. Percentages and the "bigger than chance" test moved to a small details line at the bottom
 - Subject: "<watch item>: <AI> <does X> more/less · A-n", with "(model change)" for model switches
 
