@@ -4,15 +4,14 @@
  * 10 answers", and no sentence uses the report's internal terms (noise band,
  * locked questions, entities, domains).
  */
+import { plainShare } from "@/lib/alerts/plain";
 import { providerLabel } from "@/lib/providers";
 import type { Swing } from "@/lib/snapshots";
 import type { ItemReport, TimelineMark } from "./types";
 
-/** "about 6 in 10", "almost none", "nearly all". */
+/** Same wording as the alert emails (lib/alerts/plain.ts): "about 6 in 10", "fewer than 1 in 10", "none". */
 export function inTen(share: number): string {
-  if (share < 0.05) return "almost none";
-  if (share > 0.95) return "nearly all";
-  return `about ${Math.round(share * 10)} in 10`;
+  return plainShare(share, false);
 }
 
 const lower = (s: string) => (/^[A-Z][a-z]/.test(s) && !/^[A-Z][a-z]+ [A-Z]/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s);
@@ -30,8 +29,7 @@ function whose(scope: Swing["scope"]): string {
  */
 export function plainChange(w: Swing): string {
   const up = w.after > w.before;
-  const now = w.after < 0.05 ? "almost no answers" : w.after > 0.95 ? "nearly all answers" : `${inTen(w.after)} answers`;
-  const tail = `${now} now, ${up ? "up" : "down"} from ${inTen(w.before)}.`;
+  const tail = `${plainShare(w.after)} now, ${up ? "up" : "down"} from ${inTen(w.before)}.`;
   switch (w.metric) {
     case "theme":
       return `${whose(w.scope)} ${w.scope === "all" ? "talk" : "talks"} about ${lower(w.label)} ${up ? "more" : "less"}: ${tail}`;

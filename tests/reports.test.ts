@@ -145,7 +145,7 @@ describe("summary", () => {
 
   it("fallback names each item in plain words", () => {
     const text = fallbackSummary(items, []);
-    expect(text).toContain("Data centers in Texas: The AIs talk about water use more: about 6 in 10 answers now, up from about 4 in 10.");
+    expect(text).toContain("Data centers in Texas: The AIs talk about water use more: 6 in 10 answers now, up from about 4 in 10.");
     expect(text).not.toMatch(/%|noise band|citation/i);
   });
 });
@@ -153,12 +153,12 @@ describe("summary", () => {
 describe("plain wording", () => {
   const [dc, , re] = sampleMonth().map(buildItemReport);
   it("says shares as N in 10", () => {
-    expect([0.02, 0.39, 0.6, 0.97].map(inTen)).toEqual(["almost none", "about 4 in 10", "about 6 in 10", "nearly all"]);
+    expect([0, 0.02, 0.39, 0.6, 0.97].map(inTen)).toEqual(["none", "fewer than 1 in 10", "about 4 in 10", "6 in 10", "almost all"]);
   });
   it("leads with all-AI changes and says each finding once", () => {
     const lines = headlineChanges(dc).map(plainChange);
     expect(lines).toEqual([
-      "The AIs talk about water use more: about 6 in 10 answers now, up from about 4 in 10.",
+      "The AIs talk about water use more: 6 in 10 answers now, up from about 4 in 10.",
       "The AIs point to reddit.com as a source more: about 2 in 10 answers now, up from about 1 in 10.",
       "ChatGPT points to texastribune.org as a source less: about 1 in 10 answers now, down from about 5 in 10.",
     ]);
