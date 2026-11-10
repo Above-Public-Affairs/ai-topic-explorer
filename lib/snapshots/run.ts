@@ -28,6 +28,8 @@ export interface SnapshotStats {
   labels: Labels;
   /** Set when the snapshot was stopped at its spending cap. */
   stoppedAtCapUsd?: number;
+  /** Changes beyond the noise band since the item's previous snapshot; set by the weekly worker (4.4). */
+  comparison?: Comparison & { againstRunId: string };
 }
 
 export interface RunSnapshotOptions {

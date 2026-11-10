@@ -17,6 +17,7 @@
     "entities:merge": "tsx scripts/run-pipeline.ts --merge",
     "questions": "tsx scripts/question-sets.ts",
     "snapshot": "tsx scripts/snapshot.ts",
+    "worker:weekly": "tsx scripts/weekly-snapshots.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

@@ -4,6 +4,11 @@ All notable changes to AI Topic Explorer will be documented in this file.
 
 ## [2026-11-09]
 
+### Added (task 4.4: weekly snapshots on a Railway worker)
+- `npm run worker:weekly` (`scripts/weekly-snapshots.ts`, `lib/worker/weekly.ts`): one weekly snapshot per active watch item, then exit. Runs as Railway cron service `weekly-snapshots`, Monday 05:00 UTC (Sunday 11pm Central in winter)
+- Once-a-week guard (weeks start Monday 00:00 UTC; complete, partial or still-running snapshots block a second one, failed ones are retried), one item's failure never stops the others, and a spending cap shared across the run (`WEEKLY_RUN_CAP_USD`, default $15; `WEEKLY_ITEM_CAP_USD`, default $6)
+- Each snapshot's comparison against the item's previous snapshot goes on `Run.stats.comparison`; a one-line summary per item in the logs (questions, calls, failures, cost, held/noisy); failures, partial runs and cap stops go to error reporting
+
 ### Added (task 4.3: repeats and noise bands)
 - Snapshot runner `runSnapshot()` (`lib/snapshots/`): creates the Run, gets its questions from `questionsForSnapshot()`, asks each locked question 3 times (separate, identical calls, `Answer.repeat` 1–3) and each fresh question once, from the watch item's city, with an optional spending cap. `npm run snapshot` runs, reports, recomputes or compares snapshots against a local database
 - Agreement across repeats per locked question × AI over canonical entities, themes, cited domains, argument lean and tone. A finding holds when it appears in more than half of the repeats and at least 2 (2 repeats: both; 3: any 2). Held and noisy findings stored on `Run.stats.agreement`

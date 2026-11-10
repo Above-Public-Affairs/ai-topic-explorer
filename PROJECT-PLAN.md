@@ -293,6 +293,24 @@ Snapshots can run before that.
 
 ### 4D. Scheduling and watchers
 - **Weekly snapshots** for every watch item, run by a Railway worker with no human input.
+  **Built (task 4.4).** Railway cron service `weekly-snapshots` (same project as the web
+  service, same repo) runs `npm run worker:weekly` (`scripts/weekly-snapshots.ts`,
+  `lib/worker/weekly.ts`), one snapshot per active watch item, then exits.
+  - **Schedule: `0 5 * * 1`, Monday 05:00 UTC.** That is Sunday 11pm Central in winter
+    (midnight in summer, since Railway cron is UTC), so a fresh snapshot is ready Monday
+    morning.
+  - **Once a week.** Weeks start Monday 00:00 UTC. An item with a complete or partial
+    weekly snapshot this week, or one still running (under 3 hours), is skipped; a failed
+    one is retried on a re-run. One item failing doesn't stop the others, and failures and
+    partial runs are recorded on the Run (status and note) and sent to error reporting.
+  - **Spending cap per run:** `WEEKLY_RUN_CAP_USD` (default **$15**) shared across items,
+    each snapshot capped at what's left, up to `WEEKLY_ITEM_CAP_USD` (default **$6**).
+    Below $1 left, the remaining items are skipped.
+  - Each snapshot stores its agreement and noise band (4.3) and, once a previous snapshot
+    of the item exists, its comparison against it on `Run.stats.comparison`. Nothing is
+    sent; alerts are 5B.
+  - Env comes from Railway references to the web service (`DATABASE_URL`, the four AI
+    keys); migrations stay with the web service only.
 - **Model watcher (daily):** detects changes to the free-tier default model and updates
   the registry automatically. Each change is logged as an event. On a switch day, while the
   old model is still served, the anchor set runs on both models, so the model's own effect
