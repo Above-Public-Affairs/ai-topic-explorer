@@ -287,9 +287,53 @@ Snapshots can run before that.
   - **Bands at 3 repeats** (all AIs, snapshot 2): entities 9.8 points, themes 13.3, domains
     8.8, argument lean 10.5, tone 9.9. Per AI they run 7–27 points, except argument lean and
     tone, at 14–50, so a single AI's tone needs a big move to count.
-  - **Themes are the weak spot:** only ~14% of themes held, because they are free-text labels
-    ("power demand" vs "electricity demand") matched word for word. Merging them the way
-    entities are merged (2.7) would make theme swings far more useful.
+  - **Themes were the weak spot:** only ~14% of themes held, because they are free-text labels
+    ("power demand" vs "electricity demand") matched word for word. Fixed by task 4.8 below.
+- **Theme merging (task 4.8, `lib/themes/`).** Each theme mention keeps its own label and links
+  to one `CanonicalTheme` per idea, per watch item (`Theme.canonicalThemeId`); findings key
+  themes by it (`t:<slug>`).
+  - **Why this approach.** Entity rules (2.7) work on names; theme labels are paraphrases
+    ("grid demand and bills", "noise and local impacts"), so string rules and a small alias
+    table alone linked 41% of mentions. Embeddings can't be trusted at any threshold to keep
+    "electricity demand" apart from "electricity costs". A second extraction pass per answer
+    is the costly option the task ruled out. So: a **reviewed vocabulary per watch item**
+    (`lib/themes/vocab.ts`, 20–29 ideas each, tied to sub-topics, each with a description of
+    what belongs and what doesn't), matched in three steps, cheapest first:
+    1. **Alias table** (`ThemeAlias`): the label's key (lower case, no punctuation, singular
+       words) under its sub-topic. Seeded from the vocabulary; no AI call. Run right after
+       each extraction.
+    2. **Label mapper**, for labels the table doesn't know: one batched call per snapshot
+       (extraction model, strict output limited to the item's slugs or "new"), after the
+       answers are in. Its choice is stored as an alias, so a label is mapped once, ever.
+       The first pass over 2 proof snapshots mapped 817 labels for **$0.009**.
+    3. **"New" escape:** a label that fits nothing gets a theme of its own (status `new`), so
+       its later mentions join it and the mapper can choose it next time. `npm run themes --
+       --list-new` lists them for review; `--merge=<new>:<vocab>` folds one in.
+  - **Keeping ideas apart.** One idea per entry, no catch-alls. Sub-topics stay apart: a
+    sub-topic entry's aliases match only labels with that sub-topic (or none), and an overall
+    entry's aliases only labels with none, so "neighbor impacts" under noise goes to the
+    mapper (noise effects) instead of the overall community theme. Vague labels ("impacts",
+    "uncertainty", "local regulation") are always the mapper's call. Slugs never change.
+  - **Proof (Nov 10, 2026, task 4.3's two local snapshots, re-linked, no new answers):**
+    | | before | after |
+    |---|---|---|
+    | distinct themes (snapshot 1 / 2) | 393 / 407 | 85 / 103 |
+    | themes held across repeats | 14.3% / 14.6% | **54.7% / 51.4%** |
+    | themes in ≥10% of answers (what the band is measured on) | 5 / 3 | 21 / 21 |
+    | theme noise band, all AIs | 6.3 / 13.3 pts | 7.7 / 9.3 pts |
+    | A/A swings between the two | 0 | **0** |
+
+    Before, the band rested on 3–5 themes, so it was mostly luck; now it rests on 21. An
+    injected theme in 4 of 32 question × AI pairs is still flagged (all AIs, and the two AIs
+    it was put in). 87% of mentions land in vocabulary themes; the other 13% are 193 new
+    themes, nearly all seen once. Merged groups, for example: *water-consumption* (59
+    wordings: "water use", "direct water use", "company consumption", "cooling water
+    demand"…), *electricity-demand* (46: "power demand", "ai driven demand", "grid demand",
+    "demand forecasts"…), *noise-rules* (46: "noise limits", "acoustic studies", "local
+    regulation" under noise…). First pass flagged one A/A swing (Grok, "Effects on nearby
+    communities", 6 → 1 answers): overall aliases were pulling noise-tagged labels into a
+    broad theme; the sub-topic scoping above fixed it.
+  - Public-site runs (no watch item) aren't linked; their themes stay keyed by label.
 
 ### 4D. Scheduling and watchers
 - **Weekly snapshots** for every watch item, run by a Railway worker with no human input.

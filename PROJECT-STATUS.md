@@ -72,8 +72,12 @@ Task 4.3 (repeats and noise bands) is built: `lib/snapshots/` runs a snapshot (l
 questions ×3, fresh ×1), stores held vs noisy findings and the noise band on `Run.stats`,
 and `compareSnapshots()` lists changes beyond the band. 3 repeats chosen from the proof
 (~$4.30–4.70 a snapshot, ~$85/month); method and numbers in `PROJECT-PLAN.md` §4C. Two
-local snapshots 5 minutes apart compare with 0 swings. Themes hold poorly (~14%) because
-they're matched word for word; merging them is a worthwhile follow-up.
+local snapshots 5 minutes apart compare with 0 swings.
+Task 4.8 (theme merging) is built: `lib/themes/` links each theme mention to one theme per
+idea from a reviewed per-item vocabulary (alias table, then one batched mapper call per
+snapshot, "new" for the rest). On the 4.3 proof snapshots themes held 14% → 51–55%, A/A
+still 0 swings (`PROJECT-PLAN.md` §4C). Production backfill of the Nov 10 baseline runs after
+deploy (`npm run themes -- --link --yes-production`, then `--restat=` the three runs).
 
 Key findings from the Nov 6 codebase review that drive phase 1:
 - Perplexity's Sonar Chat Completions API ended Sep 27, 2026. Perplexity is being

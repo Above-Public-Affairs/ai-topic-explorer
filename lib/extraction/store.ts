@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@/app/generated/prisma/client";
 import { getExtractionModel } from "@/lib/answers/registry";
 import { extractAnswer, type ExtractionInput, type ResponsesClient } from "./extract";
+import { linkThemes } from "@/lib/themes/link";
 import { linkEntities } from "./link";
 import { extractedCitationRows, extractionCreateData } from "./map";
 import { PROMPT_VERSION } from "./schema";
@@ -15,7 +16,8 @@ export interface ExtractAndStoreResult {
 /**
  * Extract one stored answer and write the Extraction (with its entities,
  * themes and arguments) and any extracted citations, then merge its
- * entities into the canonical entity list (link.ts). A failed extraction is
+ * entities into the canonical entity list (link.ts) and link its themes to
+ * known themes (lib/themes, alias step only). A failed extraction is
  * stored too, with errorMessage set, so every answer has an Extraction row.
  * A failed merge only logs: the entities stay unlinked until the next
  * linkEntities() call picks them up.
@@ -45,6 +47,14 @@ export async function extractAndStore(
         await linkEntities(db, { extractionIds: [extraction.id] });
       } catch (err) {
         console.warn(`[Extraction] Entity merge failed for ${extraction.id}; left unlinked. ${err instanceof Error ? err.message : err}`);
+      }
+    }
+    if (out.result.themes.length) {
+      // Known labels only (no AI call); the snapshot maps the rest in one batch.
+      try {
+        await linkThemes(db, { extractionIds: [extraction.id], map: false });
+      } catch (err) {
+        console.warn(`[Extraction] Theme link failed for ${extraction.id}; left unlinked. ${err instanceof Error ? err.message : err}`);
       }
     }
     return { extractionId: extraction.id, ok: true, costUsd: out.costUsd };

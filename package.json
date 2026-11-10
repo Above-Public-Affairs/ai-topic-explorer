@@ -17,6 +17,7 @@
     "entities:merge": "tsx scripts/run-pipeline.ts --merge",
     "questions": "tsx scripts/question-sets.ts",
     "snapshot": "tsx scripts/snapshot.ts",
+    "themes": "tsx scripts/themes.ts",
     "worker:weekly": "tsx scripts/weekly-snapshots.ts",
     "worker:models": "tsx scripts/model-watcher.ts",
     "worker:events": "tsx scripts/event-watcher.ts",

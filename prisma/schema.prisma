@@ -136,6 +136,7 @@ model WatchItem {
   questionSets QuestionSet[]
   runs         Run[]
   events       Event[]
+  themes       CanonicalTheme[]
 }
 
 /// A sub-topic inside a watch item (e.g. power generation, water use, noise).
@@ -146,9 +147,10 @@ model SubTopic {
   createdAt   DateTime  @default(now())
   retiredAt   DateTime?
 
-  watchItem WatchItem  @relation(fields: [watchItemId], references: [id])
-  questions Question[]
-  themes    Theme[]
+  watchItem       WatchItem        @relation(fields: [watchItemId], references: [id])
+  questions       Question[]
+  themes          Theme[]
+  canonicalThemes CanonicalTheme[]
 
   @@unique([watchItemId, name])
 }
@@ -164,17 +166,17 @@ enum QuestionSetKind {
 /// A set of questions for a watch item (§4B). Anchor and promoted sets are
 /// locked: questions are retired, never edited.
 model QuestionSet {
-  id          String          @id @default(cuid())
-  watchItemId String
-  kind        QuestionSetKind
+  id              String          @id @default(cuid())
+  watchItemId     String
+  kind            QuestionSetKind
   /// Set number as shown in reports ("1" for the anchor set, "2", "3", … for fresh sets).
-  number      Int
+  number          Int
   /// When the set's questions were fixed; promoted sets compare from here.
-  startedAt   DateTime        @default(now())
-  lockedAt    DateTime?
+  startedAt       DateTime        @default(now())
+  lockedAt        DateTime?
   /// Fresh sets belong to the one snapshot that generated them.
-  runId       String?         @unique
-  createdAt   DateTime        @default(now())
+  runId           String?         @unique
+  createdAt       DateTime        @default(now())
   /// How the set was written (lib/questions): the model, its model-list row,
   /// the prompt version and what it cost. Null for sets written by hand.
   model           String?
@@ -205,7 +207,7 @@ enum QuestionLean {
 /// One question, written the way a voter would ask it. Text never changes
 /// after creation; a stale question gets `retiredAt` instead.
 model Question {
-  id             String    @id @default(cuid())
+  id             String        @id @default(cuid())
   setId          String
   /// Position in the set: 1.1, 1.2, … is set 1 position 1, 2.
   position       Int
@@ -221,7 +223,7 @@ model Question {
   why            String?
   /// Null on questions written before the lean was recorded.
   lean           QuestionLean?
-  createdAt      DateTime  @default(now())
+  createdAt      DateTime      @default(now())
   retiredAt      DateTime?
   /// Why a locked question was retired (it's never edited).
   retiredReason  String?
@@ -381,38 +383,38 @@ model Extraction {
   /// the list couldn't be read and the built-in default was used.
   modelRegistryId String?
   /// Bumped whenever the extraction prompt changes, so results stay comparable.
-  promptVersion String
+  promptVersion   String
   /// Overall tone toward the industry/topic, e.g. "positive", "mixed", "critical".
-  tone          String?
+  tone            String?
   /// Short note on how the answer frames the topic.
-  framing       String?
-  inputTokens   Int      @default(0)
-  outputTokens  Int      @default(0)
-  costUsd       Float    @default(0)
-  priceIds      String[] @default([])
+  framing         String?
+  inputTokens     Int      @default(0)
+  outputTokens    Int      @default(0)
+  costUsd         Float    @default(0)
+  priceIds        String[] @default([])
   /// Full structured output, kept for re-parsing.
-  raw           Json?
-  errorMessage  String?
-  createdAt     DateTime @default(now())
+  raw             Json?
+  errorMessage    String?
+  createdAt       DateTime @default(now())
 
   answer        Answer         @relation(fields: [answerId], references: [id], onDelete: Cascade)
   modelRegistry ModelRegistry? @relation(fields: [modelRegistryId], references: [id])
   entities      Entity[]
-  themes    Theme[]
-  arguments Argument[]
+  themes        Theme[]
+  arguments     Argument[]
 }
 
 /// A person, organization, place, law or other named thing in an answer.
 model Entity {
-  id           String  @id @default(cuid())
-  extractionId String
-  name         String
+  id                String  @id @default(cuid())
+  extractionId      String
+  name              String
   /// Lower-cased, punctuation-stripped name used to match across answers.
-  normalized   String
+  normalized        String
   /// "person", "organization", "place", "legislation", "other".
-  type         String
-  mentions     Int     @default(1)
-  url          String?
+  type              String
+  mentions          Int     @default(1)
+  url               String?
   /// The extraction model's full name for it ("ERCOT" → "Electric Reliability
   /// Council of Texas"), when it differs from `name`. Null on rows extracted
   /// before prompt 2026-11-07.3.
@@ -465,21 +467,68 @@ model EntityAlias {
 
 /// A theme in an answer, optionally tied to one of the watch item's sub-topics.
 model Theme {
-  id           String  @id @default(cuid())
-  extractionId String
-  label        String
-  normalized   String
-  subTopicId   String?
+  id               String  @id @default(cuid())
+  extractionId     String
+  label            String
+  normalized       String
+  subTopicId       String?
   /// How the theme is framed: "positive", "negative", "neutral", "mixed".
-  sentiment    String?
+  sentiment        String?
   /// 0–1 share of the answer about this theme.
-  weight       Float?
+  weight           Float?
+  /// The merged theme this mention belongs to (task 4.8, lib/themes). Null until linked,
+  /// and for public-site runs, which have no watch item.
+  canonicalThemeId String?
 
-  extraction Extraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
-  subTopic   SubTopic?  @relation(fields: [subTopicId], references: [id])
+  extraction Extraction      @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+  subTopic   SubTopic?       @relation(fields: [subTopicId], references: [id])
+  canonical  CanonicalTheme? @relation(fields: [canonicalThemeId], references: [id], onDelete: SetNull)
 
   @@index([extractionId])
   @@index([normalized])
+  @@index([canonicalThemeId])
+}
+
+/// One idea a watch item's answers discuss, however it is worded (task 4.8,
+/// lib/themes). `vocab` themes come from the item's reviewed vocabulary
+/// (lib/themes/vocab.ts); `new` ones were coined for a label that fit none of
+/// them and wait for review (`npm run themes -- --list-new`, `--merge`).
+model CanonicalTheme {
+  id          String   @id @default(cuid())
+  watchItemId String
+  /// Stable within the item: "grid-reliability"; new themes "new-<label key>".
+  slug        String
+  name        String
+  description String?
+  subTopicId  String?
+  /// "vocab" or "new".
+  status      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  watchItem WatchItem    @relation(fields: [watchItemId], references: [id])
+  subTopic  SubTopic?    @relation(fields: [subTopicId], references: [id])
+  mentions  Theme[]
+  aliases   ThemeAlias[]
+
+  @@unique([watchItemId, slug])
+}
+
+/// A normalized label (lib/themes/key.ts themeKey) and the theme it means,
+/// within one watch item. `source`: "vocab" (from the vocabulary file),
+/// "mapper" (the label mapper's choice), "new" (coined a new theme), "manual".
+model ThemeAlias {
+  id               String   @id @default(cuid())
+  watchItemId      String
+  canonicalThemeId String
+  key              String
+  source           String
+  createdAt        DateTime @default(now())
+
+  canonical CanonicalTheme @relation(fields: [canonicalThemeId], references: [id], onDelete: Cascade)
+
+  @@unique([watchItemId, key])
+  @@index([canonicalThemeId])
 }
 
 enum ArgumentSide {

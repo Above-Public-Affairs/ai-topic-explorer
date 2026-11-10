@@ -4,6 +4,13 @@ All notable changes to AI Topic Explorer will be documented in this file.
 
 ## [2026-11-10]
 
+### Added (task 4.8: merge themes worded different ways)
+- `lib/themes/`: each watch item's theme mentions link to one `CanonicalTheme` per idea ("power demand" and "electricity demand" are one theme), from a reviewed per-item vocabulary (`lib/themes/vocab.ts`): alias table first (no AI call, right after each extraction), then one batched label-mapper call per snapshot for unseen labels (stored, so each label is mapped once), with a "new" theme for labels that fit nothing. Each mention keeps its own label
+- Snapshot findings key themes by canonical theme (`t:<slug>`); `runSnapshot()` links the snapshot's themes before computing stats (signature unchanged; mapper cost added to the run's cost)
+- Migration `20261110120000_theme_merge` (additive: tables `CanonicalTheme`, `ThemeAlias`, nullable `Theme.canonicalThemeId`)
+- `npm run themes`: `--seed`, `--link`, `--relink [--forget-mapped]`, `--groups`, `--list-new`, `--merge=<from>:<into>`, `--restat=<runs>`. Writes to a non-local database need `--yes-production`
+- Proof on task 4.3's two local snapshots: themes held 14% → 51–55%, distinct themes ~400 → ~95 per snapshot, A/A comparison still 0 swings, mapper cost $0.009
+
 ### Added (task 4.5: model watcher)
 - `npm run worker:models` (`scripts/model-watcher.ts`, `lib/watchers/models.ts`, `lib/watchers/models-check.ts`): a daily check of each provider's free-tier default model. Runs as Railway cron service `model-watcher`, daily 13:00 UTC
 - The check asks the model list's "questions" model (GPT-6 Luna) with web search limited to the provider's own domains, about $0.01 a provider. A change counts only with clear evidence: an official page, the quoted words found on it when fetched, an API model id the provider serves, priced in `lib/answers/prices.ts`, not a flagship tier and not an older version than the current model. Anything less is "unclear": the list is left alone and a warning goes to error reporting

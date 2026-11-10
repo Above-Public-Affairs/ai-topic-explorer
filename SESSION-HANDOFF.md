@@ -73,6 +73,22 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
   (Renewables in Texas, $4.59); all complete, 0 failed calls. At ~$14.30 a week the $15 run
   cap is tight: the third item gets only what's left (~$5.30).
 
+## Theme merging (task 4.8)
+- `lib/themes/`: `vocab.ts` (reviewed vocabulary per watch item, keyed by `WatchItem.name`;
+  never rename a slug), `key.ts` (`themeKey`: normalize + singular words), `mapper.ts` (one
+  batched call, strict enum of slugs + "new"), `link.ts` (`linkThemes`, `relinkThemes`,
+  `mergeThemes`, `seedThemeVocab`). Tables `CanonicalTheme` (status vocab/new) and
+  `ThemeAlias` (`<sub-topic or ->|<key>`, unique per item).
+- `extractAndStore` links known labels only (no AI); `runSnapshot` maps the rest before
+  stats (failure only logs; unlinked themes fall back to their label). Findings key `t:<slug>`.
+- `npm run themes -- --list-new` / `--merge=<new>:<vocab> --item=…` to review new themes;
+  `--seed` after editing the vocabulary; `--relink --forget-mapped` after changing rules.
+  Non-local DB writes need `--yes-production`. Run it on Railway via `railway ssh` into the
+  web service (prod Postgres has no public proxy).
+- Gotchas: OpenAI's filter sometimes refuses a harmless batch (400 invalid_prompt); the mapper
+  splits and retries. Overall-vocab aliases only match labels with no sub-topic (see LESSONS).
+- Local proof copy `ate_task48` (4.3's runs re-linked); numbers in `PROJECT-PLAN.md` §4C.
+
 ## Snapshots, repeats and noise bands (task 4.3)
 - `lib/snapshots/runSnapshot(db, watchItemId)` is what the weekly worker (4.4) calls: locked
   questions ×3 (`DEFAULT_REPEATS`), fresh ×1, optional `maxCostUsd` cap and `askConcurrency`.
@@ -81,8 +97,7 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
   build on it. Method and calibration in `PROJECT-PLAN.md` §4C.
 - `npm run snapshot` (local DB only): `--item=… [--repeats] [--cap]`, `--report=<run> [--as-repeats=2]`,
   `--restat=<run>` (recompute stats after a method change, no AI calls), `--compare=a,b`.
-- Gotchas: themes match word for word, so only ~14% hold (merge them like entities to fix);
-  per-AI tone and argument-lean bands are wide (14–50 pts). If the rule or repeat count
+- Gotchas: per-AI tone and argument-lean bands are wide (14–50 pts). If the rule or repeat count
   changes, re-run the A/A check (two snapshots minutes apart should show ~0 swings).
 - Proof runs `cmw9ti9320000xki11tqnrozy` and `cmw9tp9zn00008wi15ujm7yxt` live only in the
   local DB `ate_task43`.

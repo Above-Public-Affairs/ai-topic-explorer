@@ -3,6 +3,22 @@
 > Reusable rules this project taught us the hard way. Appended at the Compound step
 > (see `build-methodology`), newest at top. Not a changelog — the rule, not the play-by-play.
 
+## Scope merge aliases by context, or a broad entry swallows specific ones (Nov 2026)
+
+Theme aliases first matched any sub-topic, so "neighbor impacts" tagged noise landed in the
+overall "effects on communities" theme instead of noise effects. That one broad bucket then
+moved 6 → 1 answers between two identical snapshots and showed up as a false swing. Match an
+overall entry's aliases only on labels with no sub-topic, and send the rest to the mapper,
+which sees the sub-topic. Run the A/A check after any merge change: a bad merge shows up as a
+false swing before anyone reads it as news.
+
+## OpenAI's prompt filter can refuse a batch of harmless text (Nov 2026)
+
+A batch of 40 short theme labels about data centers came back 400 "invalid_prompt …
+flagged as potentially violating our usage policy". Nothing in it was harmful, and smaller
+batches of the same labels went through. Catch that error, split the batch in half and
+retry, and let a single refused item fall back to a safe default ("new").
+
 ## Official pages about old defaults stay online: hold a model change to more than a quote (Nov 2026)
 
 The first real model check found an official page with an exact quote for two providers, and

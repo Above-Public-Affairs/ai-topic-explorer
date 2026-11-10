@@ -13,6 +13,7 @@ import { agreement, type AgreementSummary } from "./agreement";
 import { loadFindings, type Labels } from "./findings";
 import { noiseBand, type SnapshotNoise } from "./noise";
 import { compareSnapshots, type Comparison } from "./compare";
+import { linkThemes } from "@/lib/themes/link";
 
 /** Repeats per locked question; chosen from task 4.3's proof (PROJECT-PLAN §4C). */
 export const DEFAULT_REPEATS = 3;
@@ -24,7 +25,7 @@ export interface SnapshotStats {
   answers: { locked: number; fresh: number };
   agreement: AgreementSummary;
   noise: SnapshotNoise;
-  /** Display names for canonical-entity keys ("c:<id>"). */
+  /** Display names for canonical-entity keys ("c:<id>") and canonical-theme keys ("t:<slug>"). */
   labels: Labels;
   /** Set when the snapshot was stopped at its spending cap. */
   stoppedAtCapUsd?: number;
@@ -50,7 +51,7 @@ export interface RunSnapshotOptions {
 export interface RunSnapshotResult {
   runId: string;
   pipeline: RunPipelineResult;
-  /** Answer, extraction and fresh-set costs. */
+  /** Answer, extraction, fresh-set and theme-mapping costs. */
   costUsd: number;
   stats: SnapshotStats;
 }
@@ -123,9 +124,18 @@ export async function runSnapshot(db: PrismaClient, watchItemId: string, options
     },
   });
 
+  // Themes the alias table didn't know: one batched mapper call (task 4.8).
+  // A failure leaves them unlinked; findings then key them by their label.
+  let themeCostUsd = 0;
+  try {
+    themeCostUsd = (await linkThemes(db, { runId: run.id, signal: options.signal })).costUsd;
+  } catch (err) {
+    console.warn(`[Snapshot] Theme linking failed for ${run.id}; unlinked themes count by label. ${err instanceof Error ? err.message : err}`);
+  }
+
   const stats = await snapshotStats(db, run.id, repeats);
   if (stoppedAtCap) stats.stoppedAtCapUsd = options.maxCostUsd;
-  const costUsd = pipeline.costUsd + set.costUsd;
+  const costUsd = pipeline.costUsd + set.costUsd + themeCostUsd;
   await db.run.update({
     where: { id: run.id },
     data: { stats: JSON.parse(JSON.stringify(stats)), costUsd: Math.round(costUsd * 1e8) / 1e8 },
@@ -138,7 +148,7 @@ export async function snapshotStats(db: PrismaClient, runId: string, repeats: nu
   const { answers, labels } = await loadFindings(db, runId);
   const summary = agreement(answers);
   const used = new Set(
-    summary.byPair.flatMap((p) => Object.values(p.held).concat(Object.values(p.noisy)).flat()).filter((k) => k.startsWith("c:"))
+    summary.byPair.flatMap((p) => Object.values(p.held).concat(Object.values(p.noisy)).flat()).filter((k) => k.startsWith("c:") || k.startsWith("t:"))
   );
   return {
     version: STATS_VERSION,
@@ -146,7 +156,7 @@ export async function snapshotStats(db: PrismaClient, runId: string, repeats: nu
     answers: { locked: answers.filter((a) => a.locked).length, fresh: answers.filter((a) => !a.locked).length },
     agreement: summary,
     noise: noiseBand(answers),
-    labels: Object.fromEntries(Object.entries(labels).filter(([k]) => used.has(k) || !k.startsWith("c:"))),
+    labels: Object.fromEntries(Object.entries(labels).filter(([k]) => used.has(k) || !/^[ct]:/.test(k))),
   };
 }
 

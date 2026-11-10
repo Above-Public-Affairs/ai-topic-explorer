@@ -1,6 +1,6 @@
 /**
  * What one answer said, reduced to the findings a snapshot compares
- * (PROJECT-PLAN §4C): canonical entities, themes, cited domains, which side
+ * (PROJECT-PLAN §4C): canonical entities, canonical themes, cited domains, which side
  * its arguments lean to, and its tone. Every finding is a string key, so
  * agreement and shares work the same way for each kind.
  */
@@ -23,7 +23,7 @@ export interface AnswerFindings {
   findings: Record<Metric, string[]>;
 }
 
-/** Display names for keys that aren't readable on their own (canonical entity ids). */
+/** Display names for keys that aren't readable on their own (canonical entity ids, theme slugs). */
 export type Labels = Record<string, string>;
 
 /**
@@ -43,6 +43,15 @@ export function entityKey(e: { canonicalEntityId: string | null; normalized: str
   return e.canonicalEntityId ? `c:${e.canonicalEntityId}` : `n:${e.normalized}`;
 }
 
+/**
+ * A theme mention's finding: its canonical theme ("t:grid-reliability", task
+ * 4.8), or its own normalized label when it isn't linked (public-site runs,
+ * or a mapper failure).
+ */
+export function themeFindingKey(t: { normalized: string; canonical: { slug: string } | null }): string {
+  return t.canonical ? `t:${t.canonical.slug}` : t.normalized;
+}
+
 const uniq = (xs: string[]) => [...new Set(xs)].sort();
 
 /** Load a run's answers as findings, with labels for entity keys. */
@@ -60,7 +69,7 @@ export async function loadFindings(db: PrismaClient, runId: string): Promise<{ a
         select: {
           tone: true,
           entities: { select: { canonicalEntityId: true, normalized: true, name: true, canonical: { select: { name: true } } } },
-          themes: { select: { normalized: true } },
+          themes: { select: { normalized: true, canonical: { select: { slug: true, name: true } } } },
           arguments: { select: { side: true } },
         },
       },
@@ -74,6 +83,7 @@ export async function loadFindings(db: PrismaClient, runId: string): Promise<{ a
       const key = entityKey(e);
       labels[key] ??= e.canonical?.name ?? e.name;
     }
+    for (const t of r.extraction.themes) if (t.canonical) labels[themeFindingKey(t)] ??= t.canonical.name;
     answers.push({
       answerId: r.id,
       questionId: r.questionId,
@@ -83,7 +93,7 @@ export async function loadFindings(db: PrismaClient, runId: string): Promise<{ a
       repeat: r.repeat,
       findings: {
         entity: uniq(r.extraction.entities.map(entityKey)),
-        theme: uniq(r.extraction.themes.map((t) => t.normalized)),
+        theme: uniq(r.extraction.themes.map(themeFindingKey)),
         // Sources the answer cited, or that the API doesn't say were only looked at.
         domain: uniq(r.citations.filter((c) => c.cited !== false).map((c) => c.domain)),
         side: [sideBalance(r.extraction.arguments.map((a) => a.side))],
