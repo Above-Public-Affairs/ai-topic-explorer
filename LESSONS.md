@@ -51,7 +51,9 @@ docs push to `main` redeployed every service and Railway sent the running contai
 Its "running" job row then blocked a retry until the 3-hour stale window passed. Any cron here
 can be cut off by any push. Catch SIGTERM, mark this run's unfinished work failed (and any Run
 it left `running`), and keep the stale window shorter than the cron interval so even a hard
-kill is retried on the next run.
+kill is retried on the next run. Start the worker with `node --import tsx <script>`, not
+`npm run` or the `tsx` CLI: neither passes SIGTERM on, so a handler behind them never runs
+(seen in production at 18:20 UTC, then reproduced locally).
 
 ## Calibrate a change detector with an A/A test before trusting it (Nov 2026)
 

@@ -20,7 +20,7 @@
     "themes": "tsx scripts/themes.ts",
     "worker:weekly": "tsx scripts/weekly-snapshots.ts",
     "worker:models": "tsx scripts/model-watcher.ts",
-    "worker:events": "tsx scripts/event-watcher.ts",
+    "worker:events": "node --import tsx scripts/event-watcher.ts",
     "alerts": "tsx scripts/alerts.ts",
     "report:monthly": "tsx scripts/monthly-report.ts",
     "test": "vitest run",

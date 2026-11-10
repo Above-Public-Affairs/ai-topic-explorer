@@ -7,6 +7,10 @@
  * the run Railway starts on each deploy repeats nothing.
  *
  *   npm run worker:events
+ *
+ * Railway's start command is `node --import tsx scripts/event-watcher.ts`, not
+ * `npm run`: npm and the tsx CLI don't pass SIGTERM on, so the release below
+ * would never run.
  *   npm run worker:events -- --force-scan            (scan now, still once a day)
  *   npm run worker:events -- --only=scan,schedule    (known,scan,schedule,snapshots)
  *

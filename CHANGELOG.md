@@ -45,7 +45,7 @@ All notable changes to AI Topic Explorer will be documented in this file.
 - Local proof: a simulated Gemini switch (flash-lite → 3.6-flash) updated the list, logged the event and ran 3 items × 8 questions × 2 models, 48/48 answered, $1.28. The first real check of all four caught two stale official pages (an old Sonnet 5 launch post, the out-of-date GPT-5.6 help page); both were held back
 
 ### Fixed (task 4.7: event watcher survives deploys)
-- A push to `main` redeploys every service and stops a running cron. The event watcher now marks its unfinished scan or snapshot failed (and the snapshot's Run) when stopped, so the next hourly run retries it; an orphaned job is retried after 50 minutes instead of 3 hours
+- A push to `main` redeploys every service and stops a running cron. The event watcher now marks its unfinished scan or snapshot failed (and the snapshot's Run) when stopped, so the next hourly run retries it; an orphaned job is retried after 50 minutes instead of 3 hours. Being stopped doesn't use up one of a job's 3 attempts. The cron starts the worker with `node --import tsx`, since npm and the tsx CLI don't pass the stop signal on
 
 ### Added (task 4.7: event watcher)
 - `npm run worker:events` (`scripts/event-watcher.ts`, `lib/watchers/events/`), run hourly by Railway cron service `event-watcher`: weekly refresh of official election and legislative-session dates (Texas, New Mexico, federal; next 12 months; `.gov`/`.us` sources only), a daily web-search scan from 12:00 UTC for events in the approved categories except `new_model` (model policy, crawler changes, elections, legislative sessions, very large news), scheduling, and due event snapshots

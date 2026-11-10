@@ -164,4 +164,15 @@ describe.skipIf(!local)("event watcher in Postgres", () => {
     expect(retry.snapshots).toHaveLength(texas.length);
     expect(retry.snapshots.every((s) => s.outcome === "ran")).toBe(true);
   });
+
+  it("releases this process's jobs on SIGTERM without using up an attempt", async () => {
+    const key = "events:scan:2031-04-01";
+    expect(await W.claimJob(db, key, "scan", new Date("2031-04-01T13:00:00Z"))).toEqual({ claimed: true, attempt: 1 });
+    expect(await W.abandonActiveJobs(db, "stopped by SIGTERM", new Date("2031-04-01T12:00:00Z"))).toEqual([key]);
+    const row = await db.watcherJob.findUnique({ where: { key } });
+    expect(row).toMatchObject({ status: "failed", attempts: 0, note: "stopped by SIGTERM" });
+    expect(await W.claimJob(db, key, "scan", new Date("2031-04-01T14:00:00Z"))).toEqual({ claimed: true, attempt: 1 });
+    await W.finishJob(db, key, "complete");
+    expect(await W.abandonActiveJobs(db, "again", new Date())).toEqual([]);
+  });
 });
