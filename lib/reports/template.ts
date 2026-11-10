@@ -53,11 +53,11 @@ const markKind: Record<TimelineMark["kind"], string> = { new_model: "Model chang
 
 // ── HTML ───────────────────────────────────────────────────────────────────
 
-const h2 = (t: string) => `<h2 style="${FONT}margin:0 0 4px;font-size:20px;line-height:1.3;font-weight:600;color:${C.text};">${esc(t)}</h2>`;
+const h2 = (t: string) => `<h2 style="${FONT}text-wrap:balance;margin:0 0 4px;font-size:20px;line-height:1.3;font-weight:600;color:${C.text};">${esc(t)}</h2>`;
 const h3 = (t: string) => `<h3 style="${FONT}margin:24px 0 8px;font-size:15px;line-height:1.4;font-weight:600;color:${C.text};">${esc(t)}</h3>`;
-const p = (html: string, style = "") => `<p style="${FONT}margin:0 0 10px;font-size:14px;line-height:1.55;color:${C.secondary};${style}">${html}</p>`;
+const p = (html: string, style = "") => `<p style="${FONT}text-wrap:pretty;margin:0 0 10px;font-size:14px;line-height:1.55;color:${C.secondary};${style}">${html}</p>`;
 const img = (c: RenderedChart) =>
-  `<img src="cid:${c.cid}" width="${CHART_WIDTH}" alt="${esc(c.alt)}" style="display:block;width:100%;max-width:${CHART_WIDTH}px;height:auto;border:1px solid ${C.rule};border-radius:8px;margin:8px 0 12px;">`;
+  `<img src="cid:${c.cid}" width="${CHART_WIDTH}" alt="${esc(c.alt)}" style="display:block;width:100%;max-width:${CHART_WIDTH}px;height:auto;border:1px solid rgba(0,0,0,0.1);border-radius:8px;margin:8px 0 12px;">`;
 
 function list(items: string[]): string {
   if (!items.length) return "";
@@ -159,7 +159,7 @@ export function renderHtml(report: MonthlyReport, charts: { trend: RenderedChart
 ${sampleBanner}
 <tr><td style="padding:0 4px 16px;">
 <div style="${FONT}font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:${C.accent};">AI Topic Explorer · Monthly health report</div>
-<h1 style="${FONT}margin:4px 0 0;font-size:26px;line-height:1.25;font-weight:600;color:${C.text};">${esc(report.month.label)}${report.sample ? " (sample)" : ""}</h1>
+<h1 style="${FONT}text-wrap:balance;margin:4px 0 0;font-size:26px;line-height:1.25;font-weight:600;color:${C.text};">${esc(report.month.label)}${report.sample ? " (sample)" : ""}</h1>
 </td></tr>
 <tr><td style="background:${C.card};border-radius:12px;padding:24px;">
 ${h3("The month in brief").replace("margin:24px", "margin:0")}
