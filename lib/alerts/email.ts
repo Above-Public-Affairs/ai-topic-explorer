@@ -6,6 +6,7 @@
  * at the bottom. Plain text plus simple inline-styled HTML (Outlook, Gmail).
  */
 import type { AlertFacts } from "./facts";
+import { plainShare } from "./plain";
 
 export const alertCode = (number: number) => `A-${number}`;
 
@@ -67,37 +68,127 @@ export function renderText(a: AlertForEmail): string {
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const safeUrl = (u: string) => (/^https?:\/\//i.test(u) ? esc(u) : "#");
 
+/** The public site's palette (app/globals.css), so an alert looks like it came from AI Topic Explorer. */
+const C = {
+  page: "#F8F6F3",
+  card: "#FFFFFF",
+  ink: "#1a1a2e",
+  text: "#475569",
+  muted: "#5b6577",
+  line: "#E7E3DE",
+  cyan: "#0e7490",
+  cyanSoft: "#E6F2F5",
+  violet: "#6d28d9",
+  violetSoft: "#F0EAFB",
+  dotOff: "#E2E8F0",
+  dotBefore: "#94A3B8",
+  amberSoft: "#FFF6E5",
+  amberInk: "#7A4B00",
+};
+const FONT = "Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif";
+
+/** "50%" → 0.5. */
+const shareOf = (pct: string) => Math.max(0, Math.min(1, (parseFloat(pct) || 0) / 100));
+
+/**
+ * One row of ten dots, filled for "N in 10": the picture of a share.
+ * Table cells, not images, so it shows in every client with images off.
+ */
+function dotRow(label: string, share: number, fill: string, caption: string): string {
+  const n = Math.round(share * 10);
+  // A share under 1 in 10 still shows as a faint dot, so "fewer than 1 in 10" isn't drawn as none.
+  const shown = share > 0 && n === 0 ? 1 : n;
+  const dots = Array.from(
+    { length: 10 },
+    (_, i) =>
+      `<td style="padding:0 5px 0 0"><div style="width:16px;height:16px;border-radius:8px;background:${i < shown ? (n === 0 ? "#CBD5E1" : fill) : C.dotOff};font-size:0;line-height:0">&nbsp;</div></td>`
+  ).join("");
+  return `<div style="padding:6px 0">
+<div style="font-size:13px;color:${C.muted};margin:0 0 5px">${esc(label)} · <strong style="color:${C.ink}">${esc(caption)}</strong></div>
+<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse"><tr>${dots}</tr></table>
+</div>`;
+}
+
+/** Small before/after bars per AI, when all four moved together. */
+function perAiBars(a: AlertForEmail): string {
+  if (a.facts.trigger === "model_switch" || a.facts.perAi.length < 2) return "";
+  const bar = (share: number, color: string) =>
+    `<div style="height:6px;border-radius:3px;background:${C.dotOff};width:100px"><div style="height:6px;border-radius:3px;background:${color};width:${Math.max(share > 0 ? 3 : 0, Math.round(share * 100))}px;font-size:0;line-height:0">&nbsp;</div></div>`;
+  const rows = a.facts.perAi
+    .map(
+      (p) => `<tr>
+<td style="padding:4px 12px 4px 0;font-size:13px;color:${C.text};white-space:nowrap">${esc(p.ai)}</td>
+<td style="padding:4px 0;width:100px">${bar(shareOf(p.before), C.dotBefore)}<div style="height:3px;font-size:0;line-height:0">&nbsp;</div>${bar(shareOf(p.after), C.cyan)}</td>
+<td style="padding:4px 0 4px 10px;font-size:12px;line-height:1.3;color:${C.muted}">${esc(plainShare(shareOf(p.before), false))} → ${esc(plainShare(shareOf(p.after), false))}</td>
+</tr>`
+    )
+    .join("");
+  return `<div style="font-size:12px;color:${C.muted};margin:14px 0 4px">By AI <span style="color:${C.dotBefore}">■</span> before <span style="color:${C.cyan}">■</span> now</div>
+<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse">${rows}</table>`;
+}
+
+const pill = (text: string, color: string, bg: string) =>
+  `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:${bg};color:${color};font-size:12px;font-weight:600;margin:0 6px 6px 0">${esc(text)}</span>`;
+
 export function renderHtml(a: AlertForEmail): string {
-  const ink = "#1a1a1a";
-  const muted = "#5f6368";
-  const rule = "#e3e3e3";
-  const font = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif";
-  const examples = a.facts.evidence.slice(0, EXAMPLES);
+  const f = a.facts;
+  const isSwitch = f.trigger === "model_switch";
+  const examples = f.evidence.slice(0, EXAMPLES);
   const quotes = examples
     .map(
       (q) =>
-        `<p style="margin:0 0 10px;padding:0 0 0 12px;border-left:3px solid ${rule}">“${esc(q.quote)}”<br><span style="font-size:13px;color:${muted}">${esc(exampleWho(q.ai))}${
-          q.sourceUrl ? ` · <a href="${safeUrl(q.sourceUrl)}" style="color:${muted}">${esc(q.sourceTitle || hostOf(q.sourceUrl))}</a>` : ""
-        }</span></p>`
+        `<tr><td style="padding:0 0 12px"><div style="border-left:3px solid ${C.cyan};padding:2px 0 2px 12px;color:${C.ink};font-size:15px;line-height:1.55">“${esc(q.quote)}”</div><div style="padding:4px 0 0 15px;font-size:12px;color:${C.muted}">${esc(exampleWho(q.ai))}${
+          q.sourceUrl ? ` · <a href="${safeUrl(q.sourceUrl)}" style="color:${C.cyan};text-decoration:underline">${esc(q.sourceTitle || hostOf(q.sourceUrl))}</a>` : ""
+        }</div></td></tr>`
     )
     .join("");
+  const before = shareOf(f.finding.before);
+  const after = shareOf(f.finding.after);
+  const shortDate = (d: string) => d.replace(/, \d{4}.*$/, "");
+  const labels = isSwitch ? ["Old model", "New model"] : [shortDate(f.dates.before), shortDate(f.dates.after)];
+  const tags = [
+    pill(f.watchItem, C.cyan, C.cyanSoft),
+    isSwitch ? pill("Model change", C.amberInk, C.amberSoft) : f.plain.modelNote ? pill("New model involved", C.amberInk, C.amberSoft) : pill(f.trigger === "event" ? "After a news event" : "Weekly check", C.violet, C.violetSoft),
+  ].join("");
 
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(alertSubject(a))}</title></head><body style="margin:0;padding:0;background:#f6f6f4">
-<div style="max-width:560px;margin:0 auto;padding:24px 16px;font-family:${font};font-size:16px;line-height:1.55;color:${ink};-webkit-font-smoothing:antialiased;text-wrap:pretty">
-<div style="font-size:13px;color:${muted};margin-bottom:8px">AI Topic Explorer · ${esc(a.facts.watchItem)}</div>
-<div style="background:#fff;border:1px solid ${rule};border-radius:12px;padding:24px">
-<h1 style="font-size:21px;line-height:1.35;margin:0 0 16px;font-weight:600;text-wrap:balance">${esc(a.facts.plain.headline)}</h1>
-${a.facts.plain.modelNote ? `<p style="margin:0 0 16px;background:#fff6e5;border-radius:8px;padding:10px 12px;font-size:15px"><strong>Why:</strong> ${esc(a.facts.plain.modelNote)}</p>` : ""}
-<p style="margin:0 0 16px"><strong>What it could mean:</strong> ${esc(a.why)}</p>
-<p style="margin:0 0 20px;font-size:15px;color:${muted}">The AIs were asked ${esc(asWho(a.facts.askedAs))}.${a.facts.event ? ` Checked after: ${a.facts.event.sourceUrl ? `<a href="${safeUrl(a.facts.event.sourceUrl)}" style="color:${muted}">${esc(a.facts.event.title)}</a>` : esc(a.facts.event.title)} (${esc(a.facts.event.date)}).` : ""}</p>
-${quotes ? `<div style="font-size:13px;color:${muted};margin:0 0 8px">For example</div>${quotes}` : ""}
-<div style="border-top:1px solid ${rule};padding-top:16px;margin-top:20px">
-<div style="font-size:13px;color:${muted};margin:0 0 8px">Ask Claude (copy and paste)</div>
-<pre style="white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.5;background:#f6f6f4;border-radius:8px;padding:12px;margin:0">${esc(claudePrompt(a))}</pre>
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${esc(alertSubject(a))}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"></head>
+<body style="margin:0;padding:0;background:${C.page}">
+<div style="display:none;max-height:0;overflow:hidden">${esc(f.plain.headline)}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.page}"><tr><td align="center" style="padding:20px 8px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;font-family:${FONT};-webkit-font-smoothing:antialiased">
+<tr><td style="padding:0 4px 14px">
+<span style="font-size:18px;font-weight:700;color:${C.ink};letter-spacing:-0.01em">AI <span style="color:${C.cyan}">Topic</span> <span style="color:${C.violet}">Explorer</span></span>
+<span style="float:right;font-size:12px;color:${C.muted};line-height:26px">Alert ${esc(alertCode(a.number))}</span>
+</td></tr>
+<tr><td style="background:${C.card};border:1px solid ${C.line};border-radius:16px;overflow:hidden">
+<div style="height:4px;background:${C.cyan};background-image:linear-gradient(90deg,${C.cyan},${C.violet});font-size:0;line-height:0">&nbsp;</div>
+<div style="padding:22px 20px 8px">
+<div>${tags}</div>
+<h1 style="margin:10px 0 18px;font-size:22px;line-height:1.35;font-weight:700;color:${C.ink};text-wrap:balance">${esc(f.plain.headline)}</h1>
+<div style="background:${C.page};border-radius:12px;padding:12px 16px;margin:0 0 18px">
+${dotRow(labels[0], before, C.dotBefore, plainShare(before))}
+${dotRow(labels[1], after, C.cyan, plainShare(after))}
+<div style="font-size:12px;color:${C.muted};margin-top:4px">Each dot is 1 in 10 answers${isSwitch && f.modelSwitch ? ` from ${esc(f.modelSwitch.ai)}` : ""}.</div>
+${perAiBars(a)}
 </div>
+${f.plain.modelNote ? `<div style="background:${C.amberSoft};border-radius:10px;padding:12px 14px;margin:0 0 16px;font-size:15px;line-height:1.5;color:${C.amberInk}"><strong>Why:</strong> ${esc(f.plain.modelNote)}</div>` : ""}
+<p style="margin:0 0 16px;font-size:16px;line-height:1.55;color:${C.ink}"><strong>What it could mean:</strong> ${esc(a.why)}</p>
+<p style="margin:0 0 20px;font-size:14px;line-height:1.5;color:${C.text}">The AIs were asked ${esc(asWho(f.askedAs))}.${f.event ? ` Checked after: ${f.event.sourceUrl ? `<a href="${safeUrl(f.event.sourceUrl)}" style="color:${C.cyan}">${esc(f.event.title)}</a>` : esc(f.event.title)} (${esc(f.event.date)}).` : ""}</p>
+${quotes ? `<div style="font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:${C.muted};margin:0 0 10px">For example</div><table role="presentation" cellpadding="0" cellspacing="0" width="100%">${quotes}</table>` : ""}
 </div>
-<p style="font-size:12px;line-height:1.5;color:${muted};margin:12px 4px 0">Details: ${esc(details(a))}${a.facts.alsoChanged.length ? `<br>Also changed: ${esc(a.facts.alsoChanged.join("; "))}.` : ""}<br>Alert ${esc(alertCode(a.number))} from AI Topic Explorer, Above's internal topic tracker. Replies go to Josh.</p>
-</div></body></html>`;
+<div style="background:${C.cyanSoft};padding:18px 20px 20px;border-top:1px solid ${C.line}">
+<div style="font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:${C.cyan};margin:0 0 8px">Ask Claude · copy and paste</div>
+<pre style="white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.5;color:${C.ink};background:${C.card};border:1px solid #CFE3E9;border-radius:10px;padding:12px 14px;margin:0">${esc(claudePrompt(a))}</pre>
+</div>
+</td></tr>
+<tr><td style="padding:14px 8px 0;font-size:12px;line-height:1.55;color:${C.muted};overflow-wrap:anywhere">
+Details: ${esc(details(a))}${f.alsoChanged.length ? `<br>Also changed: ${esc(f.alsoChanged.join("; "))}.` : ""}
+<br><br>Sent by AI Topic Explorer, Above's internal topic tracker. Replies go to Josh.
+</td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
 }
 
 /** "Gemini, Nov 16, 2026" → "Gemini"; "Gemini, old model" stays. */
