@@ -543,6 +543,8 @@ model Event {
   modelRegistryId String?
   /// The snapshot it triggered.
   runId           String?
+  /// Why it was ignored, deferred or failed, and other watcher notes (task 4.7).
+  note            String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -552,4 +554,25 @@ model Event {
 
   @@index([status, triggerAt])
   @@index([category, occurredAt])
+}
+
+/// One unit of watcher work, keyed so a cron that runs on every deploy does
+/// it once (task 4.7): "events:scan:2026-11-10", "events:known-dates:2026-11-09",
+/// "events:snapshot:<watchItemId>:<triggerAt>". A second run finds the key and
+/// skips; a failed or stale one is taken over. Shared by any watcher.
+model WatcherJob {
+  id         String    @id @default(cuid())
+  key        String    @unique
+  /// "scan", "known_dates", "snapshot" (event watcher); others for other watchers.
+  kind       String
+  /// running, complete, failed, skipped.
+  status     String
+  attempts   Int       @default(1)
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  costUsd    Float?
+  stats      Json?
+  note       String?
+
+  @@index([kind, startedAt])
 }

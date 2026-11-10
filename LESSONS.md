@@ -74,3 +74,12 @@ it: the service showed no pre-deploy command and the deploy logs had no Prisma o
 Railway has deprecated config-as-code, and this service ignores the file. Set build, start
 and pre-deploy commands in the service settings (Railway MCP or dashboard), then confirm in
 the next deploy's logs that they ran. Don't add `railway.json` back.
+
+## A worker test with a far-future "now" acts on every real row (Nov 2026)
+
+The event watcher's database test used dates in 2031 to stay clear of real data, and ran it
+against the database holding the local proof. With "now" in 2031, every real calendar event
+(sessions and elections in 2026–27) was due, so the stubbed snapshots ran on them and
+"took over" a real snapshot that was still running (3 hours old, as seen from 2031). Give a
+worker's database test its own freshly migrated database, never one with real events in it.
+

@@ -19,6 +19,7 @@
     "snapshot": "tsx scripts/snapshot.ts",
     "worker:weekly": "tsx scripts/weekly-snapshots.ts",
     "worker:models": "tsx scripts/model-watcher.ts",
+    "worker:events": "tsx scripts/event-watcher.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

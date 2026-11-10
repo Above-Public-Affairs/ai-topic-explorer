@@ -34,6 +34,25 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
   against a local copy (it refuses anything but localhost). DB test:
   `tests/model-watcher.db.test.ts` (needs `TEST_DATABASE_URL`, a scratch copy; it changes the list).
 
+## Event watcher (task 4.7)
+- Railway cron service `event-watcher` (same project, same repo) runs `npm run worker:events`
+  hourly. Code: `scripts/event-watcher.ts`, `lib/watchers/events/` (rules, scan, jobs, worker).
+  Rules and costs are in `PROJECT-PLAN.md` §4D.
+- Every step is claimed in `WatcherJob` by key (`events:scan:<day>`,
+  `events:known-dates:<monday>:<geographies>`, `events:snapshot:<item>:<triggerAt>`), so a
+  redeploy repeats nothing. To re-run a scan by hand, delete that day's `events:scan:` row.
+- Read what it found: `Event` rows (`status` pending/approved/ignored, `note` = why ignored or
+  failed, `runId` = the snapshot), and `WatcherJob.stats` for each scan's scopes, costs, drops
+  and repeats.
+- `npm run worker:events -- --force-scan` scans before 12:00 UTC; `--only=known,scan,schedule,snapshots`
+  picks stages.
+- `new_model` events are the model watcher's (4.5); this worker never touches them.
+- DB test: `TEST_DATABASE_URL=<fresh migrated local db> npx vitest run tests/event-watcher.db.test.ts`.
+  Give it its own database (see LESSONS).
+- Gotcha: GPT-6 Luna at low effort runs only 2–4 searches a call, so one broad known-dates
+  call missed dates; it now asks elections and sessions separately per geography. A
+  one-state House runoff came back as a "federal election" until the prompt said nationwide only.
+
 ## Weekly worker (task 4.4)
 - Railway cron service `weekly-snapshots` (same project, same repo) runs `npm run worker:weekly`
   at `0 5 * * 1` (Monday 05:00 UTC), one snapshot per active watch item, then exits.

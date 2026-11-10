@@ -13,6 +13,13 @@ All notable changes to AI Topic Explorer will be documented in this file.
 - No schema change: each switch run names its event and both registry rows on `Run.stats.modelSwitch`; `Event.runId` points at the first one
 - Local proof: a simulated Gemini switch (flash-lite → 3.6-flash) updated the list, logged the event and ran 3 items × 8 questions × 2 models, 48/48 answered, $1.28. The first real check of all four caught two stale official pages (an old Sonnet 5 launch post, the out-of-date GPT-5.6 help page); both were held back
 
+### Added (task 4.7: event watcher)
+- `npm run worker:events` (`scripts/event-watcher.ts`, `lib/watchers/events/`), run hourly by Railway cron service `event-watcher`: weekly refresh of official election and legislative-session dates (Texas, New Mexico, federal; next 12 months; `.gov`/`.us` sources only), a daily web-search scan from 12:00 UTC for events in the approved categories except `new_model` (model policy, crawler changes, elections, legislative sessions, very large news), scheduling, and due event snapshots
+- Each event is logged with its source (URL and name), date, watch items and why it clears the bar; repeats of a logged story aren't logged again; hearings and routine groundbreakings or openings are logged as ignored
+- An event triggers a snapshot of each affected watch item about 24h after it happened (Run kind `event`, linked to the event, compared with the item's previous snapshot); events within 24h share one; at most 2 event snapshots per item per week, the rest logged as ignored with the reason. No approval step
+- Caps: `EVENT_SCAN_CAP_USD` ($1), `EVENT_SNAPSHOT_CAP_USD` ($5), `EVENT_RUN_CAP_USD` ($15). Failures go to error reporting
+- Migration `20261110170000_event_watcher` (additive): `Event.note` and a `WatcherJob` table, the once-only ledger that makes every step safe to repeat when the cron runs on deploy
+
 ## [2026-11-09]
 
 ### Added (task 4.4: weekly snapshots on a Railway worker)

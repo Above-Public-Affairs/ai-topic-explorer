@@ -346,6 +346,44 @@ Snapshots can run before that.
   - **Rules:** an event snapshot runs about 24h after the event and may land within a day
     of a weekly snapshot, since the comparison shows the event's effect. At most 2 event
     snapshots a week. Every trigger is logged with its source.
+  - **Built (task 4.7).** Railway cron service `event-watcher` (same project and repo) runs
+    `npm run worker:events` (`scripts/event-watcher.ts`, `lib/watchers/events/`) **hourly**.
+    Each run, every step claimed first in `WatcherJob` so a deploy-triggered run repeats
+    nothing:
+    - **Known dates, weekly:** official election days (and the canvass of the latest one)
+      and legislative session first and last days for each tracked geography, plus
+      nationwide federal elections and Congress, next 12 months. Stored as `scheduled`
+      events; only `.gov` / `.us` sources are accepted; a moved date is refreshed.
+    - **Scan, once a day from 12:00 UTC:** four web-search calls (AI companies and
+      publishers; each tracked state; federal) with GPT-6 Luna, low effort, a strict JSON
+      schema, at most 12 searches a call. Geographies come from the active watch items, so a
+      new state is scanned automatically. Looks back to a day before the last scan (2–4
+      days). Each event is logged with title, category, watch items, date, source URL and
+      name, and why it clears the bar. A repeat of a logged story is not logged (the model
+      flags it, or same source URL, or most title words shared within 4 days, or a session or
+      election date in the same place within 2 days). Hearings and routine groundbreakings
+      or openings are logged as `ignored`; so are events found more than 4 days late.
+    - **Scheduling:** an event is one `Event` row per watch item it bears on, as the model
+      names them: a state's events only to that state's items, federal news to the items it
+      is about, AI-company and publisher events and calendar dates to every item in scope.
+      Once its trigger time (24h after the event; date-only events count as 18:00 UTC) is
+      within 3 days, it gets a slot. Events of one item within 24h share a snapshot. At most
+      **2 event snapshots per item per week** (Monday 00:00 UTC); the rest are `ignored` with
+      the reason in `Event.note`. No approval step.
+    - **Snapshots:** due slots run `runSnapshot()` with Run kind `event`, linked through
+      `Event.runId`, compared with the item's previous snapshot (`Run.stats.comparison`).
+      Deferred if a snapshot of the item is already running. A failed one is retried up to 3
+      times in all.
+    - **Caps:** `EVENT_SCAN_CAP_USD` (default **$1**, the day's scan and the week's
+      known-dates refresh each), `EVENT_SNAPSHOT_CAP_USD` (default **$5** a snapshot),
+      `EVENT_RUN_CAP_USD` (default **$15** of snapshots per run; the rest wait an hour).
+      A scan costs about $0.10, the weekly known-dates refresh about $0.15.
+    - **What it costs in snapshots:** the calendar alone gives about 14 event snapshots a
+      year at current watch items (~$60): Texas canvass, session start and end and the
+      November 2027 election (2 items each), New Mexico canvass and session start and end
+      (1 item), and Congress convening on Jan 3, 2027 (all 3).
+    - Failures (a scope, a stage or a snapshot) are caught, logged and sent to error
+      reporting (`watcher_error`, `snapshot_error`); one never stops the others.
 
 ---
 

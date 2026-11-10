@@ -4,6 +4,12 @@
 
 ## Current Status: Live in production (beta), new direction planned
 
+**Task 4.7 (event watcher, Nov 10):** Railway cron service `event-watcher` runs hourly: a
+daily web-search scan (about $0.10) for events in Josh's approved categories, a weekly refresh
+of official election and session dates, and an event snapshot of each affected watch item
+about 24h after an event (max 2 per item per week, $5 cap each), every trigger logged with its
+source (`PROJECT-PLAN.md` §4D). Proven locally: real scan and calendar, one event snapshot ($4.44).
+
 **Task 4.5 (model watcher, Nov 10):** Railway cron service `model-watcher` checks each
 provider's free-tier default daily at 13:00 UTC, about $0.04 a day. A clear change updates the
 model list, logs a `new_model` event and asks every watch item's anchor questions on both
