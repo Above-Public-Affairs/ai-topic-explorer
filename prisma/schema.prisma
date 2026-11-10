@@ -137,6 +137,7 @@ model WatchItem {
   runs         Run[]
   events       Event[]
   themes       CanonicalTheme[]
+  alerts       Alert[]
 }
 
 /// A sub-topic inside a watch item (e.g. power generation, water use, noise).
@@ -276,11 +277,13 @@ model Run {
   stats       Json?
   note        String?
 
-  watchItem WatchItem?   @relation(fields: [watchItemId], references: [id])
-  freshSet  QuestionSet?
-  answers   Answer[]
+  watchItem    WatchItem?   @relation(fields: [watchItemId], references: [id])
+  freshSet     QuestionSet?
+  answers      Answer[]
   /// The event(s) that triggered this run, for kind = event.
-  events    Event[]
+  events       Event[]
+  alerts       Alert[]      @relation("AlertRun")
+  alertsBefore Alert[]      @relation("AlertBeforeRun")
 
   @@index([watchItemId, startedAt])
   @@index([kind, startedAt])
@@ -600,6 +603,7 @@ model Event {
   watchItem     WatchItem?     @relation(fields: [watchItemId], references: [id])
   modelRegistry ModelRegistry? @relation(fields: [modelRegistryId], references: [id])
   run           Run?           @relation(fields: [runId], references: [id])
+  alerts        Alert[]
 
   @@index([status, triggerAt])
   @@index([category, occurredAt])
@@ -624,4 +628,73 @@ model WatcherJob {
   note       String?
 
   @@index([kind, startedAt])
+}
+
+/// sending: claimed by a sender, so a second process never sends it twice.
+enum AlertStatus {
+  pending
+  sending
+  sent
+  suppressed
+  failed
+}
+
+/// One notable change between two snapshots of a watch item (task 5.2,
+/// lib/alerts): one finding, its plain-English summary and the email sent.
+model Alert {
+  id          String      @id @default(cuid())
+  /// Readable number: alert A-12 is number 12.
+  number      Int         @unique @default(autoincrement())
+  watchItemId String
+  /// The snapshot the change showed up in.
+  runId       String
+  /// The snapshot it was compared with. Null for a model-switch run, which compares two models inside one run.
+  beforeRunId String?
+  /// The event that triggered the snapshot, or the new_model event of a model switch.
+  eventId     String?
+  trigger     RunKind
+  /// "<runId>:<scope>:<metric>:<key>": a re-run never stores or sends the same alert twice.
+  dedupeKey   String      @unique
+  /// The finding: entity, theme, domain, side or tone.
+  metric      String
+  key         String
+  label       String
+  /// rose, fell, new, gone.
+  kind        String
+  /// "all" or one AI ("grok").
+  scope       String
+  /// The AIs it moved for.
+  providers   String[]    @default([])
+  before      Float
+  after       Float
+  countBefore Int
+  countAfter  Int
+  /// The noise band it beat, as a share.
+  threshold   Float
+  /// True when the change comes from a different model answering, not the world (model switch, or a model changed between snapshots).
+  modelChange Boolean     @default(false)
+  /// Rank among this snapshot's changes for the item (1 = biggest).
+  rank        Int
+  /// Everything the summary was written from (evidence, location, other changes).
+  facts       Json
+  subject     String
+  summary     String
+  /// How the summary was written: the model, or "template" when the model's text failed the number check.
+  writer      String
+  costUsd     Float       @default(0)
+  status      AlertStatus @default(pending)
+  note        String?
+  sentAt      DateTime?
+  messageId   String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  watchItem WatchItem @relation(fields: [watchItemId], references: [id])
+  run       Run       @relation("AlertRun", fields: [runId], references: [id], onDelete: Cascade)
+  beforeRun Run?      @relation("AlertBeforeRun", fields: [beforeRunId], references: [id], onDelete: SetNull)
+  event     Event?    @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([runId])
+  @@index([watchItemId, createdAt])
+  @@index([status, createdAt])
 }

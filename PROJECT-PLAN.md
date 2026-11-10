@@ -447,6 +447,32 @@ Snapshots can run before that.
   can decide whether to follow up, **and a ready-made prompt** to dig in with Claude ("Using
   AI Topic Explorer, explain alert A-123").
 - **Wait:** at least 2 snapshots, so a noise band exists.
+- **Built (task 5.2, `lib/alerts/`).** `afterSnapshot(db, runId)` is called once where each
+  snapshot finishes (weekly worker, event watcher, model watcher).
+  - **What becomes an alert:** the swings `compareSnapshots()` already found (beyond the band).
+    One finding per idea: the all-AI swing and each AI's own swing of the same thing are one
+    alert, naming the AIs; tone and argument lean are one finding each. "New" swings are the
+    new insights, lifted when never seen before in the watch item.
+  - **Rank and cap:** times past the band, ×1.5 for all-AI, ×1.25 first seen, ×0.5 when only
+    AIs whose model changed moved. At most **3 per item per snapshot**, 1 per model switch;
+    the rest on one "also changed" line.
+  - **Model changes:** a model-switch run compares the old model's answers with the new one's,
+    judged by the item's latest snapshot noise, and is always labeled a model change. A weekly
+    or event change carries a caveat when an AI that moved answered with a different model in
+    the two snapshots.
+  - **Writing:** one GPT-6 Luna call per alert from the stored facts (`Alert.facts`), about
+    $0.0002. Every number and number word in its text must already be in the facts, with no
+    statistics jargon and the model caveat kept, or a template summary is used.
+  - **Email:** subject `A-12 · <item>: <finding> (Change | Model change)`; summary, why it
+    might matter, how the AIs were asked, evidence (shares, per AI, up to 3 quoted sentences
+    with sources), a Claude prompt, the also-changed line.
+  - **Switches:** `ALERTS_ENABLED` (off: stored as `suppressed`), `ALERT_RECIPIENTS` (default
+    Josh). Idempotent: created once per run in one transaction; each claimed before sending.
+  - **Proof (Nov 10, 2026, local copies):** A/A on task 4.3's two snapshots → no alerts. Real
+    Gemini switch (3.5-flash-lite → 3.6-flash): Data centers "reddit.com 50% → 13%" and O&G NM
+    "Permian Basin 100% → 50%", both labeled model change; Renewables none. Injected changes
+    (4 entities) → 3 alerts, the fourth on the also-changed line. Test email (alert A-2)
+    accepted by SendGrid Nov 10, 2026 17:36 UTC.
 
 ### 5C. Claude connector
 - MCP server, added as an org Connector, like the Meta Ad Library tool. Tools to look up

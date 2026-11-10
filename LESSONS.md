@@ -3,6 +3,13 @@
 > Reusable rules this project taught us the hard way. Appended at the Compound step
 > (see `build-methodology`), newest at top. Not a changelog — the rule, not the play-by-play.
 
+## An HTML email needs a charset meta, or every arrow and curly quote turns to junk (Nov 2026)
+
+The first alert email rendered "→" as "â†’" and quotes as "â€œ": SendGrid sends the body as
+UTF-8, but an HTML part with no `<meta charset="utf-8">` can be read as Latin-1. Start every
+email template with a `<head>` holding the charset meta, and look at the rendered HTML in a
+browser before the first send, not just the text.
+
 ## Scope merge aliases by context, or a broad entry swallows specific ones (Nov 2026)
 
 Theme aliases first matched any sub-topic, so "neighbor impacts" tagged noise landed in the

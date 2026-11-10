@@ -12,10 +12,11 @@
  *   shared across items: each snapshot gets at most what's left, up to its own
  *   cap (WEEKLY_ITEM_CAP_USD, default $6). Below $1 left, the rest are skipped.
  * - Once a previous snapshot exists, the new one's comparison against it goes
- *   on Run.stats.comparison. Nothing is sent; alerts are 5.2.
+ *   on Run.stats.comparison, then afterSnapshot() makes its alerts (5.2).
  */
 import { Prisma, type PrismaClient, type RunStatus } from "@/app/generated/prisma/client";
 import { compareRuns, runSnapshot, type RunSnapshotOptions, type RunSnapshotResult, type SnapshotStats } from "@/lib/snapshots";
+import { afterSnapshot } from "@/lib/alerts";
 
 export const DEFAULT_RUN_CAP_USD = 15;
 export const DEFAULT_ITEM_CAP_USD = 6;
@@ -83,6 +84,7 @@ export interface WeeklyOptions {
   /** Swappable for tests. */
   snapshot?: (db: PrismaClient, watchItemId: string, options: RunSnapshotOptions) => Promise<RunSnapshotResult>;
   compare?: typeof compareRuns;
+  alerts?: typeof afterSnapshot;
   snapshotOptions?: Omit<RunSnapshotOptions, "kind" | "maxCostUsd">;
   log?: (line: string) => void;
 }
@@ -167,6 +169,7 @@ export async function runWeekly(db: PrismaClient, options: WeeklyOptions = {}): 
       }
       const note = `weekly worker: ${calls} calls, ${failedCalls} failed${result.stats.stoppedAtCapUsd ? `, stopped at $${result.stats.stoppedAtCapUsd} cap` : ""}`;
       await db.run.update({ where: { id: result.runId }, data: { stats: JSON.parse(JSON.stringify(stats)), note } });
+      await (options.alerts ?? afterSnapshot)(db, result.runId, { log: (l) => log(`${item.name}: ${l}`) });
       outcomes.push(outcome);
       log(summaryLine(outcome));
     } catch (err) {

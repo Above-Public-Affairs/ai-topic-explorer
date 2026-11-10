@@ -22,6 +22,7 @@
 import { Prisma, type EventCategory, type PrismaClient } from "@/app/generated/prisma/client";
 import { compareRuns, runSnapshot, type RunSnapshotOptions, type RunSnapshotResult, type SnapshotStats } from "@/lib/snapshots";
 import { STALE_RUNNING_MS, weekStart } from "@/lib/worker/weekly";
+import { afterSnapshot } from "@/lib/alerts";
 import { claimJob, finishJob } from "./jobs";
 import {
   WATCHED_CATEGORIES,
@@ -71,6 +72,7 @@ export interface EventWatcherOptions {
   search?: typeof searchScope;
   snapshot?: (db: PrismaClient, watchItemId: string, options: RunSnapshotOptions) => Promise<RunSnapshotResult>;
   compare?: typeof compareRuns;
+  alerts?: typeof afterSnapshot;
   snapshotOptions?: Omit<RunSnapshotOptions, "kind" | "maxCostUsd" | "note">;
   log?: (line: string) => void;
 }
@@ -504,6 +506,7 @@ async function runDueSnapshots(
         }
       }
       await db.run.update({ where: { id: result.runId }, data: { stats: JSON.parse(JSON.stringify(stats)) } });
+      await (options.alerts ?? afterSnapshot)(db, result.runId, { log: (l) => log(`  ${base.name}: ${l}`) });
       await finishJob(db, key, "complete", { costUsd: result.costUsd, stats: { runId: result.runId, status: result.pipeline.status, swings: outcome.swings } });
       if (result.pipeline.status !== "complete" || result.stats.stoppedAtCapUsd) {
         errors.push({

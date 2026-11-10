@@ -4,6 +4,15 @@ All notable changes to AI Topic Explorer will be documented in this file.
 
 ## [2026-11-10]
 
+### Added (task 5.2: notable-change alerts)
+- `lib/alerts/`: `afterSnapshot(db, runId)` runs when each snapshot finishes (weekly worker, event watcher, model watcher; one added call in each). It turns the snapshot's changes beyond the noise band into alerts, one finding each: a change seen across all AIs and for some AIs on their own is one alert naming those AIs; tone and argument lean are one finding each
+- Ranked by how far past the band, lifted for all-AI changes and for things never seen before in the watch item, cut in half when only an AI whose model changed moved. At most 3 alerts per item per snapshot (1 per model switch); the rest go on one "also changed" line
+- A model-switch run compares the old model's answers with the new model's (judged by the item's latest snapshot noise) and is always labeled a model change, never real-world change. A weekly or event change from an AI whose model differs between the two snapshots carries a caveat
+- Each email: a plain-English summary and "why it might matter" (one GPT-6 Luna call, about $0.0002 an alert), the evidence (before/after shares, per AI, up to 3 quoted sentences with their sources), "How the AIs were asked: Asked as a user in Austin, Texas", and a Claude prompt ("Using AI Topic Explorer, explain alert A-12", with enough context to work pasted into Claude without the connector). Every number and number word in the model's text must already be in the stored facts, with no statistics jargon, or a template summary is used instead
+- Off by default: `ALERTS_ENABLED` unset or false stores alerts as `suppressed`; `true` sends to `ALERT_RECIPIENTS` (comma-separated, default joshua@abovepublicaffairs.com). Idempotent: a run's alerts are created in one transaction and never again; each is claimed (pending → sending) before it's sent. Never throws into the snapshot; failures go to error reporting (`alert_error`)
+- Migration `20261110190000_alerts` (additive: enum `AlertStatus`, table `Alert` with readable `number`, A-1, A-2…)
+- `npm run alerts`: `--list`, `--run=<id>`, `--show=A-n [--html=<file>]`, `--send-test=A-n [--to=]`, `--compare=<before>,<after>` (local proofs)
+
 ### Added (task 4.8: merge themes worded different ways)
 - `lib/themes/`: each watch item's theme mentions link to one `CanonicalTheme` per idea ("power demand" and "electricity demand" are one theme), from a reviewed per-item vocabulary (`lib/themes/vocab.ts`): alias table first (no AI call, right after each extraction), then one batched label-mapper call per snapshot for unseen labels (stored, so each label is mapped once), with a "new" theme for labels that fit nothing. Each mention keeps its own label
 - Snapshot findings key themes by canonical theme (`t:<slug>`); `runSnapshot()` links the snapshot's themes before computing stats (signature unchanged; mapper cost added to the run's cost)

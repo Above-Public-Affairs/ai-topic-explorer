@@ -19,6 +19,7 @@
  * - Daily check cap (MODEL_CHECK_CAP_USD, default $1) and a switch-day cap
  *   (MODEL_SWITCH_CAP_USD, default $12) shared across a day's switch runs.
  */
+import { afterSnapshot } from "@/lib/alerts";
 import type { Prisma, PrismaClient, RunStatus } from "@/app/generated/prisma/client";
 import type { ModelChoice, ModelSettings, ProviderId } from "@/lib/answers";
 import { PROVIDER_IDS, saveModel } from "@/lib/answers/registry";
@@ -140,6 +141,7 @@ export interface ModelWatcherOptions {
   pipeline?: typeof runPipeline;
   /** Provider calls in flight at once on a switch run. */
   askConcurrency?: number;
+  alerts?: typeof afterSnapshot;
   log?: (line: string) => void;
 }
 
@@ -446,6 +448,8 @@ async function runSwitch(
       outcome.reason = String(err);
       await db.run.update({ where: { id: run.id }, data: { status: "failed", finishedAt: new Date(), note: `model watcher: ${String(err)}`.slice(0, 1000) } }).catch(() => {});
     }
+    // Labeled as a model change, never as real-world change; skips a failed run.
+    if (outcome.outcome === "ran") await (options.alerts ?? afterSnapshot)(db, run.id, { log: (l) => options.log?.(`${sw.provider} ${item.name}: ${l}`) });
     budget.switch += outcome.costUsd ?? 0;
     result.costUsd += outcome.costUsd ?? 0;
     result.items.push(outcome);
