@@ -17,6 +17,18 @@ The app is becoming an internal topic-tracking tool.
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
 Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search) and 5.1.
 
+## Weekly worker (task 4.4)
+- Railway cron service `weekly-snapshots` (same project, same repo) runs `npm run worker:weekly`
+  at `0 5 * * 1` (Monday 05:00 UTC), one snapshot per active watch item, then exits.
+  Code: `scripts/weekly-snapshots.ts`, `lib/worker/weekly.ts`.
+- Its env is Railway references to the web service (`DATABASE_URL`, AI keys, `ERROR_API_*`),
+  so rotating a key on the web service carries over. It doesn't run migrations.
+- Safe to re-run by hand (Railway "Run now" / redeploy): items with a complete/partial weekly
+  snapshot this UTC week are skipped; failed ones retry. Run cap `WEEKLY_RUN_CAP_USD`
+  (default $15), item cap `WEEKLY_ITEM_CAP_USD` (default $6).
+- Each snapshot's comparison against the item's previous one is on `Run.stats.comparison`.
+- Gotcha: Railway cron is UTC, so it's 11pm Sunday Central in winter, midnight in summer.
+
 ## Snapshots, repeats and noise bands (task 4.3)
 - `lib/snapshots/runSnapshot(db, watchItemId)` is what the weekly worker (4.4) calls: locked
   questions ×3 (`DEFAULT_REPEATS`), fresh ×1, optional `maxCostUsd` cap and `askConcurrency`.
