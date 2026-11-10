@@ -37,6 +37,15 @@ never ran. Deploy SUCCESS on a cron service only means the image is ready. To se
 before its schedule, set the cron a few minutes ahead, redeploy, read the logs, then set it
 back. Keep the once-per-period guards anyway: they make a manual run or a retry harmless.
 
+## A deploy kills a cron job that is running: release its work on SIGTERM (Nov 2026)
+
+The event watcher's first production run (17:15 UTC, Nov 10) was killed 3 minutes in, when a
+docs push to `main` redeployed every service and Railway sent the running container SIGTERM.
+Its "running" job row then blocked a retry until the 3-hour stale window passed. Any cron here
+can be cut off by any push. Catch SIGTERM, mark this run's unfinished work failed (and any Run
+it left `running`), and keep the stale window shorter than the cron interval so even a hard
+kill is retried on the next run.
+
 ## Calibrate a change detector with an A/A test before trusting it (Nov 2026)
 
 Two snapshots of the same watch item run minutes apart can't differ for real, so every

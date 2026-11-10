@@ -338,8 +338,13 @@ export function decideSlot(triggerAt: Date, slots: Slot[]): SlotDecision {
 
 // ---- Idempotency ---------------------------------------------------------
 
-/** A job still "running" after this long was orphaned (process died) and may be taken over. */
-export const STALE_JOB_MS = 3 * 3600 * 1000;
+/**
+ * A job still "running" after this long was orphaned and may be taken over.
+ * A scan takes ~3 minutes and a snapshot ~6, and the cron is hourly, so 50
+ * minutes is safe and lets the next hour's run retry a job whose container was
+ * killed (a push to main redeploys every service and SIGTERMs a running cron).
+ */
+export const STALE_JOB_MS = 50 * 60 * 1000;
 /** Failed jobs are retried at most this many times in all. */
 export const MAX_ATTEMPTS = 3;
 

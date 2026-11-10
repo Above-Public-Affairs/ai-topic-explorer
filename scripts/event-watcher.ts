@@ -20,9 +20,24 @@
 import { flush, initErrorReporter, reportError } from "@above-public-affairs/error-reporter";
 import { prisma } from "@/lib/db";
 import { capFromEnv } from "@/lib/worker/weekly";
-import { DEFAULT_RUN_CAP_USD, DEFAULT_SCAN_CAP_USD, DEFAULT_SCAN_HOUR_UTC, DEFAULT_SNAPSHOT_CAP_USD, runEventWatcher } from "@/lib/watchers/events";
+import { DEFAULT_RUN_CAP_USD, DEFAULT_SCAN_CAP_USD, DEFAULT_SCAN_HOUR_UTC, DEFAULT_SNAPSHOT_CAP_USD, abandonActiveJobs, runEventWatcher } from "@/lib/watchers/events";
 
 initErrorReporter({ project: "ai-topic-explorer" });
+
+const processStarted = new Date();
+// Any deploy to the project replaces this container and SIGTERMs it mid-run.
+// Give up this run's jobs as failed so the next hourly run retries them.
+process.once("SIGTERM", () => {
+  const reason = "stopped by SIGTERM (a deploy replaced the container)";
+  console.log(`Event watcher: ${reason}; marking unfinished jobs failed`);
+  abandonActiveJobs(prisma, reason, processStarted)
+    .then((keys) => console.log(`  released: ${keys.join(", ") || "nothing"}`))
+    .catch((err) => console.error(err))
+    .finally(async () => {
+      await flush();
+      process.exit(1);
+    });
+});
 
 function arg(name: string): string | undefined {
   const hit = process.argv.find((a) => a === `--${name}` || a.startsWith(`--${name}=`));

@@ -49,6 +49,9 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
 - `npm run worker:events -- --force-scan` scans before 12:00 UTC; `--only=known,scan,schedule,snapshots`
   picks stages.
 - `new_model` events are the model watcher's (4.5); this worker never touches them.
+- Live since Nov 10, 2026, cron `15 * * * *` (service `36acb483-b80e-4d60-a869-b63f02948019`). It
+  does not run on deploy, but a deploy stops a run in progress: the worker then marks its
+  unfinished jobs failed, and the next hour retries them.
 - DB test: `TEST_DATABASE_URL=<fresh migrated local db> npx vitest run tests/event-watcher.db.test.ts`.
   Give it its own database (see LESSONS).
 - Gotcha: GPT-6 Luna at low effort runs only 2–4 searches a call, so one broad known-dates
