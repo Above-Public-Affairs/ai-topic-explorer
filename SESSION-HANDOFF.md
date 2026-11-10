@@ -88,6 +88,10 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
 - Gotchas: OpenAI's filter sometimes refuses a harmless batch (400 invalid_prompt); the mapper
   splits and retries. Overall-vocab aliases only match labels with no sub-topic (see LESSONS).
 - Local proof copy `ate_task48` (4.3's runs re-linked); numbers in `PROJECT-PLAN.md` §4C.
+- Production: deployed Nov 10 (60aca10), migration applied, baseline backfilled and re-scored.
+  Next: review new themes for Oil and gas and Renewables (written without production data).
+- DB tests share one database: run them with `--no-file-parallelism`, or the watcher tests
+  see other files' watch items and fail.
 
 ## Snapshots, repeats and noise bands (task 4.3)
 - `lib/snapshots/runSnapshot(db, watchItemId)` is what the weekly worker (4.4) calls: locked

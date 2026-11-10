@@ -333,6 +333,13 @@ Snapshots can run before that.
     regulation" under noise…). First pass flagged one A/A swing (Grok, "Effects on nearby
     communities", 6 → 1 answers): overall aliases were pulling noise-tagged labels into a
     broad theme; the sub-topic scoping above fixed it.
+  - **Production backfill (Nov 10, 2026, after deploy):** 2,358 mentions linked, 1,212
+    labels mapped, 454 new themes, mapper $0.016. The baseline re-scored (themes held, before
+    → after; all-AI theme band): Data centers in Texas 14.4% → **51.2%** (11.7 → 11.5 pts);
+    Oil and gas in New Mexico 14.1% → **44.9%** (7.0 → 8.6); Renewables in Texas 11.3% →
+    **35.1%** (14.0 → 5.7). The last two vocabularies were written without seeing production
+    answers, and their new themes show gaps (Renewables: "demand growth", 9 mentions); review
+    them with `--list-new`, add entries to `vocab.ts`, then `--seed` and `--relink`.
   - Public-site runs (no watch item) aren't linked; their themes stay keyed by label.
 
 ### 4D. Scheduling and watchers

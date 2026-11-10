@@ -76,8 +76,9 @@ local snapshots 5 minutes apart compare with 0 swings.
 Task 4.8 (theme merging) is built: `lib/themes/` links each theme mention to one theme per
 idea from a reviewed per-item vocabulary (alias table, then one batched mapper call per
 snapshot, "new" for the rest). On the 4.3 proof snapshots themes held 14% → 51–55%, A/A
-still 0 swings (`PROJECT-PLAN.md` §4C). Production backfill of the Nov 10 baseline runs after
-deploy (`npm run themes -- --link --yes-production`, then `--restat=` the three runs).
+still 0 swings (`PROJECT-PLAN.md` §4C). Live since Nov 10; the production baseline is
+backfilled and re-scored (themes held: data centers 51%, oil and gas 45%, renewables 35%,
+all ~11–14% before). The oil and gas and renewables vocabularies need a review pass.
 
 Key findings from the Nov 6 codebase review that drive phase 1:
 - Perplexity's Sonar Chat Completions API ended Sep 27, 2026. Perplexity is being
