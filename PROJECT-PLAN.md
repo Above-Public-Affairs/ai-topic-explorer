@@ -315,6 +315,19 @@ Snapshots can run before that.
   the registry automatically. Each change is logged as an event. On a switch day, while the
   old model is still served, the anchor set runs on both models, so the model's own effect
   is separated from real-world change.
+  **Built (task 4.5).** Railway cron service `model-watcher` runs `npm run worker:models`
+  (`scripts/model-watcher.ts`, `lib/watchers/models*.ts`) at `0 13 * * *`, daily 13:00 UTC.
+  - **The check:** GPT-6 Luna (the list's "questions" model) with web search limited to the
+    provider's own domains, about $0.01 a provider. A change needs an official page whose
+    quoted words are found when the page is fetched, an API id the provider serves, a price in
+    `lib/answers/prices.ts`, no flagship tier and no older version than the current model.
+    Anything less leaves the list alone and warns. Grok stays a guess unless xAI publishes.
+  - **Unchanged:** only `confirmedAt` is refreshed. **Changed:** `saveModel()`, a `new_model`
+    Event (approved, with its source), then each watch item's locked questions once on each
+    model (old first), one `model_switch` Run per item; an info-level error-reporting notice.
+  - **Once a day** (a provider confirmed today is skipped); an unfinished switch resumes on
+    the next run for 48 hours. Caps: `MODEL_CHECK_CAP_USD` ($1 a run) and
+    `MODEL_SWITCH_CAP_USD` ($12 a day). A switch costs about $1–3 (measured: $1.28 for Gemini).
 - **Event watcher (daily, web search only, no other connectors):** only events that move AI
   answers count. An unscheduled event inside an approved category **auto-triggers** a
   snapshot. Approved categories (Josh, task 4.6):

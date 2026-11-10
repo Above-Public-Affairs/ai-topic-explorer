@@ -12,6 +12,7 @@ import {
   getModels,
   toProviderError,
   type AskResult,
+  type ModelChoice,
   type ProviderError,
   type ProviderId,
   type UserLocation,
@@ -50,6 +51,12 @@ export interface RunPipelineOptions {
   onAnswer?: (event: AnswerEvent) => void;
   /** Test seam for the extraction client. */
   extractionClient?: ResponsesClient;
+  /**
+   * Ask these providers with these model-list rows instead of the current
+   * ones. The model watcher (task 4.5) uses it to ask the retired model and
+   * its replacement the same questions on a switch day.
+   */
+  models?: Partial<Record<ProviderId, ModelChoice>>;
 }
 
 export type AnswerEvent =
@@ -124,7 +131,7 @@ export async function runPipeline(db: PrismaClient, options: RunPipelineOptions)
       });
 
   // Each provider's current model from the registry (task 2.4), read once per run.
-  const models = await getModels();
+  const models = { ...(await getModels()), ...options.models };
 
   // Ask every provider every question, in parallel; store each answer (or
   // failure) with the provider's citations as it lands, then run the one

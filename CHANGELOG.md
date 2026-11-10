@@ -2,6 +2,17 @@
 
 All notable changes to AI Topic Explorer will be documented in this file.
 
+## [2026-11-10]
+
+### Added (task 4.5: model watcher)
+- `npm run worker:models` (`scripts/model-watcher.ts`, `lib/watchers/models.ts`, `lib/watchers/models-check.ts`): a daily check of each provider's free-tier default model. Runs as Railway cron service `model-watcher`, daily 13:00 UTC
+- The check asks the model list's "questions" model (GPT-6 Luna) with web search limited to the provider's own domains, about $0.01 a provider. A change counts only with clear evidence: an official page, the quoted words found on it when fetched, an API model id the provider serves, priced in `lib/answers/prices.ts`, not a flagship tier and not an older version than the current model. Anything less is "unclear": the list is left alone and a warning goes to error reporting
+- Unchanged: only the row's `confirmedAt` is refreshed. Changed: `saveModel()` retires the old row and adds the new one (effort, search and location carried over), a `new_model` Event is logged (approved, with its source), then every watch item's locked questions are asked once on the old model and once on the new, one `model_switch` Run per item, and an info-level notice goes to error reporting
+- Once a day (a provider confirmed today is skipped, since every deploy runs the cron); a switch whose runs didn't all finish resumes on the next run, within 48 hours. Caps: `MODEL_CHECK_CAP_USD` (default $1) per run, `MODEL_SWITCH_CAP_USD` (default $12) per day. One provider failing never stops the others
+- `runPipeline` takes `models`, to ask a provider with a given model-list row instead of the current one
+- No schema change: each switch run names its event and both registry rows on `Run.stats.modelSwitch`; `Event.runId` points at the first one
+- Local proof: a simulated Gemini switch (flash-lite → 3.6-flash) updated the list, logged the event and ran 3 items × 8 questions × 2 models, 48/48 answered, $1.28. The first real check of all four caught two stale official pages (an old Sonnet 5 launch post, the out-of-date GPT-5.6 help page); both were held back
+
 ## [2026-11-09]
 
 ### Added (task 4.4: weekly snapshots on a Railway worker)

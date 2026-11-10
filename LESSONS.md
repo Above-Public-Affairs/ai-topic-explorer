@@ -3,6 +3,15 @@
 > Reusable rules this project taught us the hard way. Appended at the Compound step
 > (see `build-methodology`), newest at top. Not a changelog — the rule, not the play-by-play.
 
+## Official pages about old defaults stay online: hold a model change to more than a quote (Nov 2026)
+
+The first real model check found an official page with an exact quote for two providers, and
+both were stale: Anthropic's Sonnet 5 launch post ("the default model for Free and Pro
+plans") and OpenAI's out-of-date GPT-5.6 help page. Official domain, quote on the page and a
+served model id all passed. What stops it: refuse a change to an older version than the
+current model, tell the check model that launch pages outlive their news, and treat anything
+doubtful as "unclear" (leave the list, warn a person) rather than a change.
+
 ## A Railway cron service runs on every deploy, not only on its schedule (Nov 2026)
 
 Redeploying (or pushing to the branch it tracks) starts the job right away. So a cron job

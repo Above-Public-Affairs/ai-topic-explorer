@@ -1,6 +1,6 @@
 # Session Handoff — AI Topic Explorer
 
-**Last Updated:** November 9, 2026
+**Last Updated:** November 10, 2026
 
 ## Where we are
 Live in production (beta) on Railway with four providers: Claude, ChatGPT, Gemini
@@ -16,6 +16,23 @@ The app is becoming an internal topic-tracking tool.
 **Plan and tracker.** The roadmap is in `PROJECT-PLAN.md`. Work runs from the project
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
 Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search) and 5.1.
+
+## Model watcher (task 4.5)
+- Railway cron service `model-watcher` runs `npm run worker:models` at `0 13 * * *` (daily
+  13:00 UTC). Code: `scripts/model-watcher.ts`, `lib/watchers/models.ts` (loop, switch,
+  resume), `lib/watchers/models-check.ts` (search check, evidence rules). Env: references to
+  the web service, like `weekly-snapshots`; no migrations.
+- Re-runs are safe: a provider whose row was confirmed today (UTC) is skipped. "Unclear"
+  doesn't confirm, so it's checked again on the next run (about $0.01).
+- A new default with no price in `lib/answers/prices.ts` is held as unclear: add its
+  prices and the next run switches. The switch run asks the old model first, while it's served.
+- Switch runs: `Run.kind = model_switch`, one per watch item, `Run.stats.modelSwitch`
+  {eventId, old/new registryId, model, answered, failed}; answers carry `modelRegistryId`.
+  `Event.runId` holds only the first run (one-to-one column), so find the rest by
+  `stats.modelSwitch.eventId`.
+- Proof of a switch: `npm run worker:models -- --providers gemini --simulate gemini=gemini-3.6-flash`
+  against a local copy (it refuses anything but localhost). DB test:
+  `tests/model-watcher.db.test.ts` (needs `TEST_DATABASE_URL`, a scratch copy; it changes the list).
 
 ## Weekly worker (task 4.4)
 - Railway cron service `weekly-snapshots` (same project, same repo) runs `npm run worker:weekly`
