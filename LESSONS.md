@@ -3,6 +3,15 @@
 > Reusable rules this project taught us the hard way. Appended at the Compound step
 > (see `build-methodology`), newest at top. Not a changelog — the rule, not the play-by-play.
 
+## A Railway redeploy keeps the old start command: change it, then rebuild (Nov 2026)
+
+Testing the `monthly-report` cron, the start command was changed to pass `--month=2026-11` and
+the service redeployed twice. Both runs fired on the new cron time but ran the old command
+(the log still showed the report for October). A redeploy reuses the deployment it copies,
+start command included; the schedule is read live. To apply a new start command, start a
+fresh build (reconnect the source or push to `main`), then confirm the command in the run's
+log before trusting the result.
+
 ## An HTML email needs a charset meta, or every arrow and curly quote turns to junk (Nov 2026)
 
 The first alert email rendered "→" as "â†’" and quotes as "â€œ": SendGrid sends the body as

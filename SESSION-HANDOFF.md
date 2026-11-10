@@ -48,6 +48,10 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
 - Charts need `lib/reports/fonts/*.ttf` (resvg loads no system fonts), and paths are from the
   repo root, so run from there.
 - Each topic lists its alerts from the month (`Alert` rows, sent or suppressed).
+- Service `monthly-report` (id `50ede79d-5ed0-4942-b749-af77e0eda7ff`) created Nov 10, 2026,
+  variables referencing `ai-topic-explorer`, `REPORTS_ENABLED=false`. Test run for November
+  (19:20 UTC, schedule moved ahead, then restored): all three items "not enough history yet:
+  1 of 4 weekly snapshots"; "Monthly report for November 2026: skipped, not enough history yet."
 
 ## Model watcher (task 4.5)
 - Railway cron service `model-watcher` runs `npm run worker:models` at `0 13 * * *` (daily
