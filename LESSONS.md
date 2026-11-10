@@ -62,7 +62,11 @@ can be cut off by any push. Catch SIGTERM, mark this run's unfinished work faile
 it left `running`), and keep the stale window shorter than the cron interval so even a hard
 kill is retried on the next run. Start the worker with `node --import tsx <script>`, not
 `npm run` or the `tsx` CLI: neither passes SIGTERM on, so a handler behind them never runs
-(seen in production at 18:20 UTC, then reproduced locally).
+(seen in production at 18:20 UTC, then reproduced locally). Task 4.9 gave the weekly and
+model-watcher crons the same release (`lib/worker/shutdown.ts`, shared by all three). A released
+run is stored with what it already spent, and the weekly caps count this week's earlier runs, so a
+retry can't spend a cap twice. Remember a deploy doesn't start a cron run: for the weekly worker,
+the next scheduled run is a week away, so retry a stopped run by hand.
 
 ## Calibrate a change detector with an A/A test before trusting it (Nov 2026)
 

@@ -3,6 +3,7 @@
  */
 import type { PrismaClient } from "@/app/generated/prisma/client";
 import type { ProviderId } from "@/lib/answers";
+import { REPORTED_ALERT_STATUSES } from "@/lib/alerts/withdraw";
 import { loadFindings, noiseBand, type SnapshotStats } from "@/lib/snapshots";
 import type { ItemMonthInput, ReportMonth, SnapshotInput, TimelineMark } from "./types";
 
@@ -67,9 +68,9 @@ export async function loadItemMonth(db: PrismaClient, watchItemId: string, month
       orderBy: { startedAt: "asc" },
       select: { id: true, startedAt: true, note: true },
     }),
-    // Alerts that were raised: sent, or stored while sending was off. Failed and in-flight ones are left out.
+    // Alerts that were raised: sent, or stored while sending was off. Failed, in-flight and withdrawn (unreliable) ones are left out.
     db.alert.findMany({
-      where: { watchItemId, createdAt: { gte: month.start, lt: month.end }, status: { in: ["sent", "suppressed"] } },
+      where: { watchItemId, createdAt: { gte: month.start, lt: month.end }, status: { in: [...REPORTED_ALERT_STATUSES] } },
       orderBy: { number: "asc" },
       select: { number: true, createdAt: true, subject: true, status: true },
     }),

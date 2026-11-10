@@ -14,6 +14,7 @@ import { loadFindings, type Labels } from "./findings";
 import { noiseBand, type SnapshotNoise } from "./noise";
 import { compareSnapshots, type Comparison } from "./compare";
 import { linkThemes } from "@/lib/themes/link";
+import { trackRun, untrackRun } from "@/lib/worker/active-runs";
 
 /** Repeats per locked question; chosen from task 4.3's proof (PROJECT-PLAN §4C). */
 export const DEFAULT_REPEATS = 3;
@@ -83,64 +84,70 @@ export async function runSnapshot(db: PrismaClient, watchItemId: string, options
     select: { id: true },
   });
 
-  let set;
+  // Tracked so a worker stopped by SIGTERM can release it (lib/worker/shutdown.ts).
+  trackRun(run.id);
   try {
-    set = await questionsForSnapshot(db, { watchItemId, runId: run.id }, { generate: options.generate, signal: options.signal });
-  } catch (err) {
-    await db.run.update({ where: { id: run.id }, data: { status: "failed", finishedAt: new Date(), note: `${options.note ?? ""} questions: ${String(err)}`.trim() } });
-    throw err;
+    let set;
+    try {
+      set = await questionsForSnapshot(db, { watchItemId, runId: run.id }, { generate: options.generate, signal: options.signal });
+    } catch (err) {
+      await db.run.update({ where: { id: run.id }, data: { status: "failed", finishedAt: new Date(), note: `${options.note ?? ""} questions: ${String(err)}`.trim() } });
+      throw err;
+    }
+
+    // Repeat-major order, so a run stopped at its cap still has whole passes first.
+    const questions = [
+      ...Array.from({ length: repeats }, (_, i) => set.locked.map((q) => ({ text: q.text, questionId: q.id, repeat: i + 1 }))).flat(),
+      ...set.fresh.map((q) => ({ text: q.text, questionId: q.id, repeat: 1 })),
+    ];
+
+    const stop = new AbortController();
+    const signal = options.signal ? AbortSignal.any([options.signal, stop.signal]) : stop.signal;
+    let spent = 0;
+    let stoppedAtCap = false;
+    const pipeline = await runPipeline(db, {
+      kind: options.kind ?? "weekly",
+      topic: item.topic,
+      questions,
+      location,
+      providers: options.providers,
+      watchItemId,
+      runId: run.id,
+      subTopics: item.subTopics.map((s) => ({ id: s.id, name: s.name })),
+      askConcurrency: options.askConcurrency,
+      signal,
+      // Extractions of answers already paid for still run after a stop.
+      extractionSignal: options.signal,
+      onAnswer: (e) => {
+        if (e.ok) spent += e.result.cost.usd;
+        if (options.maxCostUsd != null && spent > options.maxCostUsd && !stop.signal.aborted) {
+          stoppedAtCap = true;
+          stop.abort(new Error(`spending cap $${options.maxCostUsd} reached`));
+        }
+        options.onAnswer?.(e);
+      },
+    });
+
+    // Themes the alias table didn't know: one batched mapper call (task 4.8).
+    // A failure leaves them unlinked; findings then key them by their label.
+    let themeCostUsd = 0;
+    try {
+      themeCostUsd = (await linkThemes(db, { runId: run.id, signal: options.signal })).costUsd;
+    } catch (err) {
+      console.warn(`[Snapshot] Theme linking failed for ${run.id}; unlinked themes count by label. ${err instanceof Error ? err.message : err}`);
+    }
+
+    const stats = await snapshotStats(db, run.id, repeats);
+    if (stoppedAtCap) stats.stoppedAtCapUsd = options.maxCostUsd;
+    const costUsd = pipeline.costUsd + set.costUsd + themeCostUsd;
+    await db.run.update({
+      where: { id: run.id },
+      data: { stats: JSON.parse(JSON.stringify(stats)), costUsd: Math.round(costUsd * 1e8) / 1e8 },
+    });
+    return { runId: run.id, pipeline, costUsd, stats };
+  } finally {
+    untrackRun(run.id);
   }
-
-  // Repeat-major order, so a run stopped at its cap still has whole passes first.
-  const questions = [
-    ...Array.from({ length: repeats }, (_, i) => set.locked.map((q) => ({ text: q.text, questionId: q.id, repeat: i + 1 }))).flat(),
-    ...set.fresh.map((q) => ({ text: q.text, questionId: q.id, repeat: 1 })),
-  ];
-
-  const stop = new AbortController();
-  const signal = options.signal ? AbortSignal.any([options.signal, stop.signal]) : stop.signal;
-  let spent = 0;
-  let stoppedAtCap = false;
-  const pipeline = await runPipeline(db, {
-    kind: options.kind ?? "weekly",
-    topic: item.topic,
-    questions,
-    location,
-    providers: options.providers,
-    watchItemId,
-    runId: run.id,
-    subTopics: item.subTopics.map((s) => ({ id: s.id, name: s.name })),
-    askConcurrency: options.askConcurrency,
-    signal,
-    // Extractions of answers already paid for still run after a stop.
-    extractionSignal: options.signal,
-    onAnswer: (e) => {
-      if (e.ok) spent += e.result.cost.usd;
-      if (options.maxCostUsd != null && spent > options.maxCostUsd && !stop.signal.aborted) {
-        stoppedAtCap = true;
-        stop.abort(new Error(`spending cap $${options.maxCostUsd} reached`));
-      }
-      options.onAnswer?.(e);
-    },
-  });
-
-  // Themes the alias table didn't know: one batched mapper call (task 4.8).
-  // A failure leaves them unlinked; findings then key them by their label.
-  let themeCostUsd = 0;
-  try {
-    themeCostUsd = (await linkThemes(db, { runId: run.id, signal: options.signal })).costUsd;
-  } catch (err) {
-    console.warn(`[Snapshot] Theme linking failed for ${run.id}; unlinked themes count by label. ${err instanceof Error ? err.message : err}`);
-  }
-
-  const stats = await snapshotStats(db, run.id, repeats);
-  if (stoppedAtCap) stats.stoppedAtCapUsd = options.maxCostUsd;
-  const costUsd = pipeline.costUsd + set.costUsd + themeCostUsd;
-  await db.run.update({
-    where: { id: run.id },
-    data: { stats: JSON.parse(JSON.stringify(stats)), costUsd: Math.round(costUsd * 1e8) / 1e8 },
-  });
-  return { runId: run.id, pipeline, costUsd, stats };
 }
 
 /** Agreement and noise band for a run already answered. Safe to recompute. */

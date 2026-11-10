@@ -7,13 +7,14 @@
  *   npm run alerts -- --show=A-12 [--html=<file>]           print the email, or write its HTML to a file
  *   railway run npm run alerts -- --send-test=A-12 [--to=<email>]   send one stored alert as a test ("[Test]" subject); its status doesn't change
  *   DATABASE_URL=<local> npm run alerts -- --compare=<beforeRunId>,<afterRunId>   store a comparison on the later run (local proofs only)
+ *   npm run alerts -- --withdraw=A-1,A-2 --reason="<why>"   mark unreliable alerts withdrawn: kept, never sent or reported (4.9)
  *
- * Writes to a non-local database (--run) need --yes-production.
+ * Writes to a non-local database (--run, --withdraw) need --yes-production.
  */
 import { writeFileSync } from "node:fs";
 import { flush, initErrorReporter } from "@above-public-affairs/error-reporter";
 import { prisma } from "@/lib/db";
-import { afterSnapshot, alertCode, emailFor, renderHtml, renderText, sendAlert } from "@/lib/alerts";
+import { afterSnapshot, alertCode, emailFor, renderHtml, renderText, sendAlert, withdrawAlerts } from "@/lib/alerts";
 import { compareRuns, type SnapshotStats } from "@/lib/snapshots";
 
 initErrorReporter({ project: "ai-topic-explorer" });
@@ -56,6 +57,14 @@ async function main() {
     for (const a of r.alerts) console.log(`  ${a.code} ${a.status}: ${a.subject}`);
     return;
   }
+  const withdraw = flag("withdraw");
+  if (withdraw) {
+    if (!local && !has("yes-production")) throw new Error("DATABASE_URL isn't local. Add --yes-production to withdraw alerts in it.");
+    const numbers = withdraw.split(",").map((c) => Number(c.trim().replace(/^A-/i, "")));
+    if (numbers.some((n) => !Number.isInteger(n))) throw new Error(`Not a list of alert codes: ${withdraw}`);
+    for (const r of await withdrawAlerts(prisma, numbers, flag("reason") ?? "")) console.log(`  ${alertCode(r.number)} ${r.outcome} (was ${r.from})`);
+    return;
+  }
   const show = flag("show");
   if (show) {
     const alert = await byCode(show);
@@ -70,6 +79,7 @@ async function main() {
   const test = flag("send-test");
   if (test) {
     const alert = await byCode(test);
+    if (alert.status === "withdrawn") throw new Error(`${alertCode(alert.number)} was withdrawn as unreliable; not sending it, even as a test. ${alert.note ?? ""}`);
     const to = flag("to");
     const sent = await sendAlert(alert, { subjectPrefix: "[Test] ", ...(to ? { recipients: [to] } : {}) });
     console.log(`Sent ${alertCode(alert.number)} as a test at ${sent.sentAt.toISOString()}, SendGrid id ${sent.messageId ?? "?"}`);

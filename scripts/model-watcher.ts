@@ -12,6 +12,10 @@
  * free default, quoted from the provider's current source page, to prove the
  * switch path end to end. It refuses to run against anything but localhost.
  *
+ * Railway's start command is `node --import tsx scripts/model-watcher.ts`, not
+ * `npm run`: npm and the tsx CLI don't pass SIGTERM on, so the release below
+ * would never run (task 4.9, LESSONS.md).
+ *
  * Env: DATABASE_URL and the four AI keys (Railway references to the web
  * service), ERROR_API_URL / ERROR_API_KEY, optional MODEL_CHECK_CAP_USD
  * (default 1) and MODEL_SWITCH_CAP_USD (default 12). Migrations stay with the
@@ -24,8 +28,14 @@ import { prisma } from "@/lib/db";
 import { capFromEnv } from "@/lib/worker/weekly";
 import { DEFAULT_CHECK_CAP_USD, DEFAULT_SWITCH_CAP_USD, runModelWatcher, type ModelWatcherOptions } from "@/lib/watchers/models";
 import { askFreeTierDefault, fetchPage } from "@/lib/watchers/models-check";
+import { releaseOnSigterm } from "@/lib/worker/shutdown";
 
 initErrorReporter({ project: "ai-topic-explorer" });
+
+// A deploy SIGTERMs this container mid-run. Mark a both-models switch run in
+// progress failed (with what it spent), so the next run resumes the switch for
+// that item at once and the day's switch cap still counts its cost.
+releaseOnSigterm("Model watcher", prisma);
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);

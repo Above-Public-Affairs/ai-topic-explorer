@@ -60,14 +60,20 @@ describe("capFromEnv", () => {
 });
 
 /** Just enough of PrismaClient for runWeekly. */
-function fakeDb(items: { id: string; name: string }[], runs: (ExistingRun & { watchItemId: string; kind?: string; stats?: unknown })[] = []) {
+function fakeDb(
+  items: { id: string; name: string }[],
+  runs: (ExistingRun & { watchItemId: string; kind?: string; stats?: unknown; costUsd?: number | null })[] = [],
+  answerCosts: Record<string, number> = {}
+) {
   const updates: { id: string; data: Record<string, unknown> }[] = [];
   const failedMarked: string[] = [];
   const db = {
     watchItem: { findMany: async () => items },
     run: {
-      findMany: async ({ where }: { where: { watchItemId: string; startedAt: { gte: Date } } }) =>
-        runs.filter((r) => r.watchItemId === where.watchItemId && (r.kind ?? "weekly") === "weekly" && r.startedAt >= where.startedAt.gte),
+      findMany: async ({ where }: { where: { watchItemId?: string; startedAt: { gte: Date } } }) =>
+        runs
+          .filter((r) => (where.watchItemId == null || r.watchItemId === where.watchItemId) && (r.kind ?? "weekly") === "weekly" && r.startedAt >= where.startedAt.gte)
+          .map((r) => ({ costUsd: null, ...r })),
       findFirst: async ({ where }: { where: { watchItemId: string; id: { not: string } } }) =>
         runs
           .filter((r) => r.watchItemId === where.watchItemId && r.id !== where.id.not && r.stats && (r.status === "complete" || r.status === "partial"))
@@ -81,6 +87,8 @@ function fakeDb(items: { id: string; name: string }[], runs: (ExistingRun & { wa
         return { count: 1 };
       },
     },
+    answer: { aggregate: async ({ where }: { where: { runId: string } }) => ({ _sum: { costUsd: answerCosts[where.runId] ?? 0 } }) },
+    extraction: { aggregate: async () => ({ _sum: { costUsd: 0 } }) },
   };
   return { db: db as unknown as PrismaClient, updates, failedMarked };
 }
@@ -175,6 +183,50 @@ describe("runWeekly", () => {
     expect(result.items.map((i) => i.outcome)).toEqual(["ran", "failed", "ran"]);
     expect(result.items[1].reason).toMatch(/provider exploded/);
     expect(failedMarked).toEqual(["w2"]);
+  });
+
+  // Task 4.9: a run stopped by a deploy is released as failed with what it spent; the retry mustn't spend the caps again.
+  it("counts this week's earlier runs against the run and item caps on a re-run", async () => {
+    const { db } = fakeDb(items, [
+      // w1 finished earlier this week; w2 was stopped by SIGTERM after spending $4 and released as failed.
+      { id: "done", watchItemId: "w1", status: "complete", startedAt: new Date("2026-11-16T05:01:00Z"), costUsd: 5 },
+      { id: "stopped", watchItemId: "w2", status: "failed", startedAt: new Date("2026-11-16T05:20:00Z"), costUsd: 4 },
+      // Last week's spend doesn't count.
+      { id: "old", watchItemId: "w3", status: "complete", startedAt: new Date("2026-11-09T05:00:00Z"), costUsd: 9 },
+    ]);
+    const caps: Record<string, number | undefined> = {};
+    const result = await runWeekly(db, {
+      now: new Date("2026-11-16T06:00:00Z"),
+      runCapUsd: 15,
+      itemCapUsd: 6,
+      snapshot: async (_db, id, opts) => {
+        caps[id] = opts.maxCostUsd;
+        return fakeResult(`run-${id}`, id === "w2" ? 2 : 3);
+      },
+    });
+    expect(result.earlierUsd).toBe(9);
+    expect(result.items[0]).toMatchObject({ outcome: "skipped" });
+    // w2 has $2 left of its item cap; w3 gets the $4 left of the week's $15.
+    expect(caps).toEqual({ w2: 2, w3: 4 });
+  });
+
+  it("skips an item whose stopped runs used up its item cap, counting answers when no cost was stored", async () => {
+    const { db } = fakeDb(
+      items.slice(0, 2),
+      [{ id: "killed", watchItemId: "w1", status: "failed", startedAt: new Date("2026-11-16T05:01:00Z"), costUsd: null }],
+      { killed: 5.5 }
+    );
+    const ran: string[] = [];
+    const result = await runWeekly(db, {
+      now: new Date("2026-11-16T06:00:00Z"),
+      itemCapUsd: 6,
+      snapshot: async (_db, id) => {
+        ran.push(id);
+        return fakeResult(`run-${id}`, 3);
+      },
+    });
+    expect(ran).toEqual(["w2"]);
+    expect(result.items[0].reason).toMatch(/item spending cap \$6 reached \(\$5.50/);
   });
 
   it("stores a comparison against the previous snapshot when there is one", async () => {

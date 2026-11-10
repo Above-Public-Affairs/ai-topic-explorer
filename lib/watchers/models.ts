@@ -25,6 +25,7 @@ import type { ModelChoice, ModelSettings, ProviderId } from "@/lib/answers";
 import { PROVIDER_IDS, saveModel } from "@/lib/answers/registry";
 import { runPipeline } from "@/lib/pipeline/run";
 import { lockedQuestions } from "@/lib/questions";
+import { trackRun, untrackRun } from "@/lib/worker/active-runs";
 import { askFreeTierDefault, decide, type CheckOutput, type Decision, type HasPrices, type ModelExists, type PageFetcher } from "./models-check";
 
 export const DEFAULT_CHECK_CAP_USD = 1;
@@ -394,6 +395,8 @@ async function runSwitch(
       },
       select: { id: true },
     });
+    // Released as failed if a deploy stops this process (lib/worker/shutdown.ts), so the switch resumes next run.
+    trackRun(run.id);
     // The event links to its first switch run; every run names the event in stats.
     await db.event.updateMany({ where: { id: sw.eventId, runId: null }, data: { runId: run.id } });
 
@@ -448,6 +451,7 @@ async function runSwitch(
       outcome.reason = String(err);
       await db.run.update({ where: { id: run.id }, data: { status: "failed", finishedAt: new Date(), note: `model watcher: ${String(err)}`.slice(0, 1000) } }).catch(() => {});
     }
+    untrackRun(run.id);
     // Labeled as a model change, never as real-world change; skips a failed run.
     if (outcome.outcome === "ran") await (options.alerts ?? afterSnapshot)(db, run.id, { log: (l) => options.log?.(`${sw.provider} ${item.name}: ${l}`) });
     budget.switch += outcome.costUsd ?? 0;

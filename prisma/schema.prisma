@@ -631,12 +631,15 @@ model WatcherJob {
 }
 
 /// sending: claimed by a sender, so a second process never sends it twice.
+/// withdrawn: kept for the record but judged unreliable (the note says why);
+/// never sent, and left out of reports and the connector (task 4.9).
 enum AlertStatus {
   pending
   sending
   sent
   suppressed
   failed
+  withdrawn
 }
 
 /// One notable change between two snapshots of a watch item (task 5.2,

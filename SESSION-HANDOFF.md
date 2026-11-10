@@ -30,6 +30,16 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
   Local proof DBs: `ate_task52` (real Gemini switch alerts) and `ate_task52b` (injected changes) on
   localhost:5432. DB test: `tests/alerts.db.test.ts` (env in its header).
 - First real weekly alerts can come from the Nov 16 snapshot (vs the Nov 10 baselines).
+- **Withdrawn alerts (4.9):** status `withdrawn` keeps an unreliable alert out of emails, the monthly
+  report and (when built) the connector; read only `REPORTED_ALERT_STATUSES` from `lib/alerts`.
+  A-1 to A-3 are withdrawn (Nov 10 event snapshot had no ChatGPT answers: OpenAI credits ran out).
+  That snapshot itself still counts in reports as a partial run.
+
+## Deploy-safe crons (tasks 4.7, 4.9)
+- All three cron services start with `node --import tsx scripts/<name>.ts` (set in each service's
+  settings; a redeploy keeps the old command, so rebuild after changing it). On SIGTERM they release
+  their WatcherJob claims and `running` runs (`lib/worker/shutdown.ts`). A deploy doesn't start a
+  cron run, so a weekly run stopped by a push waits for the next Monday unless retried by hand.
 
 ## Monthly report (task 5.3)
 - Railway cron service `monthly-report` (same project, same repo) runs `npm run report:monthly`

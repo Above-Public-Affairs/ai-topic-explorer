@@ -5,16 +5,26 @@
  *
  *   npm run worker:weekly
  *
+ * Railway's start command is `node --import tsx scripts/weekly-snapshots.ts`,
+ * not `npm run`: npm and the tsx CLI don't pass SIGTERM on, so the release
+ * below would never run (task 4.9, LESSONS.md).
+ *
  * Env: DATABASE_URL and the four AI keys (Railway references to the web
  * service), ERROR_API_URL / ERROR_API_KEY, optional WEEKLY_RUN_CAP_USD
- * (default 15) and WEEKLY_ITEM_CAP_USD (default 6). Migrations stay with the
- * web service.
+ * (default 15, for the week's weekly runs together) and WEEKLY_ITEM_CAP_USD
+ * (default 6, per item per week). Migrations stay with the web service.
  */
 import { flush, initErrorReporter, reportError } from "@above-public-affairs/error-reporter";
 import { prisma } from "@/lib/db";
 import { DEFAULT_ITEM_CAP_USD, DEFAULT_RUN_CAP_USD, capFromEnv, runWeekly } from "@/lib/worker/weekly";
+import { releaseOnSigterm } from "@/lib/worker/shutdown";
 
 initErrorReporter({ project: "ai-topic-explorer" });
+
+// A deploy SIGTERMs this container mid-run. Mark the snapshot in progress
+// failed (with what it spent), so a re-run retries that item at once instead
+// of waiting out the 3-hour "still running" window.
+releaseOnSigterm("Weekly snapshots", prisma);
 
 async function main(): Promise<number> {
   const runCapUsd = capFromEnv(process.env.WEEKLY_RUN_CAP_USD, DEFAULT_RUN_CAP_USD);
@@ -60,7 +70,7 @@ async function main(): Promise<number> {
 
   const count = (o: string) => result.items.filter((i) => i.outcome === o).length;
   console.log(
-    `Done in ${Math.round((Date.now() - started) / 1000)}s: ${count("ran")} ran, ${count("skipped")} skipped, ${count("failed")} failed, $${result.costUsd.toFixed(2)} of $${result.runCapUsd}`
+    `Done in ${Math.round((Date.now() - started) / 1000)}s: ${count("ran")} ran, ${count("skipped")} skipped, ${count("failed")} failed, $${result.costUsd.toFixed(2)}${result.earlierUsd ? ` (+ $${result.earlierUsd.toFixed(2)} earlier this week)` : ""} of $${result.runCapUsd}`
   );
   return count("failed") > 0 ? 1 : 0;
 }

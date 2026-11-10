@@ -8,15 +8,19 @@
  *   (weeks start Monday 00:00 UTC), or one still running, is skipped. A failed
  *   one doesn't count, so a re-run retries it.
  * - One item failing never stops the others.
- * - A spending cap for the whole run (WEEKLY_RUN_CAP_USD, default $15) is
- *   shared across items: each snapshot gets at most what's left, up to its own
- *   cap (WEEKLY_ITEM_CAP_USD, default $6). Below $1 left, the rest are skipped.
+ * - A spending cap for the week's runs (WEEKLY_RUN_CAP_USD, default $15) is
+ *   shared across items: each snapshot gets at most what's left, up to its
+ *   item's own weekly cap (WEEKLY_ITEM_CAP_USD, default $6). Below $1 left,
+ *   the rest are skipped. Both count what this week's earlier weekly runs
+ *   spent (task 4.9), so a run stopped by a deploy and retried, or a re-run by
+ *   hand, can't spend the caps twice.
  * - Once a previous snapshot exists, the new one's comparison against it goes
  *   on Run.stats.comparison, then afterSnapshot() makes its alerts (5.2).
  */
 import { Prisma, type PrismaClient, type RunStatus } from "@/app/generated/prisma/client";
 import { compareRuns, runSnapshot, type RunSnapshotOptions, type RunSnapshotResult, type SnapshotStats } from "@/lib/snapshots";
 import { afterSnapshot } from "@/lib/alerts";
+import { spentSoFar } from "./active-runs";
 
 export const DEFAULT_RUN_CAP_USD = 15;
 export const DEFAULT_ITEM_CAP_USD = 6;
@@ -91,8 +95,24 @@ export interface WeeklyOptions {
 
 export interface WeeklyResult {
   items: ItemOutcome[];
+  /** What this run spent. */
   costUsd: number;
+  /** What this week's earlier weekly runs spent, counted against both caps. */
+  earlierUsd: number;
   runCapUsd: number;
+}
+
+/** Cost of this week's weekly runs so far, in total and per item. A run with no stored cost (stopped, or still running) counts its answers. */
+export async function weeklySpend(db: PrismaClient, now: Date): Promise<{ total: number; byItem: Map<string, number> }> {
+  const runs = await db.run.findMany({ where: { kind: "weekly", startedAt: { gte: weekStart(now) } }, select: { id: true, watchItemId: true, costUsd: true } });
+  const byItem = new Map<string, number>();
+  let total = 0;
+  for (const r of runs) {
+    const cost = r.costUsd ?? (await spentSoFar(db, r.id));
+    total += cost;
+    if (r.watchItemId) byItem.set(r.watchItemId, (byItem.get(r.watchItemId) ?? 0) + cost);
+  }
+  return { total, byItem };
 }
 
 export async function runWeekly(db: PrismaClient, options: WeeklyOptions = {}): Promise<WeeklyResult> {
@@ -110,6 +130,8 @@ export async function runWeekly(db: PrismaClient, options: WeeklyOptions = {}): 
   });
   const since = weekStart(now);
   const outcomes: ItemOutcome[] = [];
+  const earlier = await weeklySpend(db, now);
+  if (earlier.total > 0) log(`Earlier weekly runs this week spent $${earlier.total.toFixed(2)}; it counts against the caps.`);
   let spent = 0;
 
   for (const item of items) {
@@ -123,9 +145,17 @@ export async function runWeekly(db: PrismaClient, options: WeeklyOptions = {}): 
       log(`${item.name}: skipped, ${skip}`);
       continue;
     }
-    const left = runCapUsd - spent;
-    if (left < MIN_ITEM_BUDGET_USD) {
-      const reason = `run spending cap $${runCapUsd} reached ($${spent.toFixed(2)} spent)`;
+    const runLeft = runCapUsd - earlier.total - spent;
+    if (runLeft < MIN_ITEM_BUDGET_USD) {
+      const reason = `run spending cap $${runCapUsd} reached ($${(earlier.total + spent).toFixed(2)} spent this week)`;
+      outcomes.push({ watchItemId: item.id, name: item.name, outcome: "skipped", reason });
+      log(`${item.name}: skipped, ${reason}`);
+      continue;
+    }
+    const itemSpent = earlier.byItem.get(item.id) ?? 0;
+    const itemLeft = itemCapUsd - itemSpent;
+    if (itemLeft < MIN_ITEM_BUDGET_USD) {
+      const reason = `item spending cap $${itemCapUsd} reached ($${itemSpent.toFixed(2)} spent this week)`;
       outcomes.push({ watchItemId: item.id, name: item.name, outcome: "skipped", reason });
       log(`${item.name}: skipped, ${reason}`);
       continue;
@@ -138,7 +168,7 @@ export async function runWeekly(db: PrismaClient, options: WeeklyOptions = {}): 
       const result = await snapshot(db, item.id, {
         ...options.snapshotOptions,
         kind: "weekly",
-        maxCostUsd: Math.min(itemCapUsd, left),
+        maxCostUsd: Math.min(itemLeft, runLeft),
         note: "weekly worker",
         onAnswer: (e) => {
           calls++;
@@ -185,7 +215,7 @@ export async function runWeekly(db: PrismaClient, options: WeeklyOptions = {}): 
       log(`${item.name}: FAILED after ${calls} calls: ${String(err)}`);
     }
   }
-  return { items: outcomes, costUsd: spent, runCapUsd };
+  return { items: outcomes, costUsd: spent, earlierUsd: earlier.total, runCapUsd };
 }
 
 function summarize(item: { id: string; name: string }, result: RunSnapshotResult, calls: number, failedCalls: number): ItemOutcome {
