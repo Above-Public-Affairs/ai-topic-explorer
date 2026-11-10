@@ -17,6 +17,20 @@ The app is becoming an internal topic-tracking tool.
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
 Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search) and 5.1.
 
+## Alerts (task 5.2)
+- `lib/alerts/` (`afterSnapshot`), called once where each snapshot finishes: `lib/worker/weekly.ts`,
+  `lib/watchers/events/worker.ts`, `lib/watchers/models.ts`. Never throws; failures go to error
+  reporting as `alert_error`. Table `Alert` (migration `20261110190000_alerts`), readable A-1, A-2…
+- **Sending is off** until task 8.2: `ALERTS_ENABLED` unset/false stores alerts as `suppressed`.
+  Turn on by setting `ALERTS_ENABLED=true` (and optionally `ALERT_RECIPIENTS`) on the three cron
+  services. Suppressed alerts are never sent later; only new ones are.
+- Re-runs are safe (created once per run, claimed before sending). An alert stuck in `sending`
+  means a process died mid-send: check SendGrid's activity before resending by hand.
+- Tools: `npm run alerts -- --list | --run=<id> | --show=A-n [--html=f] | --send-test=A-n`.
+  Local proof DBs: `ate_task52` (real Gemini switch alerts) and `ate_task52b` (injected changes) on
+  localhost:5432. DB test: `tests/alerts.db.test.ts` (env in its header).
+- First real weekly alerts can come from the Nov 16 snapshot (vs the Nov 10 baselines).
+
 ## Model watcher (task 4.5)
 - Railway cron service `model-watcher` runs `npm run worker:models` at `0 13 * * *` (daily
   13:00 UTC). Code: `scripts/model-watcher.ts`, `lib/watchers/models.ts` (loop, switch,
