@@ -47,7 +47,7 @@ describe.skipIf(!local)("afterSnapshot in Postgres", () => {
     expect(again).toMatchObject({ created: 0, existing: first.created, sent: 0 });
     expect(sent).toEqual([]);
     const rows = await db.alert.findMany({ where: { runId } });
-    expect(rows.every((r) => r.status === "suppressed" && r.subject.startsWith(`A-${r.number} · `))).toBe(true);
+    expect(rows.every((r) => r.status === "suppressed" && r.subject.endsWith(` · A-${r.number}`))).toBe(true);
     expect(rows.every((r) => (r.facts as unknown as AlertFacts).askedAs.startsWith("Asked as a user in "))).toBe(true);
   });
 

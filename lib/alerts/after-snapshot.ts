@@ -437,7 +437,7 @@ async function evidenceFor(
     const quote = terms.length ? (quoteFor(r.answer, terms) ?? (s.metric === "domain" ? opening() : null)) : opening();
     if (!quote) continue;
     const source = s.metric === "domain" ? r.citations.find((ci) => ci.domain === s.key) : r.citations.find((ci) => ci.cited !== false);
-    const ai = modelSwitch ? `${aiName(x.provider)} (${fromAfter ? modelSwitch.newModel : modelSwitch.oldModel})` : `${aiName(x.provider)}, ${when}`;
+    const ai = modelSwitch ? `${aiName(x.provider)}, ${fromAfter ? "new model" : "old model"}` : `${aiName(x.provider)}, ${when}`;
     quotes.push({ ai, question: x.questionLabel, quote, ...(source ? { sourceUrl: source.url, ...(source.title ? { sourceTitle: source.title } : {}) } : {}) });
   }
   return quotes;

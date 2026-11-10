@@ -116,12 +116,12 @@ export function metricNoun(metric: Metric): string {
   return METRIC_NOUN[metric];
 }
 
-/** "ERCOT (name) rose 12% → 30%". */
+/** "Microsoft, down (16% → 2%)": one entry on the also-changed line. */
 export function shortLine(c: Candidate): string {
   const s = c.swing;
-  const verb = s.kind === "new" ? "appeared" : s.kind === "gone" ? "dropped out" : s.kind;
-  const who = s.scope === "all" ? "" : `, ${providerList(c.providers)}`;
-  return `${findingLabel(s)} (${METRIC_NOUN[s.metric]}${who}) ${verb} ${pct(s.before)} → ${pct(s.after)}${c.modelChange ? " [model change]" : ""}`;
+  const verb = s.kind === "new" ? "new" : s.kind === "gone" ? "dropped out" : s.kind === "rose" ? "up" : "down";
+  const who = s.scope === "all" ? "" : ` for ${providerList(c.providers)}`;
+  return `${findingLabel(s)}, ${verb}${who} (${pct(s.before)} → ${pct(s.after)})${c.modelChange ? ", new model" : ""}`;
 }
 
 const SIDE_LABELS: Record<string, string> = {

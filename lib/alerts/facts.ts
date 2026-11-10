@@ -5,6 +5,7 @@
  * only thing the summary writer sees, so every number it may use is here.
  */
 import type { Metric, Swing } from "@/lib/snapshots";
+import { plainChange, plainModelNote } from "./plain";
 import { aiName, findingLabel, metricNoun, pct, providerList, type Candidate, type Trigger } from "./select";
 
 export interface EvidenceQuote {
@@ -44,6 +45,8 @@ export interface AlertFacts {
     usualWobble: string;
     firstSeen: boolean;
   };
+  /** The change in plain words (lib/alerts/plain.ts): what the email leads with. */
+  plain: { headline: string; short: string; modelNote?: string };
   /** The same finding per AI, where each AI's own share is known. */
   perAi: { ai: string; before: string; after: string; pastOwnBand: boolean }[];
   /** Plain-English caveat when a model change, not the world, may explain it. */
@@ -136,6 +139,13 @@ export function buildFacts(input: FactsInput): AlertFacts {
       moved: points(s.change),
       usualWobble: points(s.threshold),
       firstSeen: input.candidate.firstSeen,
+    },
+    plain: {
+      ...plainChange({ swing: s, providers: input.candidate.providers, modelSwitch: input.trigger === "model_switch" ? input.modelSwitch : null, beforeDate: dates.before }),
+      ...(() => {
+        const note = plainModelNote({ modelSwitch: input.trigger === "model_switch" ? input.modelSwitch : null, modelChanged: changedHere });
+        return note ? { modelNote: note } : {};
+      })(),
     },
     perAi: input.perAi.map((p) => ({ ai: aiName(p.provider), before: pct(p.before), after: pct(p.after), pastOwnBand: p.pastOwnBand })),
     ...(modelCaveat ? { modelCaveat } : {}),

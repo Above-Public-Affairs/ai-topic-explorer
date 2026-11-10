@@ -460,12 +460,15 @@ Snapshots can run before that.
     judged by the item's latest snapshot noise, and is always labeled a model change. A weekly
     or event change carries a caveat when an AI that moved answered with a different model in
     the two snapshots.
-  - **Writing:** one GPT-6 Luna call per alert from the stored facts (`Alert.facts`), about
-    $0.0002. Every number and number word in its text must already be in the facts, with no
-    statistics jargon and the model caveat kept, or a template summary is used.
-  - **Email:** subject `A-12 · <item>: <finding> (Change | Model change)`; summary, why it
-    might matter, how the AIs were asked, evidence (shares, per AI, up to 3 quoted sentences
-    with sources), a Claude prompt, the also-changed line.
+  - **Subject:** `<item>: <AI> <does X> more/less · A-12`, "(model change)" for a switch.
+  - **Plain first (Josh, Nov 10: "needs to be simpler").** Each email leads with one sentence
+    built from the numbers, shares said as "N in 10" ("Gemini's new model cites reddit.com in
+    about 1 in 10 answers, down from 5 in 10 with the old one"), then a plain "Why" for model
+    changes, one sentence on what it could mean, how the AIs were asked, two examples and the
+    Claude prompt. Percentages and the chance test sit in a small details line at the bottom.
+  - **Writing:** the "what it could mean" sentence is the only AI-written line (GPT-6 Luna,
+    ~$0.0001). Every number in it must already be in the facts, no jargon, at most ~25 words,
+    or a stock sentence is used.
   - **Switches:** `ALERTS_ENABLED` (off: stored as `suppressed`), `ALERT_RECIPIENTS` (default
     Josh). Idempotent: created once per run in one transaction; each claimed before sending.
   - **Proof (Nov 10, 2026, local copies):** A/A on task 4.3's two snapshots → no alerts. Real

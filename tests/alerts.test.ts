@@ -11,6 +11,8 @@ import {
   checkWritten,
   claudePrompt,
   inventedNumbers,
+  plainChange,
+  plainShare,
   quoteFor,
   renderHtml,
   renderText,
@@ -71,7 +73,7 @@ describe("selectAlerts", () => {
     expect(sel.alerts).toHaveLength(MAX_ALERTS_PER_SNAPSHOT);
     expect(sel.alerts.map((a) => a.swing.key)).toEqual(["c:e5", "c:e4", "c:e3"]);
     expect(sel.rest).toHaveLength(3);
-    expect(sel.alsoChanged).toEqual(["Entity 2 (name) rose 10% → 40%", "Entity 1 (name) rose 10% → 35%", "Entity 0 (name) rose 10% → 30%"]);
+    expect(sel.alsoChanged).toEqual(["Entity 2, up (10% → 40%)", "Entity 1, up (10% → 35%)", "Entity 0, up (10% → 30%)"]);
   });
 
   it("treats tone (one value per answer) as one finding", () => {
@@ -90,7 +92,7 @@ describe("selectAlerts", () => {
     });
     expect(sel.alerts).toHaveLength(1);
     expect(sel.alerts[0].modelChange).toBe(true);
-    expect(sel.alsoChanged[0]).toMatch(/\[model change\]$/);
+    expect(sel.alsoChanged[0]).toMatch(/, new model$/);
   });
 
   it("marks and ranks down a weekly change made only by an AI whose model changed", () => {
@@ -169,6 +171,32 @@ describe("facts", () => {
   });
 });
 
+describe("plain words", () => {
+  it("says shares as N in 10", () => {
+    expect(plainShare(0)).toBe("no answers");
+    expect(plainShare(0.03)).toBe("fewer than 1 in 10 answers");
+    expect(plainShare(0.125)).toBe("about 1 in 10 answers");
+    expect(plainShare(0.5)).toBe("5 in 10 answers");
+    expect(plainShare(0.5, false)).toBe("5 in 10");
+    expect(plainShare(0.97)).toBe("almost every answer");
+    expect(plainShare(1)).toBe("every answer");
+  });
+
+  it("leads with one plain sentence", () => {
+    const s = swing({ key: "reddit.com", metric: "domain", scope: "gemini", before: 0.5, after: 0.125 });
+    expect(plainChange({ swing: s, providers: ["gemini"], modelSwitch: { provider: "gemini", newModel: "gemini-3.6-flash" }, beforeDate: "Nov 10" })).toEqual({
+      headline: "Gemini's new model cites reddit.com in about 1 in 10 answers, down from 5 in 10 with the old one.",
+      short: "Gemini's new model cites reddit.com less (model change)",
+    });
+    const gone = swing({ key: "c:abbott", label: "Greg Abbott", before: 0.15, after: 0 });
+    expect(plainChange({ swing: gone, providers: ["claude", "grok"], beforeDate: "Nov 9" }).headline).toBe(
+      "The AIs no longer mention Greg Abbott; they did in about 2 in 10 answers on Nov 9."
+    );
+    const grok = swing({ key: "critical", metric: "tone", label: "critical", scope: "grok", before: 0.2, after: 0.6 });
+    expect(plainChange({ swing: grok, providers: ["grok"], beforeDate: "Nov 9" }).headline).toBe("Grok now takes a critical tone in 6 in 10 answers, up from 2 in 10 on Nov 9.");
+  });
+});
+
 describe("no invented numbers", () => {
   const f = facts();
 
@@ -178,13 +206,13 @@ describe("no invented numbers", () => {
     expect(inventedNumbers("All four AIs, on Nov 15, 2026.", f)).toEqual([]);
   });
 
-  it("rejects jargon, invented numbers and a missing model caveat", () => {
-    expect(checkWritten({ summary: "It rose from 4% to 21%.", why: "It may matter." }, f)).toBeNull();
-    expect(checkWritten({ summary: "It rose from 4% to 30%.", why: "It may matter." }, f)).toMatch(/30/);
-    expect(checkWritten({ summary: "It rose past the noise band.", why: "It may matter." }, f)).toBe("statistics jargon");
-    expect(checkWritten({ summary: "", why: "x" }, f)).toBe("empty text");
-    const withCaveat = facts({ candidate: candidate(swing({ key: "c:x", scope: "gemini" }), ["gemini"]), modelChanged: ["gemini"] });
-    expect(checkWritten({ summary: "It rose from 10% to 30%.", why: "It may matter." }, withCaveat)).toBe("left out the model change");
+  it("rejects jargon, invented numbers, markdown and long text", () => {
+    expect(checkWritten({ why: "Voters may hear more about the regulator." }, f)).toBeNull();
+    expect(checkWritten({ why: "Mentions could reach 30% next week." }, f)).toMatch(/30/);
+    expect(checkWritten({ why: "It moved past the noise band." }, f)).toBe("statistics jargon");
+    expect(checkWritten({ why: "**Big** news." }, f)).toBe("markdown");
+    expect(checkWritten({ why: "" }, f)).toBe("empty text");
+    expect(checkWritten({ why: "word ".repeat(45) }, f)).toBe("too long");
   });
 
   it("writes a template that passes its own check, for every kind of finding", () => {
@@ -215,15 +243,16 @@ describe("no invented numbers", () => {
     }) as unknown as WriterClient;
 
   it("uses the model's text when it passes", async () => {
-    const out = await writeSummary(f, { settings, client: client(JSON.stringify({ summary: "Mentions rose from 4% to 21%.", why: "Voters may hear more about the regulator." })) });
+    const out = await writeSummary(f, { settings, client: client(JSON.stringify({ why: "Voters may hear more about the regulator." })) });
     expect(out.writer).toBe("gpt-6-luna");
-    expect(out.summary).toBe("Mentions rose from 4% to 21%.");
+    expect(out.summary).toBe(f.plain.headline);
+    expect(out.why).toBe("Voters may hear more about the regulator.");
     expect(out.costUsd).toBeGreaterThan(0);
     expect(out.costUsd).toBeLessThan(0.02);
   });
 
   it("falls back to the template when the model invents a number", async () => {
-    const out = await writeSummary(f, { settings, client: client(JSON.stringify({ summary: "Mentions tripled to 63%.", why: "It may matter." })) });
+    const out = await writeSummary(f, { settings, client: client(JSON.stringify({ why: "Mentions could triple to 63%." })) });
     expect(out.writer).toBe("template");
     expect(out.rejected).toMatch(/63/);
     expect(inventedNumbers(`${out.summary} ${out.why}`, f)).toEqual([]);
@@ -237,25 +266,28 @@ describe("no invented numbers", () => {
 });
 
 describe("email", () => {
-  const a = { number: 12, facts: facts(), summary: "Mentions rose from 4% to 21%.", why: "Voters may hear more about the regulator." };
+  const a = { number: 12, facts: facts(), summary: "", why: "Voters may hear more about the regulator." };
 
   it("carries the summary, how the AIs were asked, and the Claude prompt", () => {
     const text = renderText(a);
-    expect(text).toContain("Mentions rose from 4% to 21%.");
-    expect(text).toContain("HOW THE AIS WERE ASKED: Asked as a user in Austin, Texas.");
-    expect(text).toContain("Using AI Topic Explorer, explain alert A-12");
-    expect(text).toContain('"The Public Utility Commission of Texas is weighing new rules." (Claude, Nov 16, 2026, question 1.3; source: https://www.texastribune.org/x)');
-    expect(text).toContain("Also changed this snapshot (no alert of their own): Microsoft (name) fell 16% → 2%.");
+    const lines = text.split("\n");
+    expect(lines[0]).toBe("The AIs now mention Public Utility Commission of Texas in about 2 in 10 answers, up from fewer than 1 in 10 on Nov 9, 2026.");
+    expect(text).toContain("What it could mean: Voters may hear more about the regulator.");
+    expect(text).toContain("How the AIs were asked: as a user in Austin, Texas.");
+    expect(text).toContain("Using AI Topic Explorer, explain alert A-12.");
+    expect(text).toContain('- Claude: "The Public Utility Commission of Texas is weighing new rules." (source: https://www.texastribune.org/x)');
+    expect(text).toContain("Also changed: Microsoft (name) fell 16% → 2%.");
+    expect(text).toMatch(/Details: 4% → 21% of answers \(4 answers → 20 answers\)/);
     const html = renderHtml(a);
-    expect(html).toContain("<strong>How the AIs were asked:</strong> Asked as a user in Austin, Texas.");
+    expect(html).toContain("The AIs were asked as a user in Austin, Texas.");
     expect(html).toContain("explain alert A-12");
   });
 
   it("makes a prompt that works pasted into Claude without the connector", () => {
     const p = claudePrompt(a);
-    expect(p.split("\n")[0]).toBe("Using AI Topic Explorer, explain alert A-12: what changed, what might explain it, and what I could check next.");
-    expect(p).toContain("Asked as a user in Austin, Texas");
-    expect(p).toContain("Summary: Mentions rose from 4% to 21%.");
+    expect(p.split("\n")[0]).toBe("Using AI Topic Explorer, explain alert A-12.");
+    expect(p).toContain("The AIs were asked as a user in Austin, Texas.");
+    expect(p).toContain("here's the alert: The AIs now mention Public Utility Commission of Texas");
   });
 
   it("escapes HTML from answers", () => {

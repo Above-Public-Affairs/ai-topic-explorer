@@ -4,6 +4,10 @@ All notable changes to AI Topic Explorer will be documented in this file.
 
 ## [2026-11-10]
 
+### Changed (task 5.2: simpler alert email, from Josh's feedback on A-2)
+- Each alert now leads with one plain sentence built from the numbers, such as "Gemini's new model cites reddit.com in about 1 in 10 answers, down from 5 in 10 with the old one", then a one-line "Why" for model changes, one sentence on what it could mean (the only AI-written line), how the AIs were asked, two examples and a shorter Claude prompt. Percentages and the "bigger than chance" test moved to a small details line at the bottom
+- Subject: "<watch item>: <AI> <does X> more/less · A-n", with "(model change)" for model switches
+
 ### Added (task 5.2: notable-change alerts)
 - `lib/alerts/`: `afterSnapshot(db, runId)` runs when each snapshot finishes (weekly worker, event watcher, model watcher; one added call in each). It turns the snapshot's changes beyond the noise band into alerts, one finding each: a change seen across all AIs and for some AIs on their own is one alert naming those AIs; tone and argument lean are one finding each
 - Ranked by how far past the band, lifted for all-AI changes and for things never seen before in the watch item, cut in half when only an AI whose model changed moved. At most 3 alerts per item per snapshot (1 per model switch); the rest go on one "also changed" line
