@@ -30,6 +30,8 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
   {eventId, old/new registryId, model, answered, failed}; answers carry `modelRegistryId`.
   `Event.runId` holds only the first run (one-to-one column), so find the rest by
   `stats.modelSwitch.eventId`.
+- First production run (Nov 10, 2026, 17:10 UTC, schedule moved ahead for it): all four
+  unchanged, 34s, $0.055 of the $1 check cap, exit 0.
 - Proof of a switch: `npm run worker:models -- --providers gemini --simulate gemini=gemini-3.6-flash`
   against a local copy (it refuses anything but localhost). DB test:
   `tests/model-watcher.db.test.ts` (needs `TEST_DATABASE_URL`, a scratch copy; it changes the list).
@@ -64,10 +66,8 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
   (default $15), item cap `WEEKLY_ITEM_CAP_USD` (default $6).
 - Each snapshot's comparison against the item's previous one is on `Run.stats.comparison`.
 - Gotcha: Railway cron is UTC, so it's 11pm Sunday Central in winter, midnight in summer.
-- Gotcha: every deploy of the service runs the worker at once, including the auto-deploy on
-  each push to `main`. The weekly guard makes that a no-op once the week's snapshots exist
-  (proved: a redeploy right after the baseline skipped all three), but a push between Monday
-  00:00 and 05:00 UTC would take that week's snapshots early.
+- Gotcha: deploying a cron service doesn't run it (checked Nov 10, 2026, see LESSONS.md). To
+  run one now, move its schedule a few minutes ahead, redeploy, then move it back.
 - Baseline (Nov 10, 2026): runs `cmwa8hqj1000018pelxdia3va` (Data centers in Texas, $4.99),
   `cmwa8p83p05h318pej5mcx6xn` (Oil and gas in New Mexico, $4.68), `cmwa8vppw0ams18pekwo8lngh`
   (Renewables in Texas, $4.59); all complete, 0 failed calls. At ~$14.30 a week the $15 run

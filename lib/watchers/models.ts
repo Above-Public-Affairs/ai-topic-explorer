@@ -14,7 +14,7 @@
  *
  * Safety:
  * - Once a day: a provider whose row was confirmed today (UTC) is skipped, so
- *   the run every deploy starts does nothing new. A switch whose runs didn't
+ *   a second run (by hand, or a retry) does nothing new. A switch whose runs didn't
  *   all finish is resumed on the next run, within SWITCH_RESUME_MS.
  * - Daily check cap (MODEL_CHECK_CAP_USD, default $1) and a switch-day cap
  *   (MODEL_SWITCH_CAP_USD, default $12) shared across a day's switch runs.

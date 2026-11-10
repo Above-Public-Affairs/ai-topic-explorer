@@ -13,7 +13,7 @@ source (`PROJECT-PLAN.md` §4D). Proven locally: real scan and calendar, one eve
 **Task 4.5 (model watcher, Nov 10):** Railway cron service `model-watcher` checks each
 provider's free-tier default daily at 13:00 UTC, about $0.04 a day. A clear change updates the
 model list, logs a `new_model` event and asks every watch item's anchor questions on both
-models (`PROJECT-PLAN.md` §4D). Proven locally with a simulated Gemini switch ($1.28).
+models (`PROJECT-PLAN.md` §4D). Proven locally with a simulated Gemini switch ($1.28). First production run Nov 10, 17:10 UTC: all four unchanged, $0.055.
 
 **Task 6.8 (new GA4 property, Nov 9):** the site sends to GA4 `G-6WT4RP9NQD` (Railway
 `NEXT_PUBLIC_GA_MEASUREMENT_ID`), with page views on every route and a typed event catalog in

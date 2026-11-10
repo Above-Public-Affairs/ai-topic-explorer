@@ -28,12 +28,14 @@ served model id all passed. What stops it: refuse a change to an older version t
 current model, tell the check model that launch pages outlive their news, and treat anything
 doubtful as "unclear" (leave the list, warn a person) rather than a change.
 
-## A Railway cron service runs on every deploy, not only on its schedule (Nov 2026)
+## A Railway cron service doesn't run when it deploys: to test one now, move its schedule (Nov 2026)
 
-Redeploying (or pushing to the branch it tracks) starts the job right away. So a cron job
-must be safe to run at any time: guard it so a second run in the same period does nothing,
-and expect pushes to `main` to trigger it. The weekly snapshot worker's once-a-week check is
-what makes this harmless.
+Task 4.4 believed a deploy starts the job. On Nov 10, 2026, four deploys of `model-watcher`
+(first attach, a manual redeploy, two auto-deploys from pushes to `main`) and today's
+`weekly-snapshots` deploys all ended SUCCESS with no output, and the database showed the job
+never ran. Deploy SUCCESS on a cron service only means the image is ready. To see a real run
+before its schedule, set the cron a few minutes ahead, redeploy, read the logs, then set it
+back. Keep the once-per-period guards anyway: they make a manual run or a retry harmless.
 
 ## Calibrate a change detector with an A/A test before trusting it (Nov 2026)
 
