@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@/app/generated/prisma/client";
 import { buildItemReport, locationLine } from "@/lib/reports/aggregate";
-import { citationShiftSvg, svgToPng, themeTrendSvg } from "@/lib/reports/charts";
+import { svgToPng, themeTrendSvg } from "@/lib/reports/charts";
+import { headlineChanges, inTen, plainChange } from "@/lib/reports/plain";
 import { historySkipReason, monthFromKey, previousMonth, reportJobKey } from "@/lib/reports/month";
 import { buildReport, enabledFromEnv, recipientsFromEnv, runMonthlyReport } from "@/lib/reports/monthly";
 import { SAMPLE_MONTH, sampleMonth } from "@/lib/reports/sample";
@@ -111,7 +112,7 @@ describe("charts", () => {
   it("render to PNG and carry the sample stamp", () => {
     const svg = themeTrendSvg(r, true);
     expect(svg).toContain("SAMPLE DATA");
-    expect(citationShiftSvg(r, false)).not.toContain("SAMPLE DATA");
+    expect(themeTrendSvg(r, false)).not.toContain("SAMPLE DATA");
     const png = svgToPng(svg);
     expect(png.subarray(1, 4).toString()).toBe("PNG");
     expect(png.readUInt32BE(16)).toBe(1200); // 600px at 2x
@@ -130,7 +131,7 @@ describe("summary", () => {
   });
 
   it("uses the model's text when every number checks out", async () => {
-    const s = await writeSummary(items, [], "December 2026", { client: reply("Water use rose from 39% to 60% for data centers in Texas."), settings });
+    const s = await writeSummary(items, [], "December 2026", { client: reply("The AIs talk about water use more: about 6 in 10 answers now, up from about 4 in 10."), settings });
     expect(s.source).toBe("model");
   });
 
@@ -142,15 +143,31 @@ describe("summary", () => {
     expect(await writeSummary(items, [], "December 2026", { client: failing, settings })).toMatchObject({ source: "fallback", note: expect.stringContaining("boom") });
   });
 
-  it("fallback names each item and says when nothing moved", () => {
+  it("fallback names each item in plain words", () => {
     const text = fallbackSummary(items, []);
-    expect(text).toContain('the theme "Water use" rose from 39% to 60%');
-    expect(text).toContain("Renewables in Texas: citations of eia.gov rose");
+    expect(text).toContain("Data centers in Texas: The AIs talk about water use more: about 6 in 10 answers now, up from about 4 in 10.");
+    expect(text).not.toMatch(/%|noise band|citation/i);
+  });
+});
+
+describe("plain wording", () => {
+  const [dc, , re] = sampleMonth().map(buildItemReport);
+  it("says shares as N in 10", () => {
+    expect([0.02, 0.39, 0.6, 0.97].map(inTen)).toEqual(["almost none", "about 4 in 10", "about 6 in 10", "nearly all"]);
+  });
+  it("leads with all-AI changes and says each finding once", () => {
+    const lines = headlineChanges(dc).map(plainChange);
+    expect(lines).toEqual([
+      "The AIs talk about water use more: about 6 in 10 answers now, up from about 4 in 10.",
+      "The AIs point to reddit.com as a source more: about 2 in 10 answers now, up from about 1 in 10.",
+      "ChatGPT points to texastribune.org as a source less: about 1 in 10 answers now, down from about 5 in 10.",
+    ]);
+    expect(headlineChanges(re).map(plainChange)[0]).toBe("The AIs point to eia.gov as a source more: about 5 in 10 answers now, up from about 2 in 10.");
   });
 });
 
 describe("built report", () => {
-  it("is marked sample, has the location line and one inline image per chart", async () => {
+  it("is marked sample, plain, has the location line and one inline chart per topic", async () => {
     const built = await buildReport(monthFromKey(SAMPLE_MONTH), sampleMonth(), [], {
       sample: true,
       summarize: async (items, skipped) => ({ text: fallbackSummary(items, skipped), source: "fallback", costUsd: 0 }),
@@ -159,9 +176,11 @@ describe("built report", () => {
     expect(built.html).toContain("SAMPLE DATA.");
     expect(built.html).toContain("Asked as a user in Albuquerque, New Mexico");
     expect(built.text).toContain("Asked as a user in Austin, Texas");
-    expect(built.attachments).toHaveLength(6);
+    expect(built.attachments).toHaveLength(3);
     for (const a of built.attachments) expect(built.html).toContain(`cid:${a.contentId}`);
     expect(built.html).not.toMatch(/<script/i);
+    for (const jargon of [/noise band/i, /locked question/i, /entit(y|ies)/i, /citation/i, /snapshot/i, /\bband\b/i])
+      expect(built.text.replace(/SAMPLE DATA.*\n/, "")).not.toMatch(jargon);
   });
 });
 

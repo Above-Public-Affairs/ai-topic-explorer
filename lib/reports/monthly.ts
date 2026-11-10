@@ -33,7 +33,7 @@ export const enabledFromEnv = (value: string | undefined) => value?.trim().toLow
 
 export interface BuiltReport {
   report: MonthlyReport;
-  charts: { trend: RenderedChart; citations: RenderedChart }[];
+  charts: { trend: RenderedChart }[];
   subject: string;
   html: string;
   text: string;
@@ -53,11 +53,11 @@ export async function buildReport(
   const report: MonthlyReport = { month, generatedAt: options.now ?? new Date(), sample, items, skipped, summary, alerts: null };
   // TODO(5.2): list the month's alerts once lib/alerts (and its Alert table) lands.
   const charts = items.map((r, i) => itemCharts(r, i, sample));
-  const attachments = charts.flatMap((c) => [c.trend, c.citations]).map((c) => ({ filename: c.filename, type: "image/png", content: c.png, contentId: c.cid }));
+  const attachments = charts.map((c) => c.trend).map((c) => ({ filename: c.filename, type: "image/png", content: c.png, contentId: c.cid }));
   return {
     report,
     charts,
-    subject: `${sample ? "[SAMPLE DATA] " : ""}AI Topic Explorer: ${month.label} health report`,
+    subject: `${sample ? "[SAMPLE DATA] " : ""}What AI is saying: ${month.label}`,
     html: renderHtml(report, charts),
     text: renderText(report),
     attachments,

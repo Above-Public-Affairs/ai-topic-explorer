@@ -459,6 +459,10 @@ Snapshots can run before that.
   - **Email:** HTML tables with inline `cid:` PNGs (resvg, bundled Inter), ~400 KB for three
     items, plus a plain-text twin. `REPORTS_ENABLED` (off until 8.2), `REPORT_RECIPIENTS`
     (default Josh). Once per month (`WatcherJob` `report:monthly:<YYYY-MM>`).
+  - **Plain language (Josh, Nov 10):** the first sample was "too complicated", so the email
+    is written for a general reader: up to 3 changes per topic as "about 6 in 10 answers now,
+    up from about 4 in 10", one chart, the top topics, what new questions raised, and what
+    happened. No tables, bands or internal terms; the detail stays in the database for 5.4.
   - **First real report:** weekly runs started Nov 10, so November has 3 and its Dec 1 run
     skips; the Jan 1 run (December) is the first with 4+.
 

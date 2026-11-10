@@ -9,8 +9,8 @@ every watch item: depth (only changes beyond the noise band called real), breadt
 shifts, model changes and events on the timeline, the location line, and a short AI summary
 checked against the numbers. Railway cron service `monthly-report` runs the 1st at 14:00 UTC;
 it waits for 4 weekly snapshots, so the first real report is Jan 1, 2027 (for December). Off
-until `REPORTS_ENABLED=true` (task 8.2). A sample from synthetic data was sent to Josh and
-checked in Gmail.
+until `REPORTS_ENABLED=true` (task 8.2). Josh found the first sample too complicated; it's now written for a general
+reader, and the revised sample was sent and checked in Gmail.
 
 **Task 4.7 (event watcher, Nov 10):** Railway cron service `event-watcher` runs hourly: a
 daily web-search scan (about $0.10) for events in Josh's approved categories, a weekly refresh

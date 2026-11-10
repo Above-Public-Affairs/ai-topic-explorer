@@ -25,6 +25,7 @@ All notable changes to AI Topic Explorer will be documented in this file.
 - Waits for history: an item needs 4 weekly snapshots through the month's end; with none ready the run logs "not enough history yet" and stops. Off by default (`REPORTS_ENABLED=false`); recipients from `REPORT_RECIPIENTS` (default Josh). Once per month via `WatcherJob` key `report:monthly:<YYYY-MM>`; a send with no answer from SendGrid isn't retried
 - Sample mode (`--sample [--out=dir] [--send-to=…]`): seeded synthetic snapshots with injected changes, marked "SAMPLE DATA" in the subject, banner and every chart. `--preview --month=YYYY-MM` renders real data to files without sending
 - `sendEmail` takes optional `attachments` (inline when given a `contentId`). No schema change
+- Written for a general reader (Josh's review of the first sample): "What AI is saying: <Month>", a short version at the top, then per topic the location line, up to 3 plain changes ("about 6 in 10 answers now, up from about 4 in 10"), one chart, the top topics, what new questions brought up, and what happened that month. No tables or internal terms
 - TODO(5.2): list the month's alerts once `lib/alerts` lands
 
 ### Added (task 4.8: merge themes worded different ways)

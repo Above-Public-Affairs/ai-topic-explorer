@@ -6,14 +6,14 @@
  *
  * Design (dataviz skill): one axis, 2px lines, ≥8px end dots with a 2px
  * surface ring, hairline solid grid, text in text colors (never the series
- * color), a legend for every multi-series chart plus direct end labels, and
- * the HTML tables beside each chart as the table view. Series colors are the
+ * color), a legend for every multi-series chart plus direct end labels. One
+ * chart per item keeps the email light and easy to read. Series colors are the
  * validated categorical order, assigned by fixed slot, never by rank.
  */
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { Resvg } from "@resvg/resvg-js";
-import type { ItemReport, FindingRow, TimelineMark } from "./types";
+import type { ItemReport, TimelineMark } from "./types";
 
 export const CHART_WIDTH = 600;
 /** Rendered at 2x for sharp text on retina screens; shown at CHART_WIDTH. */
@@ -30,8 +30,6 @@ export const COLORS = {
   series: ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"],
   /** Above accent (the site's cyan) for marks on the timeline. */
   accent: "#0e7490",
-  start: "#9aa3b2",
-  end: "#2a78d6",
 };
 
 const FONT_DIR = path.join(process.cwd(), "lib", "reports", "fonts");
@@ -103,7 +101,7 @@ export function themeTrendSvg(report: ItemReport, sample = false): string {
   const y = (s: number) => top + plotH - (s / maxShare) * plotH;
 
   const parts: string[] = [];
-  parts.push(`<text x="12" y="20" font-size="13" font-weight="600" fill="${COLORS.text}">Top themes in answers to the locked questions</text>`);
+  parts.push(`<text x="12" y="20" font-size="13" font-weight="600" fill="${COLORS.text}">What the AIs talk about most</text>`);
   parts.push(sampleStamp(W, sample));
   // Legend, two per row.
   keys.forEach((k, i) => {
@@ -134,11 +132,7 @@ export function themeTrendSvg(report: ItemReport, sample = false): string {
     for (const p of points) {
       const cx = x(p.at);
       const cy = y(p.shares[k] ?? 0);
-      parts.push(
-        p.kind === "event"
-          ? `<circle cx="${cx}" cy="${cy}" r="4" fill="${COLORS.surface}" stroke="${c}" stroke-width="2"/>`
-          : `<circle cx="${cx}" cy="${cy}" r="4" fill="${c}" stroke="${COLORS.surface}" stroke-width="2"/>`
-      );
+      parts.push(`<circle cx="${cx}" cy="${cy}" r="4" fill="${c}" stroke="${COLORS.surface}" stroke-width="2"/>`);
     }
     const last = points.at(-1)!.shares[k] ?? 0;
     ends.push({ y: y(last), text: `${pct(last)} ${labels[k] ?? k}`, color: c });
@@ -160,7 +154,7 @@ export function themeTrendSvg(report: ItemReport, sample = false): string {
     lastLabelX = px;
     parts.push(`<text x="${px}" y="${top + plotH + 18}" text-anchor="middle" font-size="11" fill="${COLORS.textMuted}">${shortDate(p.at)}</text>`);
   }
-  parts.push(`<text x="12" y="${H - 8}" font-size="11" fill="${COLORS.textMuted}">Share of locked-question answers, all AIs. Hollow dot = event snapshot.${report.startIsBaseline ? " First point is last month's final snapshot." : ""}</text>`);
+  parts.push(`<text x="12" y="${H - 8}" font-size="11" fill="${COLORS.textMuted}">Share of answers that bring up each topic, all four AIs. Numbered lines: see "What happened this month".</text>`);
   return svgDoc(W, H, parts.join("\n"));
 }
 
@@ -177,47 +171,6 @@ export function markGroups(marks: TimelineMark[], from: Date, to: Date): { at: D
   return groups;
 }
 
-/**
- * Citation shifts: share of answers citing each top source, start of the
- * month (gray) to the end (blue). Changes beyond the noise band are labeled.
- */
-export function citationShiftSvg(report: ItemReport, sample = false): string {
-  const rows: FindingRow[] = report.top.domain;
-  const W = CHART_WIDTH;
-  const rowH = 26;
-  const top = 58;
-  const H = top + rows.length * rowH + 34;
-  const labelW = 150;
-  const left = 12 + labelW;
-  const right = W - 136;
-  const maxShare = niceMax(Math.max(0.2, ...rows.flatMap((r) => [r.start, r.end])));
-  const x = (s: number) => left + (s / maxShare) * (right - left);
-
-  const parts: string[] = [];
-  parts.push(`<text x="12" y="20" font-size="13" font-weight="600" fill="${COLORS.text}">Most-cited sources, start vs end of month</text>`);
-  parts.push(sampleStamp(W, sample));
-  // Legend.
-  parts.push(`<circle cx="18" cy="38" r="4" fill="${COLORS.start}"/><text x="28" y="42" font-size="12" fill="${COLORS.textSecondary}">${esc(shortDate(report.startAt))}</text>`);
-  parts.push(`<circle cx="108" cy="38" r="4" fill="${COLORS.end}"/><text x="118" y="42" font-size="12" fill="${COLORS.textSecondary}">${esc(shortDate(report.endAt))}</text>`);
-  for (let s = 0; s <= maxShare + 1e-9; s += maxShare / 4) {
-    parts.push(`<line x1="${x(s)}" x2="${x(s)}" y1="${top - 6}" y2="${top + rows.length * rowH}" stroke="${s === 0 ? COLORS.axis : COLORS.grid}" stroke-width="1"/>`);
-    parts.push(`<text x="${x(s)}" y="${top + rows.length * rowH + 16}" text-anchor="middle" font-size="11" fill="${COLORS.textMuted}">${pct(s)}</text>`);
-  }
-  rows.forEach((r, i) => {
-    const cy = top + i * rowH + rowH / 2;
-    parts.push(`<text x="${left - 10}" y="${cy + 4}" text-anchor="end" font-size="12" fill="${COLORS.text}">${esc(truncate(r.label, 12, labelW - 10))}</text>`);
-    const a = x(r.start);
-    const b = x(r.end);
-    if (Math.abs(b - a) > 1) parts.push(`<line x1="${a}" x2="${b}" y1="${cy}" y2="${cy}" stroke="${r.real ? COLORS.end : COLORS.axis}" stroke-width="2"/>`);
-    parts.push(`<circle cx="${a}" cy="${cy}" r="4" fill="${COLORS.start}" stroke="${COLORS.surface}" stroke-width="2"/>`);
-    parts.push(`<circle cx="${b}" cy="${cy}" r="4.5" fill="${COLORS.end}" stroke="${COLORS.surface}" stroke-width="2"/>`);
-    const note = `${pct(r.start)} → ${pct(r.end)}${r.real ? " · real" : ""}`;
-    parts.push(`<text x="${right + 10}" y="${cy + 4}" font-size="11" ${r.real ? `font-weight="600" fill="${COLORS.text}"` : `fill="${COLORS.textMuted}"`}>${esc(note)}</text>`);
-  });
-  parts.push(`<text x="12" y="${H - 6}" font-size="11" fill="${COLORS.textMuted}">Share of locked-question answers citing each source, all AIs. "Real" = beyond the noise band.</text>`);
-  return svgDoc(W, H, parts.join("\n"));
-}
-
 export interface RenderedChart {
   cid: string;
   filename: string;
@@ -226,11 +179,9 @@ export interface RenderedChart {
   width: number;
 }
 
-export function itemCharts(report: ItemReport, index: number, sample = false): { trend: RenderedChart; citations: RenderedChart } {
-  const name = report.watchItem.name;
+export function itemCharts(report: ItemReport, index: number, sample = false): { trend: RenderedChart } {
   const slug = `item${index + 1}`;
   return {
-    trend: { cid: `${slug}-themes`, filename: `${slug}-themes.png`, alt: `${name}: top themes over the month`, png: svgToPng(themeTrendSvg(report, sample)), width: CHART_WIDTH },
-    citations: { cid: `${slug}-citations`, filename: `${slug}-citations.png`, alt: `${name}: most-cited sources, start vs end of month`, png: svgToPng(citationShiftSvg(report, sample)), width: CHART_WIDTH },
+    trend: { cid: `${slug}-themes`, filename: `${slug}-themes.png`, alt: `${report.watchItem.name}: what the AIs talk about most, through the month`, png: svgToPng(themeTrendSvg(report, sample)), width: CHART_WIDTH },
   };
 }
