@@ -56,7 +56,7 @@ sets for all three items ($0.0007) and one fresh set each ($0.068). **Anchor set
 approved by Josh on Nov 9** (real-person voice, balanced leans, `Question.lean` recorded; he
 reworded data centers 1.2 and 1.3 as neutral questions) and locked into production by
 migration `20261109180000_lock_anchor_sets` from `scripts/anchor-sets/2026-11-09.json`.
-Snapshots can now run. Task 4.4 (weekly worker) is built: Railway cron service `weekly-snapshots` runs `npm run worker:weekly` every Monday 05:00 UTC, one snapshot per active watch item, with a once-a-week guard and a $15 run cap (`PROJECT-PLAN.md` §4D).
+Snapshots can now run. Task 4.4 (weekly worker) is built: Railway cron service `weekly-snapshots` runs `npm run worker:weekly` every Monday 05:00 UTC, one snapshot per active watch item, with a once-a-week guard and a $15 run cap (`PROJECT-PLAN.md` §4D). First production baseline stored Nov 10, 2026 (05:13–05:28 UTC): all three watch items complete, 128 calls each, 0 failed, $4.99 / $4.68 / $4.59 = $14.26.
 Task 4.3 (repeats and noise bands) is built: `lib/snapshots/` runs a snapshot (locked
 questions ×3, fresh ×1), stores held vs noisy findings and the noise band on `Run.stats`,
 and `compareSnapshots()` lists changes beyond the band. 3 repeats chosen from the proof

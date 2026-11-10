@@ -3,6 +3,13 @@
 > Reusable rules this project taught us the hard way. Appended at the Compound step
 > (see `build-methodology`), newest at top. Not a changelog — the rule, not the play-by-play.
 
+## A Railway cron service runs on every deploy, not only on its schedule (Nov 2026)
+
+Redeploying (or pushing to the branch it tracks) starts the job right away. So a cron job
+must be safe to run at any time: guard it so a second run in the same period does nothing,
+and expect pushes to `main` to trigger it. The weekly snapshot worker's once-a-week check is
+what makes this harmless.
+
 ## Calibrate a change detector with an A/A test before trusting it (Nov 2026)
 
 Two snapshots of the same watch item run minutes apart can't differ for real, so every

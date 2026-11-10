@@ -28,6 +28,14 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
   (default $15), item cap `WEEKLY_ITEM_CAP_USD` (default $6).
 - Each snapshot's comparison against the item's previous one is on `Run.stats.comparison`.
 - Gotcha: Railway cron is UTC, so it's 11pm Sunday Central in winter, midnight in summer.
+- Gotcha: every deploy of the service runs the worker at once, including the auto-deploy on
+  each push to `main`. The weekly guard makes that a no-op once the week's snapshots exist
+  (proved: a redeploy right after the baseline skipped all three), but a push between Monday
+  00:00 and 05:00 UTC would take that week's snapshots early.
+- Baseline (Nov 10, 2026): runs `cmwa8hqj1000018pelxdia3va` (Data centers in Texas, $4.99),
+  `cmwa8p83p05h318pej5mcx6xn` (Oil and gas in New Mexico, $4.68), `cmwa8vppw0ams18pekwo8lngh`
+  (Renewables in Texas, $4.59); all complete, 0 failed calls. At ~$14.30 a week the $15 run
+  cap is tight: the third item gets only what's left (~$5.30).
 
 ## Snapshots, repeats and noise bands (task 4.3)
 - `lib/snapshots/runSnapshot(db, watchItemId)` is what the weekly worker (4.4) calls: locked
