@@ -15,6 +15,7 @@ import Dialog from "@/components/Dialog";
 import CloseButton from "@/components/CloseButton";
 import AnalysisProgressPanel from "@/components/AnalysisProgressPanel";
 import { secondsSince, trackEvent, type ErrorType } from "@/lib/analytics";
+import { PRIVACY_POLICY_URL } from "@/lib/privacy";
 import { MAX_TOPIC_LENGTH } from "@/lib/guards/limits";
 
 const ALL_TOPICS = [
@@ -622,6 +623,18 @@ export default function Home() {
                 </div>
                 <p id="topic-error" role="alert" className="mt-4 text-red-700 font-medium text-sm empty:hidden">
                   {error}
+                </p>
+                <p className="mt-3 text-xs text-(--text-tertiary) text-pretty">
+                  Your topic goes to each AI and is saved on a results page anyone with the link can open.{" "}
+                  <a
+                    href={PRIVACY_POLICY_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-(--accent-cyan) hover:text-(--accent-violet) transition-colors underline underline-offset-2"
+                  >
+                    Privacy policy
+                    <span className="sr-only"> (opens in a new tab)</span>
+                  </a>
                 </p>
               </form>
 

@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import Dialog from "@/components/Dialog";
 import CloseButton from "@/components/CloseButton";
 import { trackEvent } from "@/lib/analytics";
+import { PRIVACY_POLICY_URL } from "@/lib/privacy";
 
 export default function BugReportButton() {
   const [open, setOpen] = useState(false);
@@ -120,7 +121,16 @@ export default function BugReportButton() {
                 />
                 <div className="flex items-center justify-between mt-1 mb-4">
                   <p className="text-xs text-(--text-tertiary)">
-                    Page URL and browser info included automatically.
+                    Page URL and browser info included automatically.{" "}
+                    <a
+                      href={PRIVACY_POLICY_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-(--accent-cyan) hover:text-(--accent-violet) transition-colors underline underline-offset-2"
+                    >
+                      Privacy policy
+                      <span className="sr-only"> (opens in a new tab)</span>
+                    </a>
                   </p>
                   <span className="text-xs text-(--text-tertiary)">
                     {description.length}/2000

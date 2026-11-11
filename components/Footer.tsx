@@ -5,6 +5,7 @@ import Dialog from "@/components/Dialog";
 import CloseButton from "@/components/CloseButton";
 import { trackEvent } from "@/lib/analytics";
 import type { ChangelogDay } from "@/lib/changelog";
+import { PRIVACY_POLICY_URL } from "@/lib/privacy";
 
 export default function Footer({ hideChangelog = false }: { hideChangelog?: boolean } = {}) {
   // Loaded on first open, so the changelog isn't part of every page's JavaScript.
@@ -25,31 +26,46 @@ export default function Footer({ hideChangelog = false }: { hideChangelog?: bool
 
   return (
     <>
-      <footer className="py-8 px-8 border-t border-black/5 text-center">
-        <p className="text-xs text-(--text-tertiary)">
-          Built by{" "}
-          <a
-            href="https://abovepublicaffairs.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block py-2 font-medium hover:text-(--accent-cyan) transition-colors"
-          >
-            Above Public Affairs
-            <span className="sr-only"> (opens in a new tab)</span>
-          </a>
-          {!hideChangelog && (
-            <>
-              <span className="mx-1.5">&middot;</span>
-              <button
-                type="button"
-                onClick={open}
-                className="py-2 hover:text-(--accent-cyan) transition-colors underline underline-offset-2"
-              >
-                Changelog
-              </button>
-            </>
-          )}
-        </p>
+      {/* Two groups: on a phone they stack, so a separator never dangles at a line end. */}
+      <footer className="py-6 px-8 border-t border-black/5 text-center">
+        <div className="flex flex-col sm:flex-row sm:justify-center items-center text-xs text-(--text-tertiary)">
+          <p>
+            Built by{" "}
+            <a
+              href="https://abovepublicaffairs.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block py-3 font-medium hover:text-(--accent-cyan) transition-colors"
+            >
+              Above Public Affairs
+              <span className="sr-only"> (opens in a new tab)</span>
+            </a>
+          </p>
+          <span className="hidden sm:inline mx-1.5" aria-hidden="true">&middot;</span>
+          <p>
+            <a
+              href={PRIVACY_POLICY_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block py-3 hover:text-(--accent-cyan) transition-colors underline underline-offset-2"
+            >
+              Privacy policy
+              <span className="sr-only"> (opens in a new tab)</span>
+            </a>
+            {!hideChangelog && (
+              <>
+                <span className="mx-1.5" aria-hidden="true">&middot;</span>
+                <button
+                  type="button"
+                  onClick={open}
+                  className="py-3 hover:text-(--accent-cyan) transition-colors underline underline-offset-2"
+                >
+                  Changelog
+                </button>
+              </>
+            )}
+          </p>
+        </div>
       </footer>
 
       {showChangelog && entries && (

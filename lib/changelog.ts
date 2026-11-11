@@ -12,6 +12,7 @@ export const CHANGELOG: ChangelogDay[] = [
   {
     date: "Nov 11",
     changes: [
+      "Added a privacy policy, linked from the footer, the topic box and the bug report form. It says what happens to the topics you type, what our usage stats record, and what a bug report sends",
       "Long theme names now wrap instead of being cut off, and on phones the topic at the top shows on up to two lines",
       "Screen readers now say when a link opens in a new tab",
       "Pages start drawing a little sooner, and the changelog loads only when you open it",

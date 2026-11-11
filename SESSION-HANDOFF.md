@@ -17,6 +17,16 @@ The app is becoming an internal topic-tracking tool.
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
 Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search) and 5.1.
 
+## Privacy policy (task 6.9)
+- The site has no policy page of its own: Above's one policy at
+  https://abovepublicaffairs.com/privacy-policy/ (WordPress page 61 on the `abovepa` WP Engine
+  install, edited with `wp post update 61 -` over SSH; the SSH gateway has no scp) covers it.
+  The URL is `PRIVACY_POLICY_URL` in `lib/privacy.ts`; `/privacy` redirects there (next.config.ts).
+- Its "On AI Topic Explorer" section names the four providers, OpenAI's extraction pass, the
+  GA topic parameter and 2-month event retention, the bug report fields, the 30-day Error
+  Reporter prune, and `beta-banner-dismissed`. If any of those change, update the policy
+  in the same session (development-guidelines privacy-policy skill), with Josh's approval.
+
 ## Review fixes (task 6.6, app half)
 - Reviews: `docs/reviews/6.1-code-review.md`, `docs/reviews/6.2-security-review.md`. All
   findings in this repo fixed (H1, M1–M5, L1–L3; security M1, L1–L3). Tests:

@@ -4,6 +4,11 @@
 
 ## Current Status: Live in production (beta), new direction planned
 
+**Task 6.9 (privacy policy, Nov 11):** Above's canonical privacy policy now covers
+aitopicexplorer.app (Josh approved the wording; not legally reviewed). The footer, topic box
+and bug report form link it. The policy describes the code: change it when the site starts
+collecting or sending anything new, or when GA retention changes (`lib/privacy.ts`).
+
 **Task 6.6 (review fixes, app half, Nov 11):** every high and medium finding from the code
 review (6.1) and security review (6.2) in this repo is fixed, and every low one is fixed;
 the spending caps now hold when runs fail, retry or get stopped by a deploy. Recurring
