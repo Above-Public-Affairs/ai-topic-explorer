@@ -12,8 +12,11 @@
  *    slot about 24h after it happened, sharing a slot with another event of
  *    the same item within 24h. At most 2 event snapshots per item per week;
  *    the rest are logged as ignored with the reason. No approval needed.
- * 4. Run due snapshots (Run kind `event`, linked to its events), each capped
- *    at EVENT_SNAPSHOT_CAP_USD, compared with the item's previous snapshot.
+ * 4. Run due snapshots (Run kind `event`, linked to its events), compared with
+ *    the item's previous snapshot. Each slot gets EVENT_SNAPSHOT_CAP_USD once,
+ *    across all its attempts, and all event snapshots started in a UTC day
+ *    share EVENT_RUN_CAP_USD. Both are read from the stored runs, so the runs
+ *    Railway starts on each deploy can't spend them again (task 6.6).
  *
  * Every unit of work is claimed in WatcherJob first, so the run Railway starts
  * on each deploy repeats nothing. Each stage's failures are caught, logged and
@@ -24,6 +27,7 @@ import { compareRuns, runSnapshot, type RunSnapshotOptions, type RunSnapshotResu
 import { STALE_RUNNING_MS, weekStart } from "@/lib/worker/weekly";
 import { afterSnapshot } from "@/lib/alerts";
 import { claimJob, finishJob } from "./jobs";
+import { spentSoFar } from "@/lib/worker/active-runs";
 import {
   WATCHED_CATEGORIES,
   belowBar,
@@ -43,6 +47,7 @@ import { knownDateScopes, scanScopes, searchScope, type ScopeResult } from "./sc
 
 export const DEFAULT_SCAN_CAP_USD = 1;
 export const DEFAULT_SNAPSHOT_CAP_USD = 5;
+/** Event snapshots started in one UTC day, together. */
 export const DEFAULT_RUN_CAP_USD = 15;
 /** The day's scan runs on the first cron run at or after this hour (12:00 UTC = 6am Central in winter). */
 export const DEFAULT_SCAN_HOUR_UTC = 12;
@@ -421,6 +426,25 @@ async function schedulePending(db: PrismaClient, now: Date, names: Map<string, s
   return out;
 }
 
+/**
+ * What event snapshots started since `since` cost, for one item or all: the
+ * stored cost, or for a run with none (stopped, or still running) its answers
+ * and extractions so far.
+ */
+export async function eventSnapshotSpend(db: PrismaClient, where: { since: Date; watchItemId?: string }): Promise<number> {
+  const runs = await db.run.findMany({
+    where: { kind: "event", startedAt: { gte: where.since }, ...(where.watchItemId ? { watchItemId: where.watchItemId } : {}) },
+    select: { id: true, costUsd: true },
+  });
+  let total = 0;
+  for (const r of runs) total += r.costUsd ?? (await spentSoFar(db, r.id));
+  return total;
+}
+
+function dayStart(now: Date): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
 export function snapshotKey(watchItemId: string, triggerAt: Date): string {
   return `events:snapshot:${watchItemId}:${triggerAt.toISOString()}`;
 }
@@ -447,7 +471,6 @@ async function runDueSnapshots(
     groups.set(k, [...(groups.get(k) ?? []), e]);
   }
   const out: SnapshotOutcome[] = [];
-  let spent = 0;
   for (const [key, events] of groups) {
     const watchItemId = events[0].watchItemId!;
     const triggerAt = events[0].triggerAt!;
@@ -457,9 +480,11 @@ async function runDueSnapshots(
       out.push({ ...base, outcome: "skipped", reason: "watch item no longer active" });
       continue;
     }
-    const left = runCap - spent;
-    if (left < MIN_SNAPSHOT_BUDGET_USD) {
-      out.push({ ...base, outcome: "deferred", reason: `run cap $${runCap} reached; next run` });
+    // The day cap counts every event snapshot started today, by any process
+    // (each deploy starts one), from the database (task 6.6, code review H1).
+    const dayLeft = runCap - (await eventSnapshotSpend(db, { since: dayStart(now) }));
+    if (dayLeft < MIN_SNAPSHOT_BUDGET_USD) {
+      out.push({ ...base, outcome: "deferred", reason: `daily cap $${runCap} for event snapshots reached; tomorrow` });
       continue;
     }
     const busy = await db.run.findFirst({
@@ -478,15 +503,27 @@ async function runDueSnapshots(
       out.push({ ...base, outcome: "skipped", reason: claim.reason });
       continue;
     }
+    // One slot gets its snapshot cap once, across all its attempts: earlier
+    // attempts (failed, or stopped by a deploy) started after its trigger time
+    // and their cost is subtracted.
+    const slotSpent = await eventSnapshotSpend(db, { watchItemId, since: triggerAt });
+    const slotLeft = snapshotCap - slotSpent;
+    if (slotLeft < MIN_SNAPSHOT_BUDGET_USD) {
+      const note = `snapshot cap $${snapshotCap} used up by earlier attempts ($${slotSpent.toFixed(2)})`;
+      await db.event.updateMany({ where: { id: { in: events.map((e) => e.id) } }, data: { status: "ignored", note } });
+      await finishJob(db, key, "skipped", { costUsd: slotSpent, note });
+      errors.push({ stage: "snapshot", message: `Event snapshot for ${base.name} given up: ${note}`, context: { watchItemId, attempt: claim.attempt } });
+      out.push({ ...base, outcome: "skipped", reason: note });
+      continue;
+    }
     const started = new Date();
     try {
       const result = await snapshot(db, watchItemId, {
         ...options.snapshotOptions,
         kind: "event",
-        maxCostUsd: Math.min(snapshotCap, left),
+        maxCostUsd: Math.min(slotLeft, dayLeft),
         note: `event watcher: ${events.map((e) => e.title).join(" | ")}`.slice(0, 1000),
       });
-      spent += result.costUsd;
       await db.event.updateMany({ where: { id: { in: events.map((e) => e.id) } }, data: { runId: result.runId } });
       const outcome: SnapshotOutcome = { ...base, outcome: "ran", runId: result.runId, status: result.pipeline.status, costUsd: result.costUsd };
       const previous = await db.run.findFirst({

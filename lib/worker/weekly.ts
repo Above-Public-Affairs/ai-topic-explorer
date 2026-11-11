@@ -115,6 +115,14 @@ export async function weeklySpend(db: PrismaClient, now: Date): Promise<{ total:
   return { total, byItem };
 }
 
+/** What this item's weekly runs started since `since` spent: stored cost, or their answers and extractions. */
+async function spentSince(db: PrismaClient, watchItemId: string, since: Date): Promise<number> {
+  const runs = await db.run.findMany({ where: { watchItemId, kind: "weekly", startedAt: { gte: since } }, select: { id: true, costUsd: true } });
+  let total = 0;
+  for (const r of runs) total += r.costUsd ?? (await spentSoFar(db, r.id));
+  return total;
+}
+
 export async function runWeekly(db: PrismaClient, options: WeeklyOptions = {}): Promise<WeeklyResult> {
   const now = options.now ?? new Date();
   const runCapUsd = options.runCapUsd ?? DEFAULT_RUN_CAP_USD;
@@ -203,6 +211,10 @@ export async function runWeekly(db: PrismaClient, options: WeeklyOptions = {}): 
       outcomes.push(outcome);
       log(summaryLine(outcome));
     } catch (err) {
+      // What the failed snapshot spent still counts against the run cap for
+      // the items after it (task 6.6, code review M3).
+      const lost = await spentSince(db, item.id, itemStarted).catch(() => 0);
+      spent += lost;
       // runSnapshot marks a run failed when its questions fail; anything that threw later leaves it "running".
       await db.run
         .updateMany({
@@ -210,7 +222,7 @@ export async function runWeekly(db: PrismaClient, options: WeeklyOptions = {}): 
           data: { status: "failed", finishedAt: new Date(), note: `weekly worker: ${String(err)}`.slice(0, 1000) },
         })
         .catch(() => {});
-      const outcome: ItemOutcome = { watchItemId: item.id, name: item.name, outcome: "failed", reason: String(err), calls, failedCalls, error: err };
+      const outcome: ItemOutcome = { watchItemId: item.id, name: item.name, outcome: "failed", reason: String(err), calls, failedCalls, costUsd: lost, error: err };
       outcomes.push(outcome);
       log(`${item.name}: FAILED after ${calls} calls: ${String(err)}`);
     }

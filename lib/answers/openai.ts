@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { computeCost } from "./prices";
+import { MAX_SEARCHES_PER_ANSWER } from "./estimates";
 import { getModel } from "./registry";
 import { REQUEST_MAX_RETRIES, mergeSources, planLocation, roundUsd, uniqueQueries } from "./shared";
 import type { AnswerProvider, AnswerSource, AskOptions, AskResult } from "./types";
@@ -30,6 +31,9 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
         reasoning: { effort: settings.effortLevel as OpenAI.ReasoningEffort },
       }),
       max_output_tokens: 16000,
+      // Search actions are billed per call and a visitor writes the topic, so
+      // cap them (task 6.6, security review M1). OpenAI ran 1–5 in testing.
+      max_tool_calls: MAX_SEARCHES_PER_ANSWER,
       tools: [
         {
           type: "web_search",

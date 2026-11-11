@@ -61,10 +61,11 @@ export async function finishJob(
 export async function abandonActiveJobs(db: PrismaClient, reason: string, since: Date): Promise<string[]> {
   const keys = [...active];
   if (!keys.length) return [];
-  // Being stopped isn't the job's fault, so it doesn't use up one of its attempts.
+  // A stopped attempt still counts: it may have spent money, and a day of
+  // deploys must not retry a paid job without end (task 6.6, code review H1).
   await db.watcherJob.updateMany({
     where: { key: { in: keys }, status: "running" },
-    data: { status: "failed", finishedAt: new Date(), note: reason, attempts: { decrement: 1 } },
+    data: { status: "failed", finishedAt: new Date(), note: reason },
   });
   const items = keys.filter((k) => k.startsWith("events:snapshot:")).map((k) => k.split(":")[2]);
   if (items.length) {

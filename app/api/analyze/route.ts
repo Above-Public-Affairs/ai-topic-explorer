@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { guardAnalyzeRequest } from "@/lib/guards/analyze-request";
-import { recordSpend, runSpendUsd, UNMETERED_RUN_ESTIMATE_USD } from "@/lib/guards/spend";
+import { runSpendUsd, settleSpend, UNMETERED_RUN_ESTIMATE_USD } from "@/lib/guards/spend";
 import { reportError } from "@above-public-affairs/error-reporter";
 import { providerErrorLabel, type ProviderId } from "@/lib/answers";
 import { runPipeline, type AnswerEvent, type RunPipelineResult } from "@/lib/pipeline/run";
@@ -52,9 +52,11 @@ export async function POST(request: NextRequest) {
   const guard = await guardAnalyzeRequest(request);
   if (!guard.ok) return guard.response;
   const topic = guard.topic;
+  const reservedUsd = guard.reservedUsd;
 
   const providers = configuredProviders();
   if (providers.length === 0) {
+    await settleSpend({ costUsd: 0, reservedUsd, analysis: false });
     return NextResponse.json({ error: "No AI providers are configured" }, { status: 500 });
   }
 
@@ -155,8 +157,8 @@ export async function POST(request: NextRequest) {
           extractionDeadline.clear();
         }
 
-        // Count this run against the daily spend cap, before any early return.
-        await recordSpend(runSpendUsd(result));
+        // Swap the reservation for the run's real cost, before any early return.
+        await settleSpend({ costUsd: runSpendUsd(result), reservedUsd });
         spendRecorded = true;
 
         const succeeded = result.answers.filter((a) => a.ok && a.extraction).length;
@@ -216,7 +218,10 @@ export async function POST(request: NextRequest) {
         console.error("Analysis stream error:", err);
         // The run failed partway (most likely the database), so its real cost
         // is unknown: count a conservative estimate rather than nothing.
-        if (asked && !spendRecorded) await recordSpend(UNMETERED_RUN_ESTIMATE_USD);
+        if (asked && !spendRecorded) {
+          await settleSpend({ costUsd: Math.max(reservedUsd, UNMETERED_RUN_ESTIMATE_USD), reservedUsd });
+          spendRecorded = true;
+        }
         reportError({
           project: "ai-topic-explorer",
           category: "stream_error",
@@ -226,6 +231,8 @@ export async function POST(request: NextRequest) {
         });
         emit({ stage: "error", message: "Analysis failed. Please try again." });
       } finally {
+        // A visitor who left before anything was asked gives the reservation back.
+        if (!spendRecorded) await settleSpend({ costUsd: 0, reservedUsd, analysis: false });
         answerDeadline.clear();
         extractionDeadline.clear();
         clearInterval(heartbeat);

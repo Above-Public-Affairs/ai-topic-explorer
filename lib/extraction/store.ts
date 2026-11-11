@@ -5,6 +5,7 @@ import { linkThemes } from "@/lib/themes/link";
 import { linkEntities } from "./link";
 import { extractedCitationRows, extractionCreateData } from "./map";
 import { PROMPT_VERSION } from "./schema";
+import { FAILED_EXTRACTION_ESTIMATE_USD } from "@/lib/answers/estimates";
 
 export interface ExtractAndStoreResult {
   extractionId: string;
@@ -28,9 +29,14 @@ export async function extractAndStore(
   input: Omit<ExtractionInput, "answer">,
   options: { subTopicIds?: Record<string, string>; client?: ResponsesClient; signal?: AbortSignal } = {}
 ): Promise<ExtractAndStoreResult> {
-  const settings = await getExtractionModel();
+  let settings: Awaited<ReturnType<typeof getExtractionModel>> | null = null;
+  // Set once the extraction model has answered: from then on the call is paid
+  // for, whatever happens to the database write (task 6.6, code review L2).
+  let paidUsd: number | null = null;
   try {
+    settings = await getExtractionModel();
     const out = await extractAnswer({ ...input, answer: answer.answer }, { ...options, settings });
+    paidUsd = out.costUsd;
     const citations = extractedCitationRows(answer.answer, out.result, answer.providerUrls, answer.nextCitationPosition);
     const extraction = await db.$transaction(async (tx) => {
       const created = await tx.extraction.create({
@@ -60,16 +66,25 @@ export async function extractAndStore(
     return { extractionId: extraction.id, ok: true, costUsd: out.costUsd };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const failed = await db.extraction.create({
-      data: {
-        answerId: answer.id,
-        model: settings.model,
-        modelRegistryId: settings.registryId,
-        promptVersion: PROMPT_VERSION,
-        errorMessage: message.slice(0, 2000),
-      },
-      select: { id: true },
-    });
-    return { extractionId: failed.id, ok: false, costUsd: 0, error: message };
+    // A failed call was usually billed too (security review L1), so it's
+    // counted at a small estimate rather than nothing. Without the model's
+    // settings nothing was sent.
+    const costUsd = paidUsd ?? (settings ? FAILED_EXTRACTION_ESTIMATE_USD : 0);
+    const failed = await db.extraction
+      .create({
+        data: {
+          answerId: answer.id,
+          model: settings?.model ?? "unknown",
+          modelRegistryId: settings?.registryId ?? null,
+          promptVersion: PROMPT_VERSION,
+          costUsd,
+          errorMessage: message.slice(0, 2000),
+        },
+        select: { id: true },
+      })
+      // Even the failure couldn't be stored: still report what it cost.
+      .catch((dbErr) => ({ id: "", dbError: dbErr instanceof Error ? dbErr.message : String(dbErr) }));
+    const note = "dbError" in failed ? `${message}; not stored: ${failed.dbError}` : message;
+    return { extractionId: failed.id, ok: false, costUsd, error: note };
   }
 }

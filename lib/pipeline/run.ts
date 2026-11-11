@@ -19,6 +19,8 @@ import {
 } from "@/lib/answers";
 import { answerCreateData, extractAndStore, failedAnswerCreateData, providerCitationRows } from "@/lib/extraction";
 import type { ResponsesClient } from "@/lib/extraction";
+import { failedCallEstimateUsd } from "@/lib/answers/estimates";
+import { spentSoFar } from "@/lib/worker/active-runs";
 
 export interface RunPipelineOptions {
   kind: RunKind;
@@ -49,6 +51,14 @@ export interface RunPipelineOptions {
   extractionSignal?: AbortSignal;
   /** Called as each provider call lands, before its extraction. */
   onAnswer?: (event: AnswerEvent) => void;
+  /**
+   * Called just before each provider call is sent. It may abort `signal` (a
+   * spending cap that can't cover another call), in which case the call isn't
+   * made. Calls it lets through are reported to onAnswer.
+   */
+  beforeAsk?: () => void;
+  /** Called with each extraction's cost as it finishes. */
+  onExtracted?: (costUsd: number) => void;
   /** Test seam for the extraction client. */
   extractionClient?: ResponsesClient;
   /**
@@ -61,12 +71,22 @@ export interface RunPipelineOptions {
 
 export type AnswerEvent =
   | { provider: ProviderId; question: string; ok: true; result: AskResult }
-  | { provider: ProviderId; question: string; ok: false; error: ProviderError };
+  | {
+      provider: ProviderId;
+      question: string;
+      ok: false;
+      error: ProviderError;
+      /** Whether the call was sent (false: skipped while still queued). */
+      sent: boolean;
+      /** What the failed call is counted at against the caps (lib/answers/estimates). */
+      estimatedCostUsd: number;
+    };
 
 export interface RunPipelineResult {
   runId: string;
   status: RunStatus;
   answers: {
+    /** Empty when the answer couldn't be stored. */
     answerId: string;
     provider: ProviderId;
     question: string;
@@ -94,6 +114,10 @@ function limiter(limit: number) {
       queue.shift()?.();
     }
   };
+}
+
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 /** Swallow a callback's error so it can't fail the run. */
@@ -131,63 +155,73 @@ export async function runPipeline(db: PrismaClient, options: RunPipelineOptions)
       });
 
   // Each provider's current model from the registry (task 2.4), read once per run.
-  const models = { ...(await getModels()), ...options.models };
+  let models: Awaited<ReturnType<typeof getModels>>;
+  try {
+    models = { ...(await getModels()), ...options.models };
+  } catch (err) {
+    await db.run.update({ where: { id: run.id }, data: { status: "failed", finishedAt: new Date(), costUsd: 0, note: `pipeline: ${errorText(err)}`.slice(0, 1000) } }).catch(() => {});
+    throw err;
+  }
 
   // Ask every provider every question, in parallel; store each answer (or
   // failure) with the provider's citations as it lands, then run the one
   // extraction pass over it straight away rather than waiting for the rest.
+  // Each call's task catches its own errors (a failed database write becomes a
+  // failed answer, with what the call cost), so one failure never drops the
+  // other calls' costs or leaves the Run "running" (task 6.6, code review M5).
   type Stored = RunPipelineResult["answers"][number] & {
     answerText?: string;
     providerUrls: string[];
     citationCount: number;
   };
   const calls = questions.flatMap((q) => providerIds.map((provider) => ({ q, provider })));
-  const stored: Stored[] = await Promise.all(
-    calls.map(async ({ q, provider }): Promise<Stored> => {
-      const ctx = { runId: run.id, question: q.text, questionId: q.questionId, repeat: q.repeat };
-      let result: AskResult;
+  const task = async ({ q, provider }: (typeof calls)[number]): Promise<Stored> => {
+    const ctx = { runId: run.id, question: q.text, questionId: q.questionId, repeat: q.repeat };
+    const base = { answerId: "", provider, question: q.text, providerUrls: [] as string[], citationCount: 0 };
+    let result: AskResult;
+    let sent = false;
+    try {
+      result = await askSlot(() => {
+        options.beforeAsk?.();
+        // A call still queued when the run is stopped isn't made.
+        if (signal?.aborted) throw signal.reason ?? new DOMException("Aborted", "AbortError");
+        sent = true;
+        return PROVIDERS[provider].ask(q.text, { location, signal, settings: models[provider] });
+      });
+    } catch (err) {
+      const error = toProviderError(provider, err);
+      const estimate = failedCallEstimateUsd(error.kind, sent);
+      safely(() => options.onAnswer?.({ provider, question: q.text, ok: false, error, sent, estimatedCostUsd: estimate }));
+      const failed: Stored = { ...base, ok: false, answerCostUsd: estimate, error: `${error.kind}: ${error.message}`, errorKind: error.kind };
       try {
-        result = await askSlot(() => {
-          // A call still queued when the run is stopped isn't made.
-          if (signal?.aborted) throw signal.reason ?? new DOMException("Aborted", "AbortError");
-          return PROVIDERS[provider].ask(q.text, { location, signal, settings: models[provider] });
-        });
-      } catch (err) {
-        const error = toProviderError(provider, err);
-        safely(() => options.onAnswer?.({ provider, question: q.text, ok: false, error }));
         const row = await db.answer.create({
-          data: failedAnswerCreateData(ctx, models[provider], error, location ?? null),
+          data: {
+            ...failedAnswerCreateData(ctx, models[provider], error, location ?? null),
+            ...(estimate ? { costUsd: estimate, costNote: `estimate: the call failed after it was sent (${error.kind})` } : {}),
+          },
           select: { id: true },
         });
-        return {
-          answerId: row.id,
-          provider,
-          question: q.text,
-          ok: false,
-          answerCostUsd: 0,
-          error: `${error.kind}: ${error.message}`,
-          errorKind: error.kind,
-          providerUrls: [],
-          citationCount: 0,
-        };
+        failed.answerId = row.id;
+      } catch (dbErr) {
+        failed.error = `${failed.error}; not stored: ${errorText(dbErr)}`;
       }
-      safely(() => options.onAnswer?.({ provider, question: q.text, ok: true, result }));
-      const citations = providerCitationRows(result.sources);
+      return failed;
+    }
+    safely(() => options.onAnswer?.({ provider, question: q.text, ok: true, result }));
+    const citations = providerCitationRows(result.sources);
+    const s: Stored = { ...base, ok: true, answerCostUsd: result.cost.usd, answerText: result.answer, providerUrls: citations.map((c) => c.url), citationCount: citations.length };
+    try {
       const row = await db.answer.create({
         data: { ...answerCreateData(ctx, result), citations: { create: citations } },
         select: { id: true },
       });
-      const s: Stored = {
-        answerId: row.id,
-        provider,
-        question: q.text,
-        ok: true,
-        answerCostUsd: result.cost.usd,
-        answerText: result.answer,
-        providerUrls: citations.map((c) => c.url),
-        citationCount: citations.length,
-      };
-      if (s.answerText) {
+      s.answerId = row.id;
+    } catch (dbErr) {
+      // Paid for but not stored: count it, mark the answer failed.
+      return { ...s, ok: false, answerText: undefined, error: `answer not stored: ${errorText(dbErr)}` };
+    }
+    if (s.answerText) {
+      try {
         s.extraction = await extractSlot(() =>
           extractAndStore(
             db,
@@ -196,10 +230,26 @@ export async function runPipeline(db: PrismaClient, options: RunPipelineOptions)
             { subTopicIds, client: options.extractionClient, signal: extractionSignal }
           )
         );
+      } catch (err) {
+        s.extraction = { extractionId: "", ok: false, costUsd: 0, error: errorText(err) };
       }
-      return s;
-    })
-  );
+      safely(() => options.onExtracted?.(s.extraction!.costUsd));
+    }
+    return s;
+  };
+
+  let stored: Stored[];
+  try {
+    stored = await Promise.all(calls.map(task));
+  } catch (err) {
+    // Only a bug gets here (every task catches its own errors). Close the Run
+    // with what its stored answers cost, so it doesn't block the item.
+    const costUsd = await spentSoFar(db, run.id).catch(() => null);
+    await db.run
+      .update({ where: { id: run.id }, data: { status: "failed", finishedAt: new Date(), costUsd, note: `pipeline: ${errorText(err)}`.slice(0, 1000) } })
+      .catch(() => {});
+    throw err;
+  }
 
   const answered = stored.filter((s) => s.ok).length;
   const allExtracted = stored.every((s) => !s.ok || s.extraction?.ok);

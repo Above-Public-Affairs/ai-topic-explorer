@@ -25,7 +25,8 @@ import type { ModelChoice, ModelSettings, ProviderId } from "@/lib/answers";
 import { PROVIDER_IDS, saveModel } from "@/lib/answers/registry";
 import { runPipeline } from "@/lib/pipeline/run";
 import { lockedQuestions } from "@/lib/questions";
-import { trackRun, untrackRun } from "@/lib/worker/active-runs";
+import { spentSoFar, trackRun, untrackRun } from "@/lib/worker/active-runs";
+import { claimJob, finishJob } from "./events/jobs";
 import { askFreeTierDefault, decide, type CheckOutput, type Decision, type HasPrices, type ModelExists, type PageFetcher } from "./models-check";
 
 export const DEFAULT_CHECK_CAP_USD = 1;
@@ -179,9 +180,10 @@ export async function runModelWatcher(db: PrismaClient, options: ModelWatcherOpt
   const switchCapUsd = options.switchCapUsd ?? DEFAULT_SWITCH_CAP_USD;
   const log = options.log ?? (() => {});
   const check = options.check ?? ((p: ProviderId, c: ModelChoice) => askFreeTierDefault(p, c, { now }));
-  // The switch cap is per day: count switch runs already paid for today (an earlier deploy's run).
-  const spentToday = await db.run.aggregate({ where: { kind: "model_switch", startedAt: { gte: dayStart(now) } }, _sum: { costUsd: true } });
-  const budget = { check: 0, switch: spentToday._sum.costUsd ?? 0 };
+  // Both caps are per day and read what earlier runs today (each deploy starts
+  // one) already paid for: switch runs, failed ones included, and checks of any
+  // verdict (task 6.6, code review M1 and L1).
+  const budget = { check: await checkSpendToday(db, now), switch: await switchSpendToday(db, now) };
   const outcomes: ProviderOutcome[] = [];
 
   for (const provider of options.providers ?? PROVIDER_IDS) {
@@ -213,9 +215,30 @@ export async function runModelWatcher(db: PrismaClient, options: ModelWatcherOpt
         continue;
       }
 
-      const out = await check(provider, choiceFromRecord(current));
-      budget.check += out.costUsd;
-      const decision = await decide(provider, current, out.report, { fetchPage: options.fetchPage, modelExists: options.modelExists, hasPrices: options.hasPrices });
+      // One paid check per provider per day, whatever it found: an "unclear"
+      // verdict isn't asked again on every deploy (task 6.6, code review L1).
+      const key = checkKey(now, provider);
+      const claim = await claimJob(db, key, "model_check", now);
+      if (!claim.claimed) {
+        outcomes.push({ provider, outcome: "skipped", model: current.model, reason: `already checked today (${claim.reason})` });
+        log(`${provider}: skipped, already checked today (${claim.reason})`);
+        continue;
+      }
+      // An earlier attempt today that failed after paying is kept in the job's total.
+      const earlierCheckUsd = claim.attempt > 1 ? ((await db.watcherJob.findUnique({ where: { key }, select: { costUsd: true } }))?.costUsd ?? 0) : 0;
+      let paid = 0;
+      let decision: Decision;
+      let out: CheckOutput;
+      try {
+        out = await check(provider, choiceFromRecord(current));
+        paid = out.costUsd;
+        budget.check += out.costUsd;
+        decision = await decide(provider, current, out.report, { fetchPage: options.fetchPage, modelExists: options.modelExists, hasPrices: options.hasPrices });
+      } catch (err) {
+        await finishJob(db, key, "failed", { costUsd: earlierCheckUsd + paid, note: String(err) }).catch(() => {});
+        throw err;
+      }
+      await finishJob(db, key, "complete", { costUsd: earlierCheckUsd + paid, note: decision.verdict === "unclear" ? `unclear: ${decision.reason}` : decision.verdict });
       const base = { provider, model: current.model, checkCostUsd: out.costUsd };
 
       if (decision.verdict === "unchanged") {
@@ -263,6 +286,25 @@ export async function runModelWatcher(db: PrismaClient, options: ModelWatcherOpt
   }
   const switchCostUsd = outcomes.reduce((s, o) => s + (o.switch?.costUsd ?? 0), 0);
   return { providers: outcomes, checkCostUsd: budget.check, switchCostUsd, checkCapUsd, switchCapUsd };
+}
+
+/** WatcherJob key recording one provider's check on one UTC day. */
+export function checkKey(now: Date, provider: ProviderId): string {
+  return `models:check:${dayStart(now).toISOString().slice(0, 10)}:${provider}`;
+}
+
+/** What today's model checks cost, from their WatcherJob rows. */
+async function checkSpendToday(db: PrismaClient, now: Date): Promise<number> {
+  const jobs = await db.watcherJob.findMany({ where: { kind: "model_check", key: { startsWith: checkKey(now, "" as ProviderId) } }, select: { costUsd: true } });
+  return jobs.reduce((s, j) => s + (j.costUsd ?? 0), 0);
+}
+
+/** What today's switch runs cost: the stored cost, or a run's answers and extractions when it has none. */
+async function switchSpendToday(db: PrismaClient, now: Date): Promise<number> {
+  const runs = await db.run.findMany({ where: { kind: "model_switch", startedAt: { gte: dayStart(now) } }, select: { id: true, costUsd: true } });
+  let total = 0;
+  for (const r of runs) total += r.costUsd ?? (await spentSoFar(db, r.id));
+  return total;
 }
 
 interface PendingSwitch {
@@ -449,7 +491,12 @@ async function runSwitch(
     } catch (err) {
       outcome.outcome = "failed";
       outcome.reason = String(err);
-      await db.run.update({ where: { id: run.id }, data: { status: "failed", finishedAt: new Date(), note: `model watcher: ${String(err)}`.slice(0, 1000) } }).catch(() => {});
+      // What it paid for still counts against today's switch cap, here and in
+      // the next run (task 6.6, code review M1).
+      outcome.costUsd = await spentSoFar(db, run.id).catch(() => (outcome.costUsd ?? 0) + itemSpent);
+      await db.run
+        .update({ where: { id: run.id }, data: { status: "failed", finishedAt: new Date(), costUsd: outcome.costUsd, note: `model watcher: ${String(err)}`.slice(0, 1000) } })
+        .catch(() => {});
     }
     untrackRun(run.id);
     // Labeled as a model change, never as real-world change; skips a failed run.

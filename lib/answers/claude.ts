@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { computeCost } from "./prices";
 import { getModel } from "./registry";
 import { mergeSources, planLocation, roundUsd, uniqueQueries } from "./shared";
+import { MAX_SEARCHES_PER_ANSWER } from "./estimates";
 import type { AnswerProvider, AnswerSource, AskOptions, AskResult } from "./types";
 
 type Effort = NonNullable<Anthropic.OutputConfig["effort"]>;
@@ -48,6 +49,10 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: question }];
   const system = loc.systemMessage ?? undefined;
   const responses: Anthropic.Message[] = [];
+  // Searches are billed per use, and a visitor writes the topic, so one answer
+  // gets at most MAX_SEARCHES_PER_ANSWER across its continuations (task 6.6,
+  // security review M1).
+  let searchesLeft = MAX_SEARCHES_PER_ANSWER;
   for (let i = 0; i <= MAX_CONTINUATIONS; i++) {
     const response = await getClient()
       .messages.stream(
@@ -57,14 +62,15 @@ async function ask(question: string, options: AskOptions = {}): Promise<AskResul
           thinking: THINKING_OFF,
           ...(settings.effortLevel && { output_config: { effort: settings.effortLevel as Effort } }),
           ...(system && { system }),
-          tools: [webSearch],
+          tools: [{ ...webSearch, max_uses: searchesLeft }],
           messages,
         },
         { signal }
       )
       .finalMessage();
     responses.push(response);
-    if (response.stop_reason !== "pause_turn") break;
+    searchesLeft -= response.usage.server_tool_use?.web_search_requests ?? 0;
+    if (response.stop_reason !== "pause_turn" || searchesLeft <= 0) break;
     messages.push({ role: "assistant", content: response.content });
   }
 

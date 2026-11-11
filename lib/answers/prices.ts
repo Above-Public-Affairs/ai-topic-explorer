@@ -100,7 +100,31 @@ interface TokenCounts {
   searches: number;
 }
 
-/** Cost of one answer from token counts and the prices in force on `on`. */
+/**
+ * The highest price any row lists for `item`. Used when a model has no price
+ * row: the provider has already billed the call by then, so throwing would
+ * count it at nothing (task 6.6, security review L1).
+ */
+export function conservativePrice(item: PriceRow["item"]): PriceRow {
+  const rows = PRICES.filter((p) => p.item === item);
+  const usd = Math.max(...rows.map((p) => p.usd));
+  return { ...rows[0], id: `fallback:${item}`, provider: rows[0].provider, model: "*", usd, note: "No price row for this model; counted at the highest listed price" };
+}
+
+function priceOrFallback(provider: PriceRow["provider"], model: string, item: PriceRow["item"], on: Date): PriceRow {
+  try {
+    return priceFor(provider, model, item, on);
+  } catch (err) {
+    console.warn(`[Prices] ${err instanceof Error ? err.message : err}; counting it at the highest listed ${item} price.`);
+    return conservativePrice(item);
+  }
+}
+
+/**
+ * Cost of one answer from token counts and the prices in force on `on`. A
+ * model with no price row is costed at the highest listed price rather than
+ * failing a call that has already been paid for.
+ */
 export function computeCost(
   provider: PriceRow["provider"],
   model: string,
@@ -110,7 +134,7 @@ export function computeCost(
   const rows: PriceRow[] = [];
   const per1m = (item: PriceRow["item"], tokens: number) => {
     if (!tokens) return 0;
-    const row = priceFor(provider, model, item, on);
+    const row = priceOrFallback(provider, model, item, on);
     rows.push(row);
     return (tokens / 1_000_000) * row.usd;
   };
@@ -121,7 +145,7 @@ export function computeCost(
     per1m("output", counts.output);
   let searchUsd = 0;
   if (counts.searches) {
-    const row = priceFor(provider, model, "search", on);
+    const row = priceOrFallback(provider, model, "search", on);
     rows.push(row);
     searchUsd = counts.searches * row.usd;
   }

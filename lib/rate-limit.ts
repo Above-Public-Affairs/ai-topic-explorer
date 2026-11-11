@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { hashIp } from "@/lib/guards/client-ip";
+import { hashIp, rateLimitSubject } from "@/lib/guards/client-ip";
 
 export interface RateLimitRule {
   /** Separates counters for different endpoints. */
@@ -31,7 +31,7 @@ export interface RateLimitResult {
 }
 
 /**
- * Count one request against `rule` for this IP. Counts live in Postgres
+ * Count one request against `rule` for this IP (an IPv6 address counts by its /64). Counts live in Postgres
  * (fixed windows), so they survive deploys and are shared across replicas.
  * The upsert is a single atomic statement, so concurrent requests can't
  * both read the same count.
@@ -45,7 +45,8 @@ export async function checkRateLimit(
 ): Promise<RateLimitResult> {
   const now = Date.now();
   const windowStart = new Date(Math.floor(now / rule.windowMs) * rule.windowMs);
-  const key = hashIp(ip);
+  // IPv6 counts per /64, so rotating addresses inside one block doesn't reset it.
+  const key = hashIp(rateLimitSubject(ip));
 
   const rows = await prisma.$queryRaw<{ count: number }[]>`
     INSERT INTO "RateLimitCounter" ("bucket", "key", "windowStart", "count")

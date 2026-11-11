@@ -165,14 +165,70 @@ describe.skipIf(!local)("event watcher in Postgres", () => {
     expect(retry.snapshots.every((s) => s.outcome === "ran")).toBe(true);
   });
 
-  it("releases this process's jobs on SIGTERM without using up an attempt", async () => {
+  it("releases this process's jobs on SIGTERM for an immediate retry, counting the stopped attempt", async () => {
     const key = "events:scan:2031-04-01";
     expect(await W.claimJob(db, key, "scan", new Date("2031-04-01T13:00:00Z"))).toEqual({ claimed: true, attempt: 1 });
     expect(await W.abandonActiveJobs(db, "stopped by SIGTERM", new Date("2031-04-01T12:00:00Z"))).toEqual([key]);
     const row = await db.watcherJob.findUnique({ where: { key } });
-    expect(row).toMatchObject({ status: "failed", attempts: 0, note: "stopped by SIGTERM" });
-    expect(await W.claimJob(db, key, "scan", new Date("2031-04-01T14:00:00Z"))).toEqual({ claimed: true, attempt: 1 });
-    await W.finishJob(db, key, "complete");
+    expect(row).toMatchObject({ status: "failed", attempts: 1, note: "stopped by SIGTERM" });
+    expect(await W.claimJob(db, key, "scan", new Date("2031-04-01T14:00:00Z"))).toEqual({ claimed: true, attempt: 2 });
+    await W.abandonActiveJobs(db, "stopped by SIGTERM", new Date("2031-04-01T12:00:00Z"));
+    expect(await W.claimJob(db, key, "scan", new Date("2031-04-01T15:00:00Z"))).toEqual({ claimed: true, attempt: 3 });
+    await W.abandonActiveJobs(db, "stopped by SIGTERM", new Date("2031-04-01T12:00:00Z"));
+    // Three deploys in a row: the job gives up instead of paying a fourth time.
+    expect(await W.claimJob(db, key, "scan", new Date("2031-04-01T16:00:00Z"))).toMatchObject({ claimed: false, reason: expect.stringMatching(/gave up after 3/) });
     expect(await W.abandonActiveJobs(db, "again", new Date())).toEqual([]);
+  });
+
+  it("gives an event slot its snapshot cap once across attempts, however each attempt ended", async () => {
+    const item = texas[0];
+    const triggerAt = new Date("2031-05-06T18:00:00Z");
+    const ev = await db.event.create({
+      data: { category: "major_news", status: "approved", title: "Retry budget test", occurredAt: new Date("2031-05-05T18:00:00Z"), triggerAt, watchItemId: item, geography: "Texas", sourceUrl: "https://example.com/r" },
+    });
+    // Attempt 1 spent $3 and was stopped by a deploy: its run was released with that cost.
+    const r1 = await db.run.create({ data: { kind: "event", watchItemId: item, topic: "t", status: "failed", startedAt: new Date("2031-05-06T19:00:00Z"), costUsd: 3 } });
+    runIds.push(r1.id);
+    const key = W.snapshotKey(item, triggerAt);
+    await db.watcherJob.create({ data: { key, kind: "snapshot", status: "failed", attempts: 1, startedAt: new Date("2031-05-06T19:00:00Z") } });
+
+    const snap = stubSnapshot();
+    const now = new Date("2031-05-06T20:00:00Z");
+    const r = await W.runEventWatcher(db, base(now, { stages: { snapshots: true }, snapshot: snap.snapshot, snapshotCapUsd: 5 }));
+    const mine = snap.calls.filter((c) => c.watchItemId === item);
+    expect(mine).toHaveLength(1);
+    expect(mine[0].options.maxCostUsd).toBeCloseTo(2, 6);
+    expect(r.snapshots.find((s) => s.watchItemId === item)?.outcome).toBe("ran");
+
+    // A slot whose earlier attempts used the whole cap isn't run again; its events are let go with the reason.
+    const t2 = new Date("2031-05-08T18:00:00Z");
+    const ev2 = await db.event.create({
+      data: { category: "major_news", status: "approved", title: "Spent slot test", occurredAt: new Date("2031-05-07T18:00:00Z"), triggerAt: t2, watchItemId: item, geography: "Texas", sourceUrl: "https://example.com/s" },
+    });
+    const r2 = await db.run.create({ data: { kind: "event", watchItemId: item, topic: "t", status: "failed", startedAt: new Date("2031-05-08T19:00:00Z"), costUsd: 4.6 } });
+    runIds.push(r2.id);
+    await db.watcherJob.create({ data: { key: W.snapshotKey(item, t2), kind: "snapshot", status: "failed", attempts: 1, startedAt: new Date("2031-05-08T19:00:00Z") } });
+    const again = stubSnapshot();
+    const r3 = await W.runEventWatcher(db, base(new Date("2031-05-08T20:00:00Z"), { stages: { snapshots: true }, snapshot: again.snapshot, snapshotCapUsd: 5 }));
+    expect(again.calls.filter((c) => c.watchItemId === item)).toHaveLength(0);
+    expect(r3.snapshots.find((s) => s.watchItemId === item)).toMatchObject({ outcome: "skipped", reason: expect.stringMatching(/used up by earlier attempts/) });
+    expect(await db.event.findUniqueOrThrow({ where: { id: ev2.id } })).toMatchObject({ status: "ignored" });
+    await db.event.deleteMany({ where: { id: { in: [ev.id, ev2.id] } } });
+  });
+
+  it("shares the daily event-snapshot cap across processes, reading today's runs", async () => {
+    const item = texas[0];
+    const triggerAt = new Date("2031-06-03T18:00:00Z");
+    const ev = await db.event.create({
+      data: { category: "major_news", status: "approved", title: "Day cap test", occurredAt: new Date("2031-06-02T18:00:00Z"), triggerAt, watchItemId: item, geography: "Texas", sourceUrl: "https://example.com/d" },
+    });
+    // Earlier processes today already spent $14.50 on other event snapshots.
+    const other = await db.run.create({ data: { kind: "event", watchItemId: texas[texas.length - 1], topic: "t", status: "complete", startedAt: new Date("2031-06-03T01:00:00Z"), costUsd: 14.5 } });
+    runIds.push(other.id);
+    const snap = stubSnapshot();
+    const r = await W.runEventWatcher(db, base(new Date("2031-06-03T19:00:00Z"), { stages: { snapshots: true }, snapshot: snap.snapshot, runCapUsd: 15 }));
+    expect(snap.calls).toHaveLength(0);
+    expect(r.snapshots.find((s) => s.watchItemId === item)).toMatchObject({ outcome: "deferred", reason: expect.stringMatching(/daily cap \$15/) });
+    await db.event.deleteMany({ where: { id: ev.id } });
   });
 });

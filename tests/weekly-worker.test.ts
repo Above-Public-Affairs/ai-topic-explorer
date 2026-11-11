@@ -185,6 +185,31 @@ describe("runWeekly", () => {
     expect(failedMarked).toEqual(["w2"]);
   });
 
+  // Task 6.6 (code review M3): a snapshot that throws after paying still counts for the items after it.
+  it("counts a thrown snapshot's spend against the run cap for the rest of the run", async () => {
+    const runs: Parameters<typeof fakeDb>[1] = [];
+    const { db } = fakeDb(items, runs);
+    const caps: Record<string, number | undefined> = {};
+    const result = await runWeekly(db, {
+      now,
+      runCapUsd: 10,
+      itemCapUsd: 6,
+      snapshot: async (_db, id, opts) => {
+        caps[id] = opts.maxCostUsd;
+        if (id === "w1") {
+          // Spent $5 (the pipeline stored the run's cost), then something later threw.
+          runs.push({ id: "r1", watchItemId: "w1", status: "failed", startedAt: new Date(), costUsd: 5 });
+          throw new Error("comparison blew up");
+        }
+        return fakeResult(`run-${id}`, 4.5);
+      },
+    });
+    expect(result.items[0]).toMatchObject({ outcome: "failed", costUsd: 5 });
+    expect(caps.w2).toBe(5);
+    expect(result.items[2]).toMatchObject({ outcome: "skipped" });
+    expect(result.costUsd).toBeCloseTo(9.5);
+  });
+
   // Task 4.9: a run stopped by a deploy is released as failed with what it spent; the retry mustn't spend the caps again.
   it("counts this week's earlier runs against the run and item caps on a re-run", async () => {
     const { db } = fakeDb(items, [

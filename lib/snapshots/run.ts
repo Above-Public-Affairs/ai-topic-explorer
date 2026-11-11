@@ -8,7 +8,7 @@
 import type { PrismaClient, RunKind } from "@/app/generated/prisma/client";
 import type { ProviderId, UserLocation } from "@/lib/answers";
 import { questionsForSnapshot, type Generator } from "@/lib/questions";
-import { runPipeline, type RunPipelineResult } from "@/lib/pipeline/run";
+import { runPipeline, type AnswerEvent, type RunPipelineResult } from "@/lib/pipeline/run";
 import { agreement, type AgreementSummary } from "./agreement";
 import { loadFindings, type Labels } from "./findings";
 import { noiseBand, type SnapshotNoise } from "./noise";
@@ -39,7 +39,13 @@ export interface RunSnapshotOptions {
   /** Repeats per locked question (2 or 3). */
   repeats?: number;
   providers?: ProviderId[];
-  /** Stop asking once answer costs pass this; calls not yet made are skipped. */
+  /**
+   * The snapshot's spending cap: fresh questions, answers and extractions
+   * count against it as they're paid for, and no call starts unless what's
+   * spent plus the calls in flight (at about the average call so far) still
+   * fits under it. Theme mapping, one small call after the answers, isn't
+   * gated, so a run can end a few cents over.
+   */
   maxCostUsd?: number;
   /** Provider calls in flight at once. */
   askConcurrency?: number;
@@ -103,8 +109,7 @@ export async function runSnapshot(db: PrismaClient, watchItemId: string, options
 
     const stop = new AbortController();
     const signal = options.signal ? AbortSignal.any([options.signal, stop.signal]) : stop.signal;
-    let spent = 0;
-    let stoppedAtCap = false;
+    const gate = spendGate(options.maxCostUsd, set.costUsd, stop);
     const pipeline = await runPipeline(db, {
       kind: options.kind ?? "weekly",
       topic: item.topic,
@@ -118,15 +123,14 @@ export async function runSnapshot(db: PrismaClient, watchItemId: string, options
       signal,
       // Extractions of answers already paid for still run after a stop.
       extractionSignal: options.signal,
+      beforeAsk: gate.beforeAsk,
+      onExtracted: gate.onExtracted,
       onAnswer: (e) => {
-        if (e.ok) spent += e.result.cost.usd;
-        if (options.maxCostUsd != null && spent > options.maxCostUsd && !stop.signal.aborted) {
-          stoppedAtCap = true;
-          stop.abort(new Error(`spending cap $${options.maxCostUsd} reached`));
-        }
+        gate.onAnswer(e);
         options.onAnswer?.(e);
       },
     });
+    const stoppedAtCap = gate.stopped();
 
     // Themes the alias table didn't know: one batched mapper call (task 4.8).
     // A failure leaves them unlinked; findings then key them by their label.
@@ -148,6 +152,53 @@ export async function runSnapshot(db: PrismaClient, watchItemId: string, options
   } finally {
     untrackRun(run.id);
   }
+}
+
+/** Planning figure for a call before any has landed: a Claude answer with searches plus its extraction. */
+export const FIRST_CALL_ESTIMATE_USD = 0.06;
+
+/**
+ * Keeps a snapshot under its cap (task 6.6, code review M2). Counts what's been
+ * paid for (the fresh set, answers, failed calls' estimates, extractions) and
+ * aborts `stop` before starting a call that wouldn't fit, counting every call
+ * already in flight at the average cost so far.
+ */
+export function spendGate(capUsd: number | undefined, alreadyUsd: number, stop: AbortController) {
+  let spent = alreadyUsd;
+  let inFlight = 0;
+  let landed = 0;
+  let landedUsd = 0;
+  let stopped = false;
+  const halt = () => {
+    if (stop.signal.aborted) return;
+    stopped = true;
+    stop.abort(new Error(`spending cap $${capUsd} reached`));
+  };
+  return {
+    beforeAsk() {
+      if (capUsd == null || stop.signal.aborted) return;
+      const perCall = landed ? Math.max(landedUsd / landed, 0.005) : FIRST_CALL_ESTIMATE_USD;
+      if (spent + (inFlight + 1) * perCall > capUsd) return halt();
+      inFlight++;
+    },
+    onAnswer(e: AnswerEvent) {
+      const cost = e.ok ? e.result.cost.usd : e.estimatedCostUsd;
+      if (e.ok || e.sent) {
+        inFlight = Math.max(0, inFlight - 1);
+        landed++;
+        landedUsd += cost;
+      }
+      spent += cost;
+      if (capUsd != null && spent > capUsd) halt();
+    },
+    onExtracted(costUsd: number) {
+      spent += costUsd;
+      landedUsd += costUsd;
+      if (capUsd != null && spent > capUsd) halt();
+    },
+    stopped: () => stopped,
+    spent: () => spent,
+  };
 }
 
 /** Agreement and noise band for a run already answered. Safe to recompute. */

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { buildRunView, type RunRows } from "@/lib/results/run-view";
-import { ABORTED_CALL_ESTIMATE_USD, runSpendUsd } from "@/lib/guards/spend";
 
 type AnswerRow = RunRows["answers"][number];
 
@@ -108,19 +107,5 @@ describe("buildRunView", () => {
   it("hides tone and framing when the extraction failed", () => {
     const view = buildRunView(run([answer("claude", { extraction: { tone: null, framing: null, errorMessage: "boom", entities: [], themes: [], arguments: [] } })]));
     expect(view.answers[0]).toMatchObject({ status: "done", tone: null, framing: null });
-  });
-});
-
-describe("runSpendUsd", () => {
-  it("counts answers and extraction, plus an estimate per call the deadline cut off", () => {
-    const spend = runSpendUsd({
-      costUsd: 0.12,
-      answers: [
-        { answerId: "a", provider: "claude", question: "q", ok: false, answerCostUsd: 0, errorKind: "timeout" },
-        { answerId: "b", provider: "grok", question: "q", ok: false, answerCostUsd: 0, errorKind: "auth" },
-        { answerId: "c", provider: "openai", question: "q", ok: true, answerCostUsd: 0.1 },
-      ],
-    });
-    expect(spend).toBeCloseTo(0.12 + ABORTED_CALL_ESTIMATE_USD);
   });
 });

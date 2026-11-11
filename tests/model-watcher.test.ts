@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { PrismaClient } from "@/app/generated/prisma/client";
+import { Prisma, type PrismaClient } from "@/app/generated/prisma/client";
 import type { ProviderId } from "@/lib/answers";
 import { dayStart, runModelWatcher, type RegistryRecord } from "@/lib/watchers/models";
 import { decide, isFlagship, isOlderVersion, modelVersion, isOfficialUrl, parseReport, quoteOnPage, type CheckOutput, type DefaultReport } from "@/lib/watchers/models-check";
@@ -108,8 +108,28 @@ describe("decide", () => {
 /** Just enough of Prisma for the check paths that don't switch (a switch goes through saveModel; see the .db test). */
 function fakeDb(rows: RegistryRecord[]) {
   const updates: { id: string; confirmedAt: Date }[] = [];
+  // WatcherJob rows, enough for claimJob/finishJob and the day's check spend.
+  const jobs = new Map<string, { key: string; kind: string; status: string; attempts: number; startedAt: Date; costUsd: number | null }>();
   const db = {
-    run: { aggregate: async () => ({ _sum: { costUsd: null } }) },
+    run: { findMany: async () => [], aggregate: async () => ({ _sum: { costUsd: null } }) },
+    watcherJob: {
+      create: async ({ data }: { data: { key: string; kind: string; status: string; startedAt: Date } }) => {
+        if (jobs.has(data.key)) throw Object.assign(new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "x" }));
+        const row = { ...data, attempts: 1, costUsd: null };
+        jobs.set(data.key, row);
+        return row;
+      },
+      findUnique: async ({ where }: { where: { key: string } }) => jobs.get(where.key) ?? null,
+      findMany: async ({ where }: { where: { kind: string; key: { startsWith: string } } }) =>
+        [...jobs.values()].filter((j) => j.kind === where.kind && j.key.startsWith(where.key.startsWith)),
+      updateMany: async ({ where, data }: { where: { key: string; attempts: number; status: string }; data: { status: string; startedAt: Date } }) => {
+        const j = jobs.get(where.key);
+        if (!j || j.attempts !== where.attempts || j.status !== where.status) return { count: 0 };
+        Object.assign(j, { status: data.status, startedAt: data.startedAt, attempts: j.attempts + 1 });
+        return { count: 1 };
+      },
+      update: async ({ where, data }: { where: { key: string }; data: { status: string; costUsd: number | null } }) => Object.assign(jobs.get(where.key)!, data),
+    },
     event: { findFirst: async () => null },
     modelRegistry: {
       findFirst: async ({ where }: { where: { provider: ProviderId } }) => rows.find((r) => r.provider === where.provider && !r.retiredAt) ?? null,
@@ -196,6 +216,25 @@ describe("runModelWatcher (no switch)", () => {
     });
     expect(r.providers[0]).toMatchObject({ outcome: "unclear", model: "grok-4.3" });
     expect(updates).toHaveLength(0);
+  });
+
+  it("pays for an unclear check once a day, not on every deploy", async () => {
+    const { db } = fakeDb(rows());
+    const check = vi.fn(async () => ({ ...same(0.4), report: report({ apiModelId: "grok-5", evidenceUrl: "https://someblog.example/grok" }) }));
+    await runModelWatcher(db, { now, providers: ["grok"], check });
+    const again = await runModelWatcher(db, { now: new Date("2026-11-10T18:00:00Z"), providers: ["grok"], check });
+    expect(check).toHaveBeenCalledTimes(1);
+    expect(again.providers[0]).toMatchObject({ outcome: "skipped", reason: expect.stringMatching(/already checked today/) });
+  });
+
+  it("counts earlier runs' checks against the day's check cap", async () => {
+    const { db } = fakeDb(rows());
+    // The first run of the day checks claude and openai, then dies (a deploy).
+    await runModelWatcher(db, { now, providers: ["claude", "openai"], check: async () => same(0.45) });
+    const r = await runModelWatcher(db, { now: new Date("2026-11-10T14:00:00Z"), checkCapUsd: 1, check: async () => same(0.45) });
+    expect(r.checkCostUsd).toBeCloseTo(0.9 + 0.45);
+    expect(r.providers.map((p) => p.outcome)).toEqual(["skipped", "skipped", "unchanged", "skipped"]);
+    expect(r.providers[3].reason).toMatch(/check cap/);
   });
 
   it("dayStart is midnight UTC", () => {

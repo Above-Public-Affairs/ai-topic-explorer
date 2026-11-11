@@ -86,6 +86,25 @@ describe.skipIf(!local)("model watcher switch in Postgres", () => {
     expect(calls).toHaveLength(items * 2);
   });
 
+  it("keeps a failed switch run's spend, so the day's switch cap still counts it", async () => {
+    const day = new Date(Date.now() + 3 * 24 * 3600 * 1000);
+    // Old pass answers and pays $0.40; the new pass pays $0.30, then the database write throws.
+    const pipeline = (async (d, o) => {
+      const provider = o.providers![0];
+      const paid = o.models?.[provider]?.model === "gemini-9" ? 0.3 : 0.4;
+      await d.answer.create({ data: { runId: o.runId!, question: "q", provider, requestedModel: "m", locationMode: "none", costUsd: paid } });
+      if (paid === 0.3) throw new Error("database went away");
+      return { runId: o.runId!, status: "complete" as const, answers: [{ answerId: "x", provider, question: "q", ok: true, answerCostUsd: paid }], costUsd: paid };
+    }) as typeof runPipeline;
+    const r = await W.runModelWatcher(db, { now: day, providers: ["gemini"], check: changeTo("gemini-9"), pipeline, ...deps });
+    const item = r.providers[0].switch!.items.find((i) => i.outcome === "failed")!;
+    expect(item.costUsd).toBeCloseTo(0.7, 6);
+    const run = await db.run.findUniqueOrThrow({ where: { id: item.runId! } });
+    expect(run.status).toBe("failed");
+    expect(run.costUsd).toBeCloseTo(0.7, 6);
+    expect(r.providers[0].switch!.costUsd).toBeGreaterThanOrEqual(0.7 - 1e-9);
+  });
+
   it("stops at the switch cap, then resumes the rest on the next run", async () => {
     const tomorrow = new Date(Date.now() + 24 * 3600 * 1000);
     const perAnswer = (await db.answer.aggregate({ where: { provider: "openai", errorKind: null, costUsd: { gt: 0 } }, _avg: { costUsd: true } }))._avg.costUsd ?? W.FALLBACK_ANSWER_USD;
