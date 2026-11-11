@@ -99,6 +99,10 @@ export async function readiness(db: PrismaClient, month: ReportMonth): Promise<{
   return { ready, skipped };
 }
 
+/** On the month's WatcherJob while the email is being handed to SendGrid. */
+export const SENDING_NOTE = "sending";
+export const UNKNOWN_OUTCOME_NOTE = "an earlier run stopped while sending the report, so it may have gone out; not resent";
+
 export async function runMonthlyReport(db: PrismaClient, options: MonthlyOptions): Promise<MonthlyOutcome> {
   const now = options.now ?? new Date();
   const month = options.month ?? previousMonth(now);
@@ -117,6 +121,17 @@ export async function runMonthlyReport(db: PrismaClient, options: MonthlyOptions
   }
 
   const key = reportJobKey(month);
+  // A process that stopped while sending (a deploy, a crash) may have sent the
+  // report: settle it as sent, outcome unknown, rather than send it twice
+  // (task 6.6, code review L3).
+  const settled = await db.watcherJob.updateMany({
+    where: { key, status: "running", note: SENDING_NOTE },
+    data: { status: "complete", finishedAt: now, note: UNKNOWN_OUTCOME_NOTE },
+  });
+  if (settled.count) {
+    log(`Monthly report for ${month.label}: skipped, ${UNKNOWN_OUTCOME_NOTE}.`);
+    return { outcome: "skipped", reason: UNKNOWN_OUTCOME_NOTE, month, skipped };
+  }
   const claim = await claimJob(db, key, "monthly_report", now);
   if (!claim.claimed) {
     log(`Monthly report for ${month.label}: skipped, ${claim.reason}.`);
@@ -127,6 +142,8 @@ export async function runMonthlyReport(db: PrismaClient, options: MonthlyOptions
     const inputs = [];
     for (const item of ready) inputs.push(await loadItemMonth(db, item.id, month));
     const built = await buildReport(month, inputs, skipped, { summarize: options.summarize, now });
+    // Recorded before sending, so a run that finds it left behind knows not to resend.
+    await db.watcherJob.update({ where: { key }, data: { note: SENDING_NOTE } });
     sending = true;
     const send = await (options.send ?? sendEmail)(
       { to: options.recipients, subject: built.subject, text: built.text, html: built.html, attachments: built.attachments },

@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { PrismaClient } from "@/app/generated/prisma/client";
+import { Prisma, type PrismaClient } from "@/app/generated/prisma/client";
 import { buildItemReport, locationLine } from "@/lib/reports/aggregate";
 import { svgToPng, themeTrendSvg } from "@/lib/reports/charts";
 import { headlineChanges, inTen, plainChange } from "@/lib/reports/plain";
 import { historySkipReason, monthFromKey, previousMonth, reportJobKey } from "@/lib/reports/month";
-import { buildReport, enabledFromEnv, recipientsFromEnv, runMonthlyReport } from "@/lib/reports/monthly";
+import { buildReport, enabledFromEnv, recipientsFromEnv, runMonthlyReport, SENDING_NOTE, UNKNOWN_OUTCOME_NOTE } from "@/lib/reports/monthly";
 import { SAMPLE_MONTH, sampleMonth } from "@/lib/reports/sample";
 import { fallbackSummary, numbersAreGrounded, writeSummary, type SummaryClient } from "@/lib/reports/summary";
 import { sendEmail } from "@/lib/email/send";
@@ -226,6 +226,46 @@ describe("runMonthlyReport waits for history", () => {
     expect(out).toMatchObject({ outcome: "disabled", ready: ["Data centers in Texas"] });
     expect(send).not.toHaveBeenCalled();
     expect(db.watcherJob.create).not.toHaveBeenCalled();
+  });
+});
+
+// Task 6.6, code review L3: a run killed mid-send must not lead to a second send.
+describe("runMonthlyReport after a run stopped mid-send", () => {
+  type Job = { key: string; kind: string; status: string; attempts: number; startedAt: Date; note: string | null };
+  function fakeDb(job: Job | null) {
+    const jobs = new Map<string, Job>(job ? [[job.key, job]] : []);
+    return {
+      jobs,
+      db: {
+        watchItem: { findMany: async () => [{ id: "w1", name: "Data centers in Texas" }] },
+        run: { count: async () => 5 },
+        watcherJob: {
+          create: async ({ data }: { data: Job }) => {
+            if (jobs.has(data.key)) throw new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "x" });
+            jobs.set(data.key, { ...data, attempts: 1, note: null });
+          },
+          findUnique: async ({ where }: { where: { key: string } }) => jobs.get(where.key) ?? null,
+          updateMany: async ({ where, data }: { where: Partial<Job>; data: Partial<Job> & { attempts?: unknown } }) => {
+            const j = jobs.get(where.key!);
+            const ok = j && (where.status === undefined || j.status === where.status) && (where.note === undefined || j.note === where.note) && (where.attempts === undefined || j.attempts === where.attempts);
+            if (!ok) return { count: 0 };
+            Object.assign(j, { ...data, attempts: data.attempts ? j.attempts + 1 : j.attempts });
+            return { count: 1 };
+          },
+          update: async ({ where, data }: { where: { key: string }; data: Partial<Job> }) => Object.assign(jobs.get(where.key)!, data),
+        },
+      } as unknown as PrismaClient,
+    };
+  }
+
+  it("doesn't resend once the stale job says it was sending", async () => {
+    // Stopped 2 hours ago after handing the email to SendGrid; the job is stale, so a plain claim would retry it.
+    const { db, jobs } = fakeDb({ key: "report:monthly:2026-11", kind: "monthly_report", status: "running", attempts: 1, startedAt: new Date("2026-12-01T12:00:00Z"), note: SENDING_NOTE });
+    const send = vi.fn();
+    const out = await runMonthlyReport(db, { now: new Date("2026-12-01T14:00:00Z"), month: monthFromKey("2026-11"), enabled: true, recipients: ["x@y.com"], send });
+    expect(send).not.toHaveBeenCalled();
+    expect(out).toMatchObject({ outcome: "skipped" });
+    expect(jobs.get("report:monthly:2026-11")).toMatchObject({ status: "complete", note: UNKNOWN_OUTCOME_NOTE });
   });
 });
 
