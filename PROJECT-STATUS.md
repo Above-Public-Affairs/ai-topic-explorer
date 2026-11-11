@@ -36,8 +36,9 @@ models (`PROJECT-PLAN.md` §4D). Proven locally with a simulated Gemini switch (
 
 **Task 6.8 (new GA4 property, Nov 9):** the site sends to GA4 `G-6WT4RP9NQD` (Railway
 `NEXT_PUBLIC_GA_MEASUREMENT_ID`), with page views on every route and a typed event catalog in
-`lib/analytics.ts`. GA admin setup (key events, custom dimensions, retention) is the checklist
-in `docs/ga4-setup.md`.
+`lib/analytics.ts`. GA admin steps 1–5 in `docs/ga4-setup.md` are done (Nov 11): key events,
+custom dimensions and metrics, 14-month event retention, history page views and outbound clicks
+off. Every event checked in GA real-time except `word_clicked` and `bug_report_sent`.
 
 **Task 6.7 (public-site review fixes, Nov 7):** the critical/high accessibility findings
 (6.3), the design P0s and P1s (6.5) and speed fixes 1–3 (6.4) are fixed; reviews are in

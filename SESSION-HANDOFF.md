@@ -23,7 +23,7 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
   install, edited with `wp post update 61 -` over SSH; the SSH gateway has no scp) covers it.
   The URL is `PRIVACY_POLICY_URL` in `lib/privacy.ts`; `/privacy` redirects there (next.config.ts).
 - Its "On AI Topic Explorer" section names the four providers, OpenAI's extraction pass, the
-  GA topic parameter and 2-month event retention, the bug report fields, the 30-day Error
+  GA topic parameter and 14-month event retention, the bug report fields, the 30-day Error
   Reporter prune, and `beta-banner-dismissed`. If any of those change, update the policy
   in the same session (development-guidelines privacy-policy skill), with Josh's approval.
 
@@ -217,10 +217,12 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
   in the stream's enhanced measurement, or in-app pages count twice.
 - `debug_mode` on `config` never reaches the hits, so `trackEvent` adds it per hit when
   `?ga_debug=1` (or `NEXT_PUBLIC_GA_DEBUG=1`) is on.
-- Admin checklist: `docs/ga4-setup.md`.
-- **Open:** the site links no privacy policy, and Above's policy names only
-  abovepublicaffairs.com and the TX tracker, not aitopicexplorer.app (GA, topic text, bug
-  reports). Needs a decision from Josh.
+- Admin checklist `docs/ga4-setup.md`: steps 1–5 done Nov 11. Event retention is 14 months, and
+  the privacy policy says so; change both together.
+- Source links are counted by a `data-source-link` attribute (`answer_inline`, `answer_sources`,
+  `citation_list`, `argument_list`). A new external source link without it sends nothing.
+- Not seen live: `word_clicked` (word cloud shows only on old results with no key themes) and
+  `bug_report_sent` (needs a real report).
 
 ## Public-site review fixes (task 6.7)
 - Reviews: `docs/reviews/accessibility-2026-11.md` (6.3), `speed-2026-11.md` (6.4),
