@@ -41,6 +41,7 @@ function Column({ title, hint, items, accent }: { title: string; hint: string; i
                   href={a.sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
+                  data-source-link="argument_list"
                   className="ml-1.5 -my-2 inline-block py-2 text-xs text-(--text-tertiary) underline decoration-black/15 underline-offset-2 hover:text-(--accent-cyan)"
                 >
                   source

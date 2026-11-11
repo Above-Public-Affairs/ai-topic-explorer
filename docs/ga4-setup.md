@@ -16,9 +16,9 @@ The public site sends to GA4 property **G-6WT4RP9NQD** (set as `NEXT_PUBLIC_GA_M
 | `results_viewed` | A results page opens | `layout` (`new` or `old`), `ais_answered`, `from_share` |
 | `share` | Share button copies the link | `method`, `content_type`, `item_id`, `placement` |
 | `shared_link_opened` | Someone opens a link copied with Share (`?ref=share`) | `item_id` |
-| `source_link_opened` | A cited source is opened | `source_domain` (domain only), `link_area` |
+| `source_link_opened` | A cited source is opened | `source_domain` (domain only), `link_area` (`answer_inline`, `answer_sources`, `citation_list`, `argument_list`) |
 | `modal_opened` | How it works, changelog, bug report | `modal` |
-| `theme_clicked` / `word_clicked` | A theme or word cloud word (opens it in context) | `theme` / `word` |
+| `theme_clicked` / `word_clicked` | A theme or word cloud word (opens it in context). The word cloud only shows on old saved results that have no key themes, so `word_clicked` is rare | `theme` / `word` |
 | `answer_tab_selected` / `answer_expanded` | Answer tabs | `provider` |
 | `new_topic_clicked` | New Topic on a results page | `placement` |
 | `bug_report_sent` | A bug report was delivered | none |
@@ -28,6 +28,8 @@ No user IDs, emails or full source URLs are sent. GA4 doesn't log IP addresses; 
 **Checking it:** add `?ga_debug=1` to any URL and that tab's hits show in **Admin → DebugView** (debug hits stay out of reports).
 
 ## Admin checklist (one time, in GA)
+
+Steps 1–5 were done on 2026-11-11 and checked: key events, custom dimensions and metrics, and retention through the GA Admin API; enhanced measurement on the live site (one `page_view` per route change, no outbound-click hits). Steps 6–7 are optional and not done.
 
 1. **Enhanced measurement** (Admin → Data streams → the web stream → Enhanced measurement → gear):
    - Under **Page views → Show advanced settings**, untick "Page changes based on browser history events" and leave "Page loads" ticked (the Page views switch itself can't be turned off). The site sends its own page views on navigation; leaving this on counts every in-app page twice.

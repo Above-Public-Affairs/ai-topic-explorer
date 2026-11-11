@@ -75,7 +75,7 @@ export type ErrorType =
   | "network"
   | "send_failed";
 
-export const SOURCE_LINK_AREAS = ["answer_inline", "answer_sources", "citation_list"] as const;
+export const SOURCE_LINK_AREAS = ["answer_inline", "answer_sources", "citation_list", "argument_list"] as const;
 export type SourceLinkArea = (typeof SOURCE_LINK_AREAS)[number];
 
 /** Marks a link to a cited source; the click listener in `AnalyticsTracker` reads it. */
