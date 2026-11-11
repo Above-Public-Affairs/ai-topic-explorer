@@ -40,6 +40,11 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
   settings; a redeploy keeps the old command, so rebuild after changing it). On SIGTERM they release
   their WatcherJob claims and `running` runs (`lib/worker/shutdown.ts`). A deploy doesn't start a
   cron run, so a weekly run stopped by a push waits for the next Monday unless retried by hand.
+- Live since Nov 11, 2026 03:09 UTC (commit d8a1551). Proved in production the same night by moving
+  each schedule a few minutes ahead and back: weekly skipped all 3 items ($0, "+ $14.26 earlier this
+  week" of the $18 production run cap); model watcher found 4 unchanged ($0.08).
+- To run a script against production by hand: the Postgres service has no public TCP proxy, so use
+  `railway ssh -s ai-topic-explorer -- sh -c 'cd /app && node --import tsx scripts/<name>.ts …'`.
 
 ## Monthly report (task 5.3)
 - Railway cron service `monthly-report` (same project, same repo) runs `npm run report:monthly`
