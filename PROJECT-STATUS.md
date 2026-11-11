@@ -18,7 +18,7 @@ it waits for 4 weekly snapshots, so the first real report is Jan 1, 2027 (for De
 until `REPORTS_ENABLED=true` (task 8.2). Production test run for November logged the "not enough history yet" skip. Josh found the first sample too complicated; it's now written for a general
 reader, and the revised sample was sent and checked in Gmail.
 
-**Task 4.7 (event watcher, Nov 10):** Railway cron service `event-watcher` runs hourly: a
+**Task 4.7 (event watcher, Nov 10):** Railway cron service `event-watcher` runs daily at 13:00 UTC (hourly until Nov 11): a
 daily web-search scan (about $0.10) for events in Josh's approved categories, a weekly refresh
 of official election and session dates, and an event snapshot of each affected watch item
 about 24h after an event (max 2 per item per week, $5 cap each), every trigger logged with its

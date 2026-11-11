@@ -1,6 +1,6 @@
 /**
  * Event watcher (task 4.7): the Railway cron service "event-watcher" runs
- * this every hour. Once a week it refreshes the known election and session
+ * this daily at 13:00 UTC (hourly until Nov 11, 2026). Once a week it refreshes the known election and session
  * dates; once a day (from 12:00 UTC) it scans the web for events; every run
  * it gives due events a snapshot slot and runs the snapshots that are due.
  * See lib/watchers/events/worker.ts. Every step is claimed in WatcherJob, so
@@ -30,7 +30,7 @@ import { releaseOnSigterm } from "@/lib/worker/shutdown";
 initErrorReporter({ project: "ai-topic-explorer" });
 
 // Any deploy to the project replaces this container and SIGTERMs it mid-run.
-// Give up this run's jobs and runs as failed so the next hourly run retries them.
+// Give up this run's jobs and runs as failed so the next run retries them.
 releaseOnSigterm("Event watcher", prisma);
 
 function arg(name: string): string | undefined {

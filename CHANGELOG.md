@@ -12,6 +12,9 @@ All notable changes to AI Topic Explorer will be documented in this file.
 - **Recurring questions are never locked automatically** (Josh's call, Nov 11). A fresh question that keeps coming back is listed in the monthly report under "Questions that keep coming up"; a person adds any through the anchor review path (security L2)
 - **Bug reports:** only page URLs on the site are forwarded, control and bidi characters are stripped, the timestamp must be a real ISO time (security L3)
 
+### Changed (event watcher schedule)
+- The `event-watcher` cron runs daily at 13:00 UTC (`0 13 * * *`), the same time as the model watcher, instead of hourly (Josh, Nov 11). The day's scan, the weekly calendar refresh and the caps are unchanged; a due event snapshot now runs up to a day later, and a failed one is retried the next day
+
 ### Changed (task 6.6: 6.7 leftovers)
 - CSS is inlined in the HTML (`experimental.inlineCss`); the footer changelog moved to `lib/changelog.ts` and loads only when opened
 - Theme chips wrap instead of truncating; the mobile topic shows on up to two lines; links that open a new tab say so to screen readers (`components/NewTabNote.tsx`); the arguments "source" link has a larger hit area

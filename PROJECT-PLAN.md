@@ -391,7 +391,8 @@ Snapshots can run before that.
     of a weekly snapshot, since the comparison shows the event's effect. At most 2 event
     snapshots a week. Every trigger is logged with its source.
   - **Built (task 4.7).** Railway cron service `event-watcher` (same project and repo) runs
-    `npm run worker:events` (`scripts/event-watcher.ts`, `lib/watchers/events/`) **hourly**.
+    `npm run worker:events` (`scripts/event-watcher.ts`, `lib/watchers/events/`) **daily at
+    13:00 UTC** (hourly until Nov 11, 2026; a due snapshot now waits up to a day).
     Each run, every step claimed first in `WatcherJob` so a deploy-triggered run repeats
     nothing:
     - **Known dates, weekly:** official election days (and the canvass of the latest one)

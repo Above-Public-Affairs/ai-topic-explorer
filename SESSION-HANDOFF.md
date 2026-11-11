@@ -124,7 +124,7 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
 
 ## Event watcher (task 4.7)
 - Railway cron service `event-watcher` (same project, same repo) runs `npm run worker:events`
-  hourly. Code: `scripts/event-watcher.ts`, `lib/watchers/events/` (rules, scan, jobs, worker).
+  daily at 13:00 UTC (hourly until Nov 11, 2026, when Josh moved it). Code: `scripts/event-watcher.ts`, `lib/watchers/events/` (rules, scan, jobs, worker).
   Rules and costs are in `PROJECT-PLAN.md` §4D.
 - Every step is claimed in `WatcherJob` by key (`events:scan:<day>`,
   `events:known-dates:<monday>:<geographies>`, `events:snapshot:<item>:<triggerAt>`), so a
@@ -135,9 +135,11 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
 - `npm run worker:events -- --force-scan` scans before 12:00 UTC; `--only=known,scan,schedule,snapshots`
   picks stages.
 - `new_model` events are the model watcher's (4.5); this worker never touches them.
-- Live since Nov 10, 2026, cron `15 * * * *` (service `36acb483-b80e-4d60-a869-b63f02948019`). It
-  does not run on deploy, but a deploy stops a run in progress: the worker then marks its
-  unfinished jobs failed, and the next hour retries them.
+- Live since Nov 10, 2026, cron `0 13 * * *` since Nov 11 (was `15 * * * *`; service
+  `36acb483-b80e-4d60-a869-b63f02948019`). It does not run on deploy, but a deploy stops a run in
+  progress: the worker then marks its unfinished jobs failed, and the next day's run retries them
+  (each counts as one of 3 attempts). With one run a day, an event snapshot lands 24–48h after the
+  event rather than ~24h, and a failed one is retried a day later.
 - DB test: `TEST_DATABASE_URL=<fresh migrated local db> npx vitest run tests/event-watcher.db.test.ts`.
   Give it its own database (see LESSONS).
 - Gotcha: GPT-6 Luna at low effort runs only 2–4 searches a call, so one broad known-dates

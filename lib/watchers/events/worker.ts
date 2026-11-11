@@ -1,6 +1,7 @@
 /**
  * The event watcher (task 4.7, PROJECT-PLAN §4D). A Railway cron service runs
- * scripts/event-watcher.ts every hour; each run does, in order:
+ * scripts/event-watcher.ts daily at 13:00 UTC (hourly until Nov 11, 2026); each
+ * run does, in order:
  *
  * 1. Known dates (once a week): official election and legislative-session
  *    dates for each tracked geography and federal, next 12 months, stored as
