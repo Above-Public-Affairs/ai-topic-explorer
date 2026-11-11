@@ -1,5 +1,6 @@
 import type { CombinedCitation } from "@/lib/types";
 import { PROVIDER_COLORS, PROVIDER_LABELS } from "@/lib/providers";
+import NewTabNote from "@/components/NewTabNote";
 
 interface Props {
   citations: CombinedCitation[];
@@ -61,6 +62,7 @@ export default function CitationList({
                     className="text-(--text-primary) underline decoration-black/15 hover:text-(--accent-cyan) hover:decoration-(--accent-cyan)/40 text-sm font-medium leading-snug transition-colors break-words min-w-0"
                   >
                     {citation.title}
+                    <NewTabNote />
                   </a>
                   <div className="flex gap-1 shrink-0">
                     {citation.providers.map((provider) => (
@@ -95,6 +97,7 @@ export default function CitationList({
             className="font-semibold text-(--accent-cyan) underline hover:text-(--text-primary) transition-colors"
           >
             Check out AEO Checker
+            <NewTabNote />
           </a>
         </p>
       </div>

@@ -1,8 +1,14 @@
 # AI Topic Explorer - Project Status
 
-**Last Updated:** November 10, 2026
+**Last Updated:** November 11, 2026
 
 ## Current Status: Live in production (beta), new direction planned
+
+**Task 6.6 (review fixes, app half, Nov 11):** every high and medium finding from the code
+review (6.1) and security review (6.2) in this repo is fixed, and every low one is fixed;
+the spending caps now hold when runs fail, retry or get stopped by a deploy. Recurring
+fresh questions are no longer locked automatically (Josh's call); the monthly report lists
+them. 6.7 leftovers done or deferred as listed in `SESSION-HANDOFF.md`.
 
 **Task 5.3 (monthly health report, Nov 10):** `lib/reports/` builds one email a month for
 every watch item: depth (only changes beyond the noise band called real), breadth, citation

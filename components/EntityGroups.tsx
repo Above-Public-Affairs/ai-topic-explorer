@@ -1,5 +1,6 @@
 import { PROVIDER_COLORS, PROVIDER_LABELS } from "@/lib/providers";
 import type { EntityView } from "@/lib/results/run-view";
+import NewTabNote from "@/components/NewTabNote";
 
 /** Named entities from the new pipeline, grouped by type (people, organizations, places, laws). */
 export default function EntityGroups({ groups }: { groups: { label: string; items: EntityView[] }[] }) {
@@ -28,6 +29,7 @@ export default function EntityGroups({ groups }: { groups: { label: string; item
                         className="underline decoration-black/15 underline-offset-2 hover:text-(--accent-cyan) hover:decoration-(--accent-cyan)/40 transition-colors"
                       >
                         {entity.name}
+                        <NewTabNote />
                       </a>
                     ) : (
                       entity.name

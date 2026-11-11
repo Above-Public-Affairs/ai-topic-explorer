@@ -1,6 +1,6 @@
 # Session Handoff — AI Topic Explorer
 
-**Last Updated:** November 10, 2026
+**Last Updated:** November 11, 2026
 
 ## Where we are
 Live in production (beta) on Railway with four providers: Claude, ChatGPT, Gemini
@@ -17,6 +17,41 @@ The app is becoming an internal topic-tracking tool.
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
 Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search) and 5.1.
 
+## Review fixes (task 6.6, app half)
+- Reviews: `docs/reviews/6.1-code-review.md`, `docs/reviews/6.2-security-review.md`. All
+  findings in this repo fixed (H1, M1–M5, L1–L3; security M1, L1–L3). Tests:
+  `tests/spend-caps.test.ts`, `tests/bug-report.test.ts`, new cases in the weekly, model,
+  event, alerts and reports tests, and `tests/spend.db.test.ts` (reservation under 20
+  concurrent requests). DB tests need a fresh migrated local DB each, run one file at a time.
+- **Money paths, in one place:** failed-call and failed-extraction estimates and the
+  per-answer search limit are `lib/answers/estimates.ts`. Failed answers sent to a provider
+  store the estimate in `Answer.costUsd` with a `costNote`, so `spentSoFar` counts them.
+  Snapshots gate each call through `spendGate` (`lib/snapshots/run.ts`). The public cap
+  reserves `ANALYSIS_RESERVE_USD` ($0.50) in `reserveSpend` and settles in `settleSpend`.
+- **Event watcher caps** read stored runs: per slot since its trigger time, per UTC day for
+  all event snapshots. A SIGTERM now counts as an attempt (3 at most).
+- **Alerts mid-send** are settled as sent with `UNKNOWN_SEND_NOTE` (SIGTERM release, or
+  the next `afterSnapshot` after 15 min); check SendGrid's activity if one matters.
+- **Recurring questions:** `recurringQuestions()` replaced `promoteRecurring()`; nothing is
+  promoted. The monthly report lists them. Josh, Nov 11: "Never add automatically".
+- **In-site changelog** moved from `components/Footer.tsx` to `lib/changelog.ts`.
+- **X-Real-IP check:** `POST /api/bug-report` with header `x-ate-ip-check: 1` logs (yes/no
+  only) whether a client-sent `X-Real-IP: 203.0.113.7` survived Railway's edge. Send it with an
+  empty description so nothing is forwarded.
+- **Connector:** `lib/alerts/withdraw.ts` is vendored there and changed here (a stuck
+  `sending` alert can be withdrawn); re-vendor on the connector's next update.
+- **6.7 leftovers deferred, with reasons:**
+  - Speed 2 (server-render `AnswerProse`), 4 (word context on demand): refactors of the
+    results data flow, worth their own task; ~50 KB and ~30 KB gains on results pages.
+  - Speed 5 (cache saved results): 50–100 ms; needs care that unreadable/not-found pages
+    aren't cached and a cache that survives Railway redeploys.
+  - Speed 8 (14 KB polyfills): needs a bundle analysis first to find the source.
+  - Accessibility 12 (collapse the mobile header on scroll), design 10, 11, 12, 16 and the
+    dark theme: design work for a design pass, not fixes.
+  - Accessibility 17 rest: mobile jump links stay 32px tall; 44px would make the sticky
+    header taller, which 12 is about.
+  - VoiceOver pass over dialogs and announcements: needs a person with VoiceOver.
+
 ## Alerts (task 5.2)
 - `lib/alerts/` (`afterSnapshot`), called once where each snapshot finishes: `lib/worker/weekly.ts`,
   `lib/watchers/events/worker.ts`, `lib/watchers/models.ts`. Never throws; failures go to error
@@ -24,8 +59,8 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
 - **Sending is off** until task 8.2: `ALERTS_ENABLED` unset/false stores alerts as `suppressed`.
   Turn on by setting `ALERTS_ENABLED=true` (and optionally `ALERT_RECIPIENTS`) on the three cron
   services. Suppressed alerts are never sent later; only new ones are.
-- Re-runs are safe (created once per run, claimed before sending). An alert stuck in `sending`
-  means a process died mid-send: check SendGrid's activity before resending by hand.
+- Re-runs are safe (created once per run, claimed before sending). An alert a process left in
+  `sending` is settled as sent, outcome unknown (task 6.6); check SendGrid's activity before resending by hand.
 - Tools: `npm run alerts -- --list | --run=<id> | --show=A-n [--html=f] | --send-test=A-n`.
   Local proof DBs: `ate_task52` (real Gemini switch alerts) and `ate_task52b` (injected changes) on
   localhost:5432. DB test: `tests/alerts.db.test.ts` (env in its header).

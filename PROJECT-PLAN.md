@@ -212,12 +212,12 @@ Snapshots can run before that.
   client names, nothing about AI. If a set is short, unbalanced or off-mix, the model
   rewrites it once and the better attempt is kept. Every question carries a short **concern**
   label; fresh sets reuse recent labels when they ask about the same thing.
-- **Promotion rule (task 4.2).** A fresh concern is promoted when it came up in **at least 3
-  of the last 4 fresh sets** and no question still in a locked set has that concern. At most
-  **2 a snapshot** and **4 promoted questions active** per item (cost). Ties go to the
-  concern seen in more sets, then the most recent. The promoted copy keeps the latest fresh
-  wording word for word and goes into a new locked set dated that snapshot. Checked at the
-  start of each snapshot, before its fresh set is written.
+- **Recurring questions (task 4.2, changed in 6.6).** A fresh concern that came up in **at
+  least 3 of the last 4 fresh sets**, with no locked question on that concern, is **listed**
+  in the monthly report ("Questions that keep coming up"), with its latest wording. It is
+  **never added to the locked questions automatically** (Josh, 2026-11-11, after security
+  review L2: fresh sets are written with web search, so a narrative pushed on the web could
+  otherwise lock in a leading question). A person adds one through the anchor review path.
 - **Locked means locked.** A database trigger refuses any change to a question's wording, set
   or position, and any delete from a locked set. Stale questions get `retiredAt` and
   `retiredReason`. Anchor sets reach production only by migration, from a file Josh has read
@@ -419,8 +419,10 @@ Snapshots can run before that.
       Deferred if a snapshot of the item is already running. A failed one is retried up to 3
       times in all.
     - **Caps:** `EVENT_SCAN_CAP_USD` (default **$1**, the day's scan and the week's
-      known-dates refresh each), `EVENT_SNAPSHOT_CAP_USD` (default **$5** a snapshot),
-      `EVENT_RUN_CAP_USD` (default **$15** of snapshots per run; the rest wait an hour).
+      known-dates refresh each), `EVENT_SNAPSHOT_CAP_USD` (default **$5** a snapshot slot,
+      across all its attempts), `EVENT_RUN_CAP_USD` (default **$15** of event snapshots per
+      UTC day, across every process; the rest wait for the next day). Both read stored runs
+      (task 6.6).
       A scan costs about $0.10, the weekly known-dates refresh about $0.15.
     - **What it costs in snapshots:** the calendar alone gives about 14 event snapshots a
       year at current watch items (~$60): Texas canvass, session start and end and the

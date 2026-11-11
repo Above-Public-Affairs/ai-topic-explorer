@@ -31,7 +31,7 @@ export default function KeyThemes({ themes, onThemeClick }: Props) {
           <button
             key={theme.phrase}
             onClick={() => onThemeClick?.(theme.phrase)}
-            className={`pill-interactive rounded-full font-medium cursor-pointer max-w-full truncate ${sizeClasses[theme.relevance] || sizeClasses[3]}`}
+            className={`pill-interactive rounded-[18px] font-medium cursor-pointer active:scale-[0.96] max-w-full whitespace-normal text-balance text-center ${sizeClasses[theme.relevance] || sizeClasses[3]}`}
           >
             {theme.phrase}
           </button>

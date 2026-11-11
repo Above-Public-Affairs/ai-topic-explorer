@@ -2,6 +2,20 @@
 
 All notable changes to AI Topic Explorer will be documented in this file.
 
+## [2026-11-11]
+
+### Fixed (task 6.6: code review 6.1 and security review 6.2, app half)
+- **Spending caps hold when things fail.** Event snapshots: each slot gets its $5 cap once across all attempts, and `EVENT_RUN_CAP_USD` is now per UTC day across every process, both read from stored runs; a deploy's SIGTERM now uses up an attempt (H1). Model watcher: a failed switch run stores what it spent and the day's switch cap counts it; one paid check per provider per day whatever the verdict, recorded in WatcherJob `models:check:<day>:<provider>` (M1, L1). Snapshots count fresh questions, extractions and failed calls against their cap and don't start a call the cap can't cover with the calls already in flight (M2). The weekly worker counts a thrown snapshot's spend for the items after it (M3). One failed database write no longer rejects a whole pipeline run or leaves it `running` (M5). Paid extractions keep their cost when the write fails, failed calls sent to a provider count at an estimate, and an unpriced model costs at the highest listed price instead of throwing (L2, security L1)
+- **Public daily cap is reserved, not just read.** Each analysis reserves $0.50 of `DAILY_SPEND_CAP_USD` in one statement and settles to its real cost, so simultaneous requests can't all pass. IPv6 rate limits count per /64. Claude's web search is capped by `max_uses` and OpenAI's by `max_tool_calls` (6 per answer) (security M1)
+- **Alerts:** an alert left in `sending` (a deploy mid-send) is recorded as sent, outcome unknown, on SIGTERM or by the next run after 15 minutes, never resent; a sent alert whose status write fails is no longer marked failed; `withdrawAlerts` accepts a stuck one (M4)
+- **Monthly report:** the month's job is marked "sending" before the email goes out, so a run killed mid-send is never retried into a second send (L3)
+- **Recurring questions are never locked automatically** (Josh's call, Nov 11). A fresh question that keeps coming back is listed in the monthly report under "Questions that keep coming up"; a person adds any through the anchor review path (security L2)
+- **Bug reports:** only page URLs on the site are forwarded, control and bidi characters are stripped, the timestamp must be a real ISO time (security L3)
+
+### Changed (task 6.6: 6.7 leftovers)
+- CSS is inlined in the HTML (`experimental.inlineCss`); the footer changelog moved to `lib/changelog.ts` and loads only when opened
+- Theme chips wrap instead of truncating; the mobile topic shows on up to two lines; links that open a new tab say so to screen readers (`components/NewTabNote.tsx`); the arguments "source" link has a larger hit area
+
 ## [2026-11-10]
 
 ### Changed (task 4.9: deploy-safe weekly and model-watcher crons, withdrawn alerts)

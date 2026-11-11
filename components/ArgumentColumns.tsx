@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PROVIDER_COLORS, PROVIDER_LABELS } from "@/lib/providers";
 import type { ArgumentView } from "@/lib/results/run-view";
+import NewTabNote from "@/components/NewTabNote";
 
 const INITIAL = 6;
 
@@ -40,9 +41,10 @@ function Column({ title, hint, items, accent }: { title: string; hint: string; i
                   href={a.sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="ml-1.5 text-xs text-(--text-tertiary) underline decoration-black/15 underline-offset-2 hover:text-(--accent-cyan)"
+                  className="ml-1.5 -my-2 inline-block py-2 text-xs text-(--text-tertiary) underline decoration-black/15 underline-offset-2 hover:text-(--accent-cyan)"
                 >
                   source
+                  <NewTabNote />
                 </a>
               )}
             </li>

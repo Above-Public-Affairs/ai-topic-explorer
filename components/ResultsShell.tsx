@@ -81,7 +81,7 @@ export default function ResultsShell({
         <div className="px-4 py-3">
           {/* Topic + actions */}
           <div className="flex items-center justify-between gap-3 mb-2">
-            <p className="text-base font-bold text-(--text-primary) truncate min-w-0">
+            <p className="text-base font-bold text-(--text-primary) line-clamp-2 text-pretty min-w-0">
               {displayTopic(topic)}
             </p>
             <div className="flex items-center gap-2 shrink-0">

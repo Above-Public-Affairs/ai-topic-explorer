@@ -2,6 +2,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { AnswerSourceView } from "@/lib/results/run-view";
 import { urlKey } from "@/lib/results/sources";
+import NewTabNote from "@/components/NewTabNote";
 
 /**
  * An AI's answer as it wrote it: Markdown rendered as prose. Raw HTML in the
@@ -83,6 +84,7 @@ export default function AnswerProse({ text, sources = [] }: { text: string; sour
           className="text-(--accent-cyan) underline decoration-(--accent-cyan)/30 underline-offset-2 hover:decoration-(--accent-cyan) transition-colors break-words"
         >
           {children}
+          <NewTabNote />
         </a>
       );
     },
