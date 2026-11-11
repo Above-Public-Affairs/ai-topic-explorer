@@ -5,6 +5,8 @@ import type { PrismaClient } from "@/app/generated/prisma/client";
 import type { ProviderId } from "@/lib/answers";
 import { REPORTED_ALERT_STATUSES } from "@/lib/alerts/withdraw";
 import { loadFindings, noiseBand, type SnapshotStats } from "@/lib/snapshots";
+import { recurringQuestions } from "@/lib/questions/sets";
+import { PROMOTION_WINDOW } from "@/lib/questions/rules";
 import type { ItemMonthInput, ReportMonth, SnapshotInput, TimelineMark } from "./types";
 
 const DONE = ["complete", "partial"] as const;
@@ -88,8 +90,12 @@ export async function loadItemMonth(db: PrismaClient, watchItemId: string, month
     ...switches.map((r): TimelineMark => ({ at: r.startedAt, kind: "model_switch", label: "Old and new model asked side by side", runId: r.id })),
   ];
 
+  // Only listed: a person decides whether any joins the fixed questions (task 6.6, security review L2).
+  const recurring = await recurringQuestions(db, watchItemId).catch(() => []);
+
   return {
     watchItem: { id: item.id, name: item.name, askedFrom: { city: item.askCity, region: item.askRegion, country: item.askCountry } },
+    recurring: recurring.map((q) => ({ text: q.text, seenIn: q.seenIn, of: PROMOTION_WINDOW })),
     month,
     baseline: before ? await snapshotInput(db, before) : null,
     snapshots: await Promise.all(inMonth.map((r) => snapshotInput(db, r))),

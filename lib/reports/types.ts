@@ -58,8 +58,21 @@ export interface MonthAlert {
   status: string;
 }
 
+/**
+ * A new-each-week question that keeps coming back. Listed for a person to
+ * consider; it's never added to the fixed questions automatically (task 6.6).
+ */
+export interface RecurringQuestion {
+  text: string;
+  /** In how many of the last `of` weeks' new questions it came up. */
+  seenIn: number;
+  of: number;
+}
+
 export interface ItemMonthInput {
   watchItem: { id: string; name: string; askedFrom: AskedFrom };
+  /** Recurring new questions at the end of the month; empty or absent when none. */
+  recurring?: RecurringQuestion[];
   month: ReportMonth;
   /** The item's last snapshot before the month, the "start" to compare from; null for an item's first month. */
   baseline: SnapshotInput | null;
@@ -133,6 +146,7 @@ export interface ItemReport {
   };
   marks: TimelineMark[];
   alerts: MonthAlert[];
+  recurring: RecurringQuestion[];
   /** The all-AI noise band at the end snapshot, per kind, in share points (0.09 = 9 points). */
   band: Partial<Record<Metric, number>>;
 }

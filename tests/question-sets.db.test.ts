@@ -167,7 +167,8 @@ describe.skipIf(!local)("question sets in Postgres", () => {
     await expect(Q.questionsForSnapshot(db, { watchItemId: other.id, runId: b.run.id }, { generate: gen })).rejects.toThrow();
   });
 
-  it("promotes a fresh concern seen in 3 of the last 4 snapshots into a new locked set", async () => {
+  // Task 6.6, security review L2 (Josh, 2026-11-11: never add automatically).
+  it("lists a fresh concern seen in 3 of the last 4 snapshots, but never adds it to the locked questions", async () => {
     const item = await newItem();
     await Q.draftAnchorSet(db, item.id, { generate: anchorGen });
     await Q.lockAnchorSet(db, item.id);
@@ -181,30 +182,18 @@ describe.skipIf(!local)("question sets in Postgres", () => {
     ]);
     const week = (n: number) => new Date(Date.UTC(2026, 10, 2 + 7 * n, 12));
 
-    for (let n = 0; n < 4; n++) {
-      const s = await snapshot(item.id, gen, week(n));
-      expect(s.result.promoted).toEqual([]);
-    }
-    // Snapshot 5: "grid outages" was in 3 of the last 4 fresh sets. "electric bills"
-    // recurs too, but a locked anchor question already asks about it.
+    for (let n = 0; n < 4; n++) await snapshot(item.id, gen, week(n));
+    // "grid outages" was in 3 of the last 4 fresh sets. "electric bills" recurs
+    // too, but a locked anchor question already asks about it.
+    const recurring = await Q.recurringQuestions(db, item.id);
+    expect(recurring.map((p) => [p.concern, p.seenIn])).toEqual([["grid outages", 3]]);
+    // The latest wording, word for word, from the fourth fresh set.
+    expect(recurring[0].text).toBe("Snapshot 4 question 1 about grid outages?");
+
+    // Snapshot 5 asks only the anchor questions as fixed ones: nothing was promoted.
     const five = await snapshot(item.id, gen, week(4));
-    expect(five.result.promoted.map((p) => [p.concern, p.seenIn])).toEqual([["grid outages", 3]]);
-    // The latest wording, word for word, from set 5 (the fourth fresh set).
-    expect(five.result.promoted[0].text).toBe("Snapshot 4 question 1 about grid outages?");
-    const promoted = five.result.locked.filter((q) => q.setKind === "promoted");
-    expect(promoted.map((q) => [q.label, q.text, q.lean])).toEqual([["6.1", "Snapshot 4 question 1 about grid outages?", "negative"]]);
-    expect(five.result.fresh.map((q) => q.label)).toEqual(["7.1"]);
-
-    const set = await db.questionSet.findFirstOrThrow({ where: { watchItemId: item.id, kind: "promoted" }, include: { questions: true } });
-    expect(set.startedAt.toISOString()).toBe(week(4).toISOString());
-    expect(set.lockedAt).toBeInstanceOf(Date);
-    const fromFresh = await db.question.findUniqueOrThrow({ where: { id: set.questions[0].promotedFromId! }, include: { set: true } });
-    expect(fromFresh.set).toMatchObject({ kind: "fresh", number: 5 });
-
-    // Once promoted it's locked, so it isn't promoted again.
-    const six = await snapshot(item.id, gen, week(5));
-    expect(six.result.promoted).toEqual([]);
-    expect(six.result.locked.map((q) => q.label)).toEqual(["1.1", "1.2", "1.3", "6.1"]);
+    expect(five.result.locked.map((q) => q.label)).toEqual(["1.1", "1.2", "1.3"]);
+    expect(await db.questionSet.count({ where: { watchItemId: item.id, kind: "promoted" } })).toBe(0);
   });
 
   it("inserts a reviewed anchor file locked through the migration SQL, and re-running changes nothing", async () => {

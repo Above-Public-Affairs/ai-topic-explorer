@@ -47,6 +47,14 @@ function joinList(xs: string[]): string {
   return xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}` : (xs[0] ?? "");
 }
 
+export const RECURRING_NOTE =
+  "These came up again and again among the new questions. None is added to the fixed weekly questions unless someone reviews it and adds it.";
+
+/** One recurring question, in reader terms. */
+export function recurringLine(q: ItemReport["recurring"][number]): string {
+  return `"${q.text}" (in ${q.seenIn} of the last ${q.of} weeks)`;
+}
+
 export function newTopicsLine(r: ItemReport): string | null {
   const topics = newTopics(r);
   return topics.length ? `New questions about what's in the news also brought up ${joinList(topics)}.` : null;
@@ -83,6 +91,7 @@ ${steady ? p(esc(steady)) : ""}
 ${fresh ? p(esc(fresh)) : ""}
 ${r.alerts.length ? `${h3("Alerts this month")}${list(r.alerts.map((a) => `A-${a.number}, ${day(a.createdAt)}: ${esc(a.subject)}`))}${r.alerts.every((a) => a.status === "suppressed") ? p("Alerts weren't being emailed yet, so these were recorded but not sent.", `color:${C.muted};font-size:13px;`) : ""}` : ""}
 ${marks.length ? `${h3("What happened this month")}${list(marks.map(({ n, mark }) => `${n != null ? `<strong style="color:${C.accent};">${n}</strong>&nbsp; ` : ""}${day(mark.at)}: ${esc(plainMark(mark))}`))}` : ""}
+${r.recurring.length ? `${h3("Questions that keep coming up")}${p(esc(RECURRING_NOTE))}${list(r.recurring.map((q) => esc(recurringLine(q))))}` : ""}
 </td></tr>
 <tr><td style="height:16px;line-height:16px;font-size:0;">&nbsp;</td></tr>`;
 }
@@ -134,6 +143,7 @@ export function renderText(report: MonthlyReport): string {
     const marks = numberedMarks(r);
     if (r.alerts.length) out.push("", "Alerts this month:", ...r.alerts.map((a) => `- A-${a.number}, ${day(a.createdAt)}: ${a.subject}${a.status === "suppressed" ? " (recorded, not emailed)" : ""}`));
     if (marks.length) out.push("", "What happened this month:", ...marks.map(({ mark }) => `- ${day(mark.at)}: ${plainMark(mark)}`));
+    if (r.recurring.length) out.push("", "Questions that keep coming up:", RECURRING_NOTE, ...r.recurring.map((q) => `- ${recurringLine(q)}`));
   }
   out.push("", HOW_IT_WORKS);
   return out.join("\n");

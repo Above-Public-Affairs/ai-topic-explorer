@@ -161,6 +161,7 @@ export function buildItemReport(input: ItemMonthInput): ItemReport {
       rows: { entity: b.entity.rows, theme: b.theme.rows, domain: b.domain.rows },
     },
     alerts: input.alerts,
+    recurring: input.recurring ?? [],
     marks: [...input.marks].sort((x, y) => x.at.getTime() - y.at.getTime()),
     band,
   };

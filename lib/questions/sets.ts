@@ -6,9 +6,11 @@
  *   enforces it); a stale one is retired with a date and a reason.
  * - Fresh set (2, 3, …): written new for each snapshot, tied to its Run,
  *   locked as soon as it's written, asked once.
- * - Promoted set: when a fresh question keeps recurring (rules.ts
- *   findPromotions), its latest wording is copied into a new locked set with
- *   its own start date and asked every snapshot from then on.
+ * - Recurring fresh questions (rules.ts findPromotions) are only listed, in
+ *   the monthly report (recurringQuestions). Nothing joins the locked
+ *   questions without a person reading it first, through the anchor review
+ *   path (Josh, 2026-11-11; task 6.6). Older code could create "promoted"
+ *   sets automatically; any such set is still asked until retired.
  *
  * questionsForSnapshot() is the one entry point a snapshot uses.
  */
@@ -203,47 +205,22 @@ async function recentFreshSets(db: Db, watchItemId: string, excludeRunId?: strin
 }
 
 /**
- * Promote recurring fresh questions (rules.ts findPromotions) into one new
- * locked set dated now. Returns what was promoted, empty when nothing was.
+ * Fresh questions that keep coming back (rules.ts findPromotions: in 3 of the
+ * last 4 fresh sets, on a concern no locked question covers), for the monthly
+ * report to list. Read only: nothing is ever added to the locked questions
+ * automatically. Fresh questions are written by a model with web search, so a
+ * person reads one before it joins the fixed list, through the same review
+ * path as the anchor sets (Josh, 2026-11-11; task 6.6, security review L2).
  */
-export async function promoteRecurring(
-  db: Db,
-  watchItemId: string,
-  options: { excludeRunId?: string; now?: Date } = {}
-): Promise<{ setNumber: number | null; promotions: Promotion[] }> {
+export async function recurringQuestions(db: Db, watchItemId: string, options: { excludeRunId?: string } = {}): Promise<Promotion[]> {
   const fresh = await recentFreshSets(db, watchItemId, options.excludeRunId);
   const locked = await lockedQuestions(db, watchItemId);
-  const activePromoted = locked.filter((q) => q.setKind === "promoted").length;
-  const promotions = findPromotions(
+  return findPromotions(
     fresh.map((s) => ({ setId: s.id, startedAt: s.startedAt, questions: s.questions })),
     locked.flatMap((q) => (q.concern ? [q.concern] : [])),
-    activePromoted
+    0,
+    { perSnapshot: Number.POSITIVE_INFINITY, maxActive: Number.POSITIVE_INFINITY }
   );
-  if (promotions.length === 0) return { setNumber: null, promotions };
-  const now = options.now ?? new Date();
-  const set = await db.$transaction(async (tx) =>
-    tx.questionSet.create({
-      data: {
-        watchItemId,
-        kind: "promoted",
-        number: await nextSetNumber(tx, watchItemId),
-        startedAt: now,
-        lockedAt: now,
-        generation: { rule: "promotion", promotions: promotions.map((p) => ({ concern: p.concern, seenIn: p.seenIn, from: p.fromQuestionId })) },
-        questions: {
-          create: promotions.map((p, i) => ({
-            position: i + 1,
-            text: p.text,
-            subTopicId: p.subTopicId,
-            concern: p.concern,
-            lean: p.lean,
-            promotedFromId: p.fromQuestionId,
-          })),
-        },
-      },
-    })
-  );
-  return { setNumber: set.number, promotions };
 }
 
 export interface SnapshotQuestions {
@@ -251,8 +228,6 @@ export interface SnapshotQuestions {
   locked: SnapshotQuestion[];
   /** Written for this snapshot and asked once. */
   fresh: SnapshotQuestion[];
-  /** Promoted at this snapshot (already included in `locked`). */
-  promoted: Promotion[];
   freshSetNumber: number;
   /** What writing the fresh set cost; 0 when it already existed. */
   costUsd: number;
@@ -264,9 +239,10 @@ export interface SnapshotQuestions {
  * call for the same run returns the fresh set already written. Refuses while
  * the watch item's anchor set isn't locked, since a person reads it first.
  *
- * Order: recurring fresh questions from earlier snapshots are promoted first,
- * then the fresh set is written knowing every locked question, so it doesn't
- * repeat them, and reusing recent concern labels so recurrence can be counted.
+ * The fresh set is written knowing every locked question, so it doesn't
+ * repeat them, and reusing recent concern labels so recurrence can be counted
+ * (recurringQuestions; the monthly report lists them). Nothing is promoted
+ * into the locked questions here.
  */
 export async function questionsForSnapshot(
   db: Db,
@@ -291,13 +267,11 @@ export async function questionsForSnapshot(
     return {
       locked: await lockedQuestions(db, watchItemId),
       fresh: existing.questions.map((q) => toSnapshotQuestion(existing, q)),
-      promoted: [],
       freshSetNumber: existing.number,
       costUsd: 0,
     };
   }
 
-  const { promotions } = await promoteRecurring(db, watchItemId, { excludeRunId: runId, now: options.today });
   const locked = await lockedQuestions(db, watchItemId);
   const recent = await recentFreshSets(db, watchItemId, runId);
   const recentConcerns = [...new Set(recent.flatMap((s) => s.questions.flatMap((q) => (q.concern ? [q.concern] : []))))];
@@ -336,7 +310,6 @@ export async function questionsForSnapshot(
   return {
     locked,
     fresh: set.questions.map((q) => toSnapshotQuestion(set, q)),
-    promoted: promotions,
     freshSetNumber: set.number,
     costUsd: generated.costUsd,
   };

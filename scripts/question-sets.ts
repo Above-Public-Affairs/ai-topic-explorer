@@ -140,7 +140,6 @@ async function main() {
       const set = await prisma.questionSet.findUniqueOrThrow({ where: { runId: run.id }, include: { questions: { orderBy: { position: "asc" } } } });
       const g = set.generation as { searches?: number; searchQueries?: string[]; rejected?: { text: string; issues: string[] }[]; shape?: string[]; styles?: string[] } | null;
       console.log(`\n=== ${item.name}: snapshot ${run.id} asks ${result.locked.length} locked + ${result.fresh.length} fresh`);
-      if (result.promoted.length) console.log(`  promoted: ${result.promoted.map((p) => p.text).join(" | ")}`);
       printSet(`Fresh set ${set.number} ($${result.costUsd.toFixed(4)}, ${g?.searches ?? 0} searches: ${(g?.searchQueries ?? []).join(" | ")})`, set.number, set.questions, new Map(item.subTopics.map((s) => [s.id, s.name])), g?.styles);
       for (const r of g?.rejected ?? []) console.log(`  rejected: ${r.text} — ${r.issues.join("; ")}`);
       if (g?.shape?.length) console.log(`  SHAPE: ${g.shape.join("; ")}`);

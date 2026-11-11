@@ -181,6 +181,10 @@ describe("built report", () => {
     expect(built.html).toContain("A-901, Dec 14: Sample alert");
     expect(built.text).toContain("A-904, Dec 21: Sample alert: fewer AI answers about New Mexico oil and gas mention methane (recorded, not emailed)");
     expect(built.html).not.toMatch(/<script/i);
+    // Task 6.6 (security review L2): recurring new questions are listed for a person, never added automatically.
+    expect(built.text).toContain("Questions that keep coming up:");
+    expect(built.text).toContain('- "Sample question: are data centers to blame for higher power bills in Texas?" (in 3 of the last 4 weeks)');
+    expect(built.html).toContain("unless someone reviews it and adds it");
     for (const jargon of [/noise band/i, /locked question/i, /entit(y|ies)/i, /citation/i, /snapshot/i, /\bband\b/i])
       expect(built.text.replace(/SAMPLE DATA.*\n/, "")).not.toMatch(jargon);
   });

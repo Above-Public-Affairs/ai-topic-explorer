@@ -251,6 +251,7 @@ export function sampleMonth(): ItemMonthInput[] {
       baseline: snaps.filter((s) => s.startedAt < month.start).at(-1) ?? null,
       snapshots: snaps.filter((s) => s.startedAt >= month.start),
       weeklyCount: 8,
+      recurring: item.id === "sample-dc-tx" ? [{ text: "Sample question: are data centers to blame for higher power bills in Texas?", seenIn: 3, of: 4 }] : [],
       marks,
       alerts: item.alerts.map((a) => ({ ...a, createdAt: new Date(`${a.createdAt}T06:00:00Z`), status: "suppressed" })),
     };
