@@ -17,7 +17,8 @@
 import { flush } from "@above-public-affairs/error-reporter";
 import type { PrismaClient } from "@/app/generated/prisma/client";
 import { abandonActiveJobs } from "@/lib/watchers/events/jobs";
-import { spentSoFar, trackedRuns, untrackRun } from "./active-runs";
+import { settleStaleSending } from "@/lib/alerts/after-snapshot";
+import { spentSoFar, trackedRuns, trackedSending, untrackRun, untrackSending } from "./active-runs";
 
 export { spentSoFar, trackRun, untrackRun, trackedRuns } from "./active-runs";
 
@@ -40,12 +41,26 @@ export async function releaseTrackedRuns(db: PrismaClient, reason: string): Prom
   return released;
 }
 
-/** Release this process's WatcherJob claims and runs. */
-export async function releaseActiveWork(db: PrismaClient, reason: string, since: Date): Promise<{ jobs: string[]; runs: string[] }> {
+/**
+ * Alerts this process was sending: the email may already be out, so they're
+ * recorded as sent with an "outcome unknown" note, never resent (task 6.6,
+ * code review M4).
+ */
+export async function releaseSendingAlerts(db: PrismaClient): Promise<string[]> {
+  const ids = trackedSending();
+  if (!ids.length) return [];
+  await settleStaleSending(db, new Date(), ids);
+  for (const id of ids) untrackSending(id);
+  return ids;
+}
+
+/** Release this process's WatcherJob claims, runs and alerts mid-send. */
+export async function releaseActiveWork(db: PrismaClient, reason: string, since: Date): Promise<{ jobs: string[]; runs: string[]; alerts: string[] }> {
   // Runs first: they're stored with what they spent, before the event watcher's own release marks its runs.
   const runs = await releaseTrackedRuns(db, reason);
   const jobs = await abandonActiveJobs(db, reason, since);
-  return { jobs, runs };
+  const alerts = await releaseSendingAlerts(db);
+  return { jobs, runs, alerts };
 }
 
 /** On SIGTERM, release this process's unfinished work, flush error reports and exit 1. */
@@ -55,7 +70,7 @@ export function releaseOnSigterm(name: string, db: PrismaClient): void {
     const reason = "stopped by SIGTERM (a deploy replaced the container)";
     console.log(`${name}: ${reason}; marking unfinished work failed`);
     releaseActiveWork(db, reason, since)
-      .then(({ jobs, runs }) => console.log(`  released: jobs ${jobs.join(", ") || "none"}; runs ${runs.join(", ") || "none"}`))
+      .then(({ jobs, runs, alerts }) => console.log(`  released: jobs ${jobs.join(", ") || "none"}; runs ${runs.join(", ") || "none"}; alerts mid-send ${alerts.join(", ") || "none"}`))
       .catch((err) => console.error(err))
       .finally(async () => {
         await flush();

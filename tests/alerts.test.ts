@@ -4,6 +4,7 @@ import type { Swing } from "@/lib/snapshots";
 import {
   MAX_ALERTS_PER_SNAPSHOT,
   afterSnapshot,
+  UNKNOWN_SEND_NOTE,
   alertRecipients,
   alertsEnabled,
   askedAs,
@@ -24,6 +25,7 @@ import {
   type WriterClient,
 } from "@/lib/alerts";
 import type { ModelChoice } from "@/lib/answers/registry";
+import { releaseSendingAlerts } from "@/lib/worker/shutdown";
 
 function swing(p: Partial<Swing> & Pick<Swing, "key">): Swing {
   const before = p.before ?? 0.1;
@@ -311,19 +313,31 @@ describe("config", () => {
 });
 
 /** A run that already has its alerts: afterSnapshot only delivers. */
-function fakeDb(alerts: { id: string; number: number; status: string }[], options: { stealClaim?: boolean } = {}) {
-  const rows = alerts.map((a) => ({ ...a, runId: "r1", rank: a.number, subject: `A-${a.number}`, summary: "It rose.\n\nIt may matter.", facts: facts() }));
+function fakeDb(
+  alerts: { id: string; number: number; status: string; updatedAt?: Date; runId?: string }[],
+  options: { stealClaim?: boolean; failSentWrite?: boolean } = {}
+) {
+  const rows = alerts.map((a) => ({ runId: "r1", updatedAt: new Date(), ...a, rank: a.number, subject: `A-${a.number}`, summary: "It rose.\n\nIt may matter.", facts: facts(), note: null as string | null }));
+  type W = { id?: string | { in: string[] }; status?: string; updatedAt?: { lt: Date }; runId?: string };
+  const matches = (x: (typeof rows)[number], w: W) =>
+    (w.id === undefined || (typeof w.id === "string" ? x.id === w.id : w.id.in.includes(x.id))) &&
+    (!w.status || x.status === w.status) &&
+    (!w.runId || x.runId === w.runId) &&
+    (!w.updatedAt || x.updatedAt < w.updatedAt.lt);
   const db = {
     alert: {
-      count: async () => rows.length,
-      findMany: async ({ where }: { where: { status?: string } }) => rows.filter((r) => !where.status || r.status === where.status),
-      updateMany: async ({ where, data }: { where: { id: string; status: string }; data: { status: string } }) => {
-        const r = rows.find((x) => x.id === where.id && x.status === where.status);
-        if (!r || options.stealClaim) return { count: 0 };
-        r.status = data.status;
-        return { count: 1 };
+      count: async () => rows.filter((r) => r.runId === "r1").length,
+      findMany: async ({ where }: { where: W }) => rows.filter((r) => matches(r, where)),
+      updateMany: async ({ where, data }: { where: W; data: { status: string; note?: string } }) => {
+        if (options.stealClaim) return { count: 0 };
+        const hit = rows.filter((x) => matches(x, where));
+        for (const r of hit) Object.assign(r, data, { updatedAt: new Date() });
+        return { count: hit.length };
       },
-      update: async ({ where, data }: { where: { id: string }; data: { status: string } }) => Object.assign(rows.find((x) => x.id === where.id)!, data),
+      update: async ({ where, data }: { where: { id: string }; data: { status: string } }) => {
+        if (options.failSentWrite && data.status === "sent") throw new Error("connection reset");
+        return Object.assign(rows.find((x) => x.id === where.id)!, data);
+      },
     },
   };
   return { db: db as unknown as PrismaClient, rows };
@@ -372,6 +386,48 @@ describe("afterSnapshot delivery", () => {
     });
     expect(r).toMatchObject({ sent: 0, failed: 1 });
     expect(rows[0].status).toBe("failed");
+  });
+
+  // Task 6.6, code review M4.
+  it("doesn't call a sent alert failed when only its status write fails", async () => {
+    sent.length = 0;
+    const { db, rows } = fakeDb([{ id: "a", number: 1, status: "pending" }], { failSentWrite: true });
+    const r = await afterSnapshot(db, "r1", { enabled: true, send });
+    expect(r).toMatchObject({ sent: 1, failed: 0 });
+    expect(rows[0].status).not.toBe("failed");
+    expect(sent).toHaveLength(1);
+  });
+
+  it("settles an alert left mid-send by a stopped process as sent, outcome unknown, without resending it", async () => {
+    sent.length = 0;
+    const old = new Date(Date.now() - 60 * 60 * 1000);
+    const { db, rows } = fakeDb([
+      { id: "x", number: 7, status: "sending", updatedAt: old, runId: "r0" },
+      { id: "y", number: 8, status: "sending", updatedAt: new Date(), runId: "r0" },
+      { id: "a", number: 1, status: "pending" },
+    ]);
+    await afterSnapshot(db, "r1", { enabled: true, send });
+    expect(rows[0]).toMatchObject({ status: "sent", note: UNKNOWN_SEND_NOTE });
+    // One claimed a moment ago may still be sending: left alone.
+    expect(rows[1].status).toBe("sending");
+    expect(sent).toHaveLength(1);
+  });
+
+  it("on SIGTERM records this process's alerts mid-send as sent, outcome unknown", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const { db, rows } = fakeDb([{ id: "a", number: 1, status: "pending" }]);
+    const slowSend = async () => {
+      await gate;
+      return { messageId: "m", sentAt: new Date() };
+    };
+    const running = afterSnapshot(db, "r1", { enabled: true, send: slowSend });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(rows[0].status).toBe("sending");
+    expect(await releaseSendingAlerts(db)).toEqual(["a"]);
+    expect(rows[0]).toMatchObject({ status: "sent", note: UNKNOWN_SEND_NOTE });
+    release();
+    await running;
   });
 
   it("never throws into the snapshot that called it", async () => {

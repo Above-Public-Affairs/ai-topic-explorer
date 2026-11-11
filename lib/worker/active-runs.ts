@@ -19,6 +19,20 @@ export function trackedRuns(): string[] {
   return [...activeRuns];
 }
 
+/** Alerts this process has claimed for sending and not finished (task 6.6, code review M4). */
+const sendingAlerts = new Set<string>();
+
+export function trackSending(alertId: string): void {
+  sendingAlerts.add(alertId);
+}
+
+export function untrackSending(alertId: string): void {
+  sendingAlerts.delete(alertId);
+}
+
+export function trackedSending(): string[] {
+  return [...sendingAlerts];
+}
 
 /** What a run has cost so far: its answers and their extractions. Fresh-question and theme costs aren't stored per row. */
 export async function spentSoFar(db: PrismaClient, runId: string): Promise<number> {

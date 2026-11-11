@@ -20,6 +20,7 @@ import { alertCode, alertSubject, renderHtml, renderText, type AlertForEmail } f
 import { buildFacts, quoteFor, snapshotDates, type AlertFacts, type EvidenceQuote } from "./facts";
 import { aiName, selectAlerts, type Candidate, type Trigger } from "./select";
 import { writeSummary } from "./write";
+import { trackSending, untrackSending } from "@/lib/worker/active-runs";
 
 export const DEFAULT_ALERT_RECIPIENTS = ["joshua@abovepublicaffairs.com"];
 const QUOTES_PER_ALERT = 3;
@@ -240,19 +241,50 @@ async function createAlerts(db: PrismaClient, runId: string, options: AfterSnaps
 async function deliver(db: PrismaClient, runId: string, options: AfterSnapshotOptions, result: AfterSnapshotResult): Promise<void> {
   const enabled = options.enabled ?? alertsEnabled();
   if (!enabled) return;
+  // Alerts an earlier process left mid-send (task 6.6, code review M4).
+  await settleStaleSending(db, new Date());
   const pending = await db.alert.findMany({ where: { runId, status: "pending" }, orderBy: { rank: "asc" } });
   for (const alert of pending) {
     const claim = await db.alert.updateMany({ where: { id: alert.id, status: "pending" }, data: { status: "sending" } });
     if (claim.count === 0) continue;
+    // Released as "sent, outcome unknown" if a deploy stops this process mid-send (lib/worker/shutdown.ts).
+    trackSending(alert.id);
+    let sent: SendResult;
     try {
-      const sent = await sendAlert(alert, options);
-      await db.alert.update({ where: { id: alert.id }, data: { status: "sent", sentAt: sent.sentAt, messageId: sent.messageId } });
-      result.sent++;
+      sent = await sendAlert(alert, options);
     } catch (err) {
+      untrackSending(alert.id);
       await db.alert.update({ where: { id: alert.id }, data: { status: "failed", note: `send failed: ${String(err)}`.slice(0, 1000) } });
       result.failed++;
+      continue;
     }
+    // The email went out: a failed status write must not call it failed. It
+    // stays "sending" and the next sweep records it as sent, outcome unknown.
+    try {
+      await db.alert.update({ where: { id: alert.id }, data: { status: "sent", sentAt: sent.sentAt, messageId: sent.messageId } });
+    } catch (err) {
+      console.error(`[Alerts] A-${alert.number} was sent but its status wasn't saved:`, err);
+      await reportError({ category: "alert_error", operation: "deliver", message: `A-${alert.number} was sent, but saving its status failed`, rawError: err, context: { runId, alertId: alert.id } });
+    }
+    untrackSending(alert.id);
+    result.sent++;
   }
+}
+
+/** An alert "sending" longer than this was left by a process that stopped mid-send. */
+export const STALE_SENDING_MS = 15 * 60 * 1000;
+
+export const UNKNOWN_SEND_NOTE = "outcome unknown: the process stopped after claiming it for sending; it may or may not have arrived";
+
+/**
+ * Settle alerts stuck in "sending": mark them sent with a note that the
+ * outcome is unknown. They're never resent, since the email may have gone out.
+ * Returns how many it settled.
+ */
+export async function settleStaleSending(db: PrismaClient, now: Date, ids?: string[]): Promise<number> {
+  const where = ids ? { id: { in: ids }, status: "sending" as const } : { status: "sending" as const, updatedAt: { lt: new Date(now.getTime() - STALE_SENDING_MS) } };
+  const n = await db.alert.updateMany({ where, data: { status: "sent", note: UNKNOWN_SEND_NOTE } });
+  return n.count;
 }
 
 export function emailFor(alert: { number: number; facts: unknown; summary: string }): AlertForEmail & { subject: string } {

@@ -76,6 +76,17 @@ describe("withdrawn alerts", () => {
     await expect(withdrawAlerts(db, [2], " ")).rejects.toThrow(/reason/);
   });
 
+  // Task 6.6, code review M4: an alert stuck in "sending" can still be withdrawn.
+  it("withdraws an alert stuck in sending, but not one being sent right now", async () => {
+    const rows = [
+      { ...alertRows()[0], status: "sending", updatedAt: new Date(Date.now() - 60 * 60 * 1000) },
+      { ...alertRows()[1], status: "sending", updatedAt: new Date() },
+    ];
+    const db = fakeDb(rows as Row[]);
+    expect((await withdrawAlerts(db, [1], REASON))[0]).toMatchObject({ outcome: "withdrawn", from: "sending" });
+    await expect(withdrawAlerts(db, [2], REASON)).rejects.toThrow(/being sent right now/);
+  });
+
   it("only sent and suppressed alerts count as reported", () => {
     expect([...REPORTED_ALERT_STATUSES]).toEqual(["sent", "suppressed"]);
   });
