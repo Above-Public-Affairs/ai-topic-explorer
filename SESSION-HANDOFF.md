@@ -37,7 +37,10 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
 - **In-site changelog** moved from `components/Footer.tsx` to `lib/changelog.ts`.
 - **X-Real-IP check:** `POST /api/bug-report` with header `x-ate-ip-check: 1` logs (yes/no
   only) whether a client-sent `X-Real-IP: 203.0.113.7` survived Railway's edge. Send it with an
-  empty description so nothing is forwarded.
+  empty description so nothing is forwarded. Result Nov 11, 18:05 UTC: the edge replaced the
+  client-sent value, so `X-Real-IP` can be trusted for rate limits. It did not equal the right-most
+  of the 2 `X-Forwarded-For` hops, so the right-most-hop fallback in `getClientIp` isn't the
+  client address; it's only used if `X-Real-IP` is ever missing.
 - **Connector:** `lib/alerts/withdraw.ts` is vendored there and changed here (a stuck
   `sending` alert can be withdrawn); re-vendor on the connector's next update.
 - **6.7 leftovers deferred, with reasons:**
