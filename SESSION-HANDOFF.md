@@ -1,6 +1,6 @@
 # Session Handoff — AI Topic Explorer
 
-**Last Updated:** November 11, 2026
+**Last Updated:** November 12, 2026
 
 ## Where we are
 Live in production (beta) on Railway with four providers: Claude, ChatGPT, Gemini
@@ -89,9 +89,14 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
 - `lib/alerts/` (`afterSnapshot`), called once where each snapshot finishes: `lib/worker/weekly.ts`,
   `lib/watchers/events/worker.ts`, `lib/watchers/models.ts`. Never throws; failures go to error
   reporting as `alert_error`. Table `Alert` (migration `20261110190000_alerts`), readable A-1, A-2…
-- **Sending is off** until task 8.2: `ALERTS_ENABLED` unset/false stores alerts as `suppressed`.
-  Turn on by setting `ALERTS_ENABLED=true` (and optionally `ALERT_RECIPIENTS`) on the three cron
-  services. Suppressed alerts are never sent later; only new ones are.
+- **Sending is on** (task 8.2, Nov 12, 2026): `ALERTS_ENABLED=true` on `weekly-snapshots`,
+  `event-watcher` and `model-watcher`, each with `SENDGRID_API_KEY` / `SENDGRID_FROM` /
+  `SENDGRID_FROM_NAME` referencing the web service (they had none before; sends would have
+  failed). `ALERT_RECIPIENTS` is unset, so alerts go to Josh only. To pause, set
+  `ALERTS_ENABLED=false` (alerts are then stored as `suppressed`). Suppressed alerts are never
+  sent later; only new ones are.
+- `--send-test` needs the production DB, which is reachable only inside Railway (`railway ssh`,
+  below). No production alert had been sent as of Nov 12; check the first one arrives.
 - Re-runs are safe (created once per run, claimed before sending). An alert a process left in
   `sending` is settled as sent, outcome unknown (task 6.6); check SendGrid's activity before resending by hand.
 - Tools: `npm run alerts -- --list | --run=<id> | --show=A-n [--html=f] | --send-test=A-n`.
@@ -119,7 +124,10 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
   at `0 14 1 * *` for the previous month. Code: `scripts/monthly-report.ts`, `lib/reports/`
   (aggregate, load, charts, summary, template, monthly, sample). Env: references to the web
   service (`DATABASE_URL`, `OPENAI_API_KEY`, `SENDGRID_*`, `ERROR_API_*`), plus
-  `REPORTS_ENABLED` (false; 8.2 switches it on) and `REPORT_RECIPIENTS` (empty = Josh).
+  `REPORTS_ENABLED` (`true` since Nov 12, task 8.2) and `REPORT_RECIPIENTS` (empty = Josh).
+- Sample sent from the service's own variables on Nov 12 (`railway run --service monthly-report
+  -- npm run report:monthly -- --sample --send-to=…`, $0.0001). Dec 1 will skip (not enough
+  history); the first real report is Jan 1, 2027.
 - An item goes in once it has 4 weekly snapshots through the month's end; with none ready the
   log says "Monthly report for <Month>: skipped, not enough history yet." Nothing is claimed,
   so a later run that month can still send.

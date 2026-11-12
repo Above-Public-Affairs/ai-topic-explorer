@@ -1,8 +1,15 @@
 # AI Topic Explorer - Project Status
 
-**Last Updated:** November 11, 2026
+**Last Updated:** November 12, 2026
 
 ## Current Status: Live in production (beta), new direction planned
+
+**Task 8.2 (alerts and monthly report on, Nov 12):** sending is on in production, to Josh
+only. `ALERTS_ENABLED=true` on the three snapshot crons (which also got SendGrid variables,
+referenced from the web service; they had none), `REPORTS_ENABLED=true` on `monthly-report`.
+A sample report was sent from the service's own variables. No production alert has been sent
+yet: the first can come from the daily watchers (13:00 UTC) or the Nov 16 weekly snapshot.
+The Dec 1 report will skip (not enough history); the first real one is Jan 1, 2027.
 
 **Task 7.4 (fixes from cross-device testing, Nov 11):** every issue in the 7.1 desktop, 7.2
 iPhone-size and 7.3 Android reports (`docs/testing/`) is fixed: collapse keeps the reader in
@@ -27,7 +34,7 @@ every watch item: depth (only changes beyond the noise band called real), breadt
 shifts, model changes and events on the timeline, the location line, and a short AI summary
 checked against the numbers. Railway cron service `monthly-report` runs the 1st at 14:00 UTC;
 it waits for 4 weekly snapshots, so the first real report is Jan 1, 2027 (for December). Off
-until `REPORTS_ENABLED=true` (task 8.2). Production test run for November logged the "not enough history yet" skip. Josh found the first sample too complicated; it's now written for a general
+until `REPORTS_ENABLED=true` (on since Nov 12, task 8.2). Production test run for November logged the "not enough history yet" skip. Josh found the first sample too complicated; it's now written for a general
 reader, and the revised sample was sent and checked in Gmail.
 
 **Task 4.7 (event watcher, Nov 10):** Railway cron service `event-watcher` runs daily at 13:00 UTC (hourly until Nov 11): a
@@ -95,7 +102,7 @@ approved by Josh on Nov 9** (real-person voice, balanced leans, `Question.lean` 
 reworded data centers 1.2 and 1.3 as neutral questions) and locked into production by
 migration `20261109180000_lock_anchor_sets` from `scripts/anchor-sets/2026-11-09.json`.
 Snapshots can now run. Task 4.4 (weekly worker) is built: Railway cron service `weekly-snapshots` runs `npm run worker:weekly` every Monday 05:00 UTC, one snapshot per active watch item, with a once-a-week guard and a $15 run cap (`PROJECT-PLAN.md` §4D). First production baseline stored Nov 10, 2026 (05:13–05:28 UTC): all three watch items complete, 128 calls each, 0 failed, $4.99 / $4.68 / $4.59 = $14.26.
-Task 5.2 (notable-change alerts) is built: `lib/alerts/` makes at most 3 alerts per item per snapshot from the stored comparison (1 per model switch, labeled a model change), each with a checked plain-English summary, evidence, "Asked as a user in …" and a Claude prompt (`PROJECT-PLAN.md` §5B). **Sending is off** (`ALERTS_ENABLED`; alerts are stored as suppressed) until task 8.2. The first real alerts can come from the Nov 16 weekly snapshot.
+Task 5.2 (notable-change alerts) is built: `lib/alerts/` makes at most 3 alerts per item per snapshot from the stored comparison (1 per model switch, labeled a model change), each with a checked plain-English summary, evidence, "Asked as a user in …" and a Claude prompt (`PROJECT-PLAN.md` §5B). Sending was off until task 8.2 turned `ALERTS_ENABLED` on (Nov 12). The first real alerts can come from the Nov 16 weekly snapshot.
 Task 4.3 (repeats and noise bands) is built: `lib/snapshots/` runs a snapshot (locked
 questions ×3, fresh ×1), stores held vs noisy findings and the noise band on `Run.stats`,
 and `compareSnapshots()` lists changes beyond the band. 3 repeats chosen from the proof

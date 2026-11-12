@@ -4,6 +4,10 @@ All notable changes to AI Topic Explorer will be documented in this file.
 
 ## [2026-11-12]
 
+### Changed (task 8.2: alerts and the monthly report switched on)
+- **Alerts send.** `ALERTS_ENABLED=true` on `weekly-snapshots`, `event-watcher` and `model-watcher`. Those three services had no SendGrid variables, so alerts would have failed; they now reference the web service's `SENDGRID_API_KEY`, `SENDGRID_FROM` and `SENDGRID_FROM_NAME`. Recipients: Josh only (`ALERT_RECIPIENTS` unset, the code default). Alerts stored while sending was off, and withdrawn A-1 to A-3, are never sent
+- **Monthly report sends.** `REPORTS_ENABLED=true` on `monthly-report`; `REPORT_RECIPIENTS` unset (Josh only). A sample report was sent to Josh from the service's own variables (SendGrid id `s2IKMQpTQruTqllI9Z0eFQ`)
+
 ### Fixed (task 7.4 follow-ups)
 - **Theme "in context" excerpts are sentences only** (7.1 #5). `lib/analysis/word-context.ts` drops answer headings (Markdown headings, all-bold lines, and short lines that don't end like a sentence), and no longer splits a line at "vs.", "e.g." or a list number ("### 2. Grid Stress"). Numbered citation links like Grok's `[[1]](url)` are removed from excerpts instead of showing raw
 - **Home share image** says "4 leading AI systems" with four dots (Claude, ChatGPT, Gemini, Grok), matching the results pages' image
