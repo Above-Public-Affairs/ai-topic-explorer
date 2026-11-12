@@ -8,7 +8,8 @@
 iPhone-size and 7.3 Android reports (`docs/testing/`) is fixed: collapse keeps the reader in
 place, near-duplicate key themes merge on the results page, sources de-duplicate, results
 links have share images, 40px tap targets, a slimmer landscape header, share sheet on phones,
-and the polish items. Firefox and real iOS/Android devices remain untested (accepted).
+and the polish items. Follow-ups on Nov 12: theme excerpts show sentences only (7.1 #5) and the
+home share image shows four AIs. Firefox and real iOS/Android devices remain untested (accepted).
 
 **Task 6.9 (privacy policy, Nov 11):** Above's canonical privacy policy now covers
 aitopicexplorer.app (Josh approved the wording; not legally reviewed). The footer, topic box

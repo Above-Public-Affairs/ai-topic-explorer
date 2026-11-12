@@ -110,18 +110,8 @@ export default function OGImage() {
                 width: "14px",
                 height: "14px",
                 borderRadius: "50%",
-                background: "#1CB8B8",
-                boxShadow: "0 0 12px rgba(28,184,184,0.5)",
-                display: "flex",
-              }}
-            />
-            <div
-              style={{
-                width: "14px",
-                height: "14px",
-                borderRadius: "50%",
-                background: "#E5243F",
-                boxShadow: "0 0 12px rgba(229,36,63,0.5)",
+                background: "#1f2937",
+                boxShadow: "0 0 12px rgba(31,41,55,0.35)",
                 display: "flex",
               }}
             />
@@ -154,7 +144,7 @@ export default function OGImage() {
               display: "flex",
             }}
           >
-            See what 5 leading AI systems collectively know about any topic
+            See what 4 leading AI systems collectively know about any topic
           </div>
 
           {/* URL pill */}

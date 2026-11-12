@@ -34,8 +34,8 @@ Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search)
 - Per-result share image: `app/results/[id]/opengraph-image.tsx` (+ `twitter-image.tsx`).
 - Local verification DB: `ate_task74` on localhost (copy of `ate_task52`, Analysis rows
   `local74dc`, `local74ren`, `local74og`). Production Postgres has no public proxy.
-- Open: the home OG image (`app/opengraph-image.tsx`) still says "5 leading AI systems";
-  7.1 #5 (bare headings as theme excerpts) is unfixed.
+- Follow-ups fixed Nov 12: the home OG image shows four AIs; theme excerpts skip headings
+  (`isHeading` in `lib/analysis/word-context.ts`) and drop `[[n]](url)` citation links.
 
 ## Privacy policy (task 6.9)
 - The site has no policy page of its own: Above's one policy at

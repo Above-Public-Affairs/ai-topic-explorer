@@ -13,6 +13,13 @@ export interface WordContextMatch {
  * many of the individual words they contain and ranked by relevance.
  * Returns up to `maxExcerpts` best-matching sentences per provider.
  */
+/**
+ * Sentence ends and line breaks. A period after a common abbreviation
+ * ("vs.", "e.g.") or a list number ("### 2. Grid Stress") isn't a sentence
+ * end, so headings like "### 2. Spare Capacity vs. Demand" stay one line.
+ */
+const SENTENCE_BREAK = /(?<!\b(?:vs|e\.g|i\.e|etc|approx|Mr|Mrs|Ms|Dr|St|No)\.)(?<!(?:^|\s)\d{1,2}\.)(?<=[.!?])\s+|\n+/i;
+
 export function findWordContext(
   word: string,
   providerTexts: Record<string, string>,
@@ -34,9 +41,9 @@ export function findWordContext(
 
   for (const [provider, text] of Object.entries(providerTexts)) {
     const sentences = text
-      .split(/(?<=[.!?])\s+|\n+/)
+      .split(SENTENCE_BREAK)
       .map((s) => s.trim())
-      .filter((s) => s.length > 0);
+      .filter((s) => s.length > 0 && !isHeading(s));
 
     // Score each sentence by how many query words it contains
     const scored: { sentence: string; score: number; exact: boolean }[] = [];
@@ -80,6 +87,24 @@ export function findWordContext(
   }
 
   return results;
+}
+
+/**
+ * Answer headings ("## Technical feasibility", "**Technical Aspects**",
+ * "Key Challenges:") aren't useful as excerpts. A line counts as a heading
+ * when it's a Markdown heading, a line that is all bold, or a short line
+ * (under five words) that doesn't end like a sentence.
+ */
+export function isHeading(line: string): boolean {
+  const t = line.trim();
+  if (/^#{1,6}\s/.test(t)) return true;
+  if (/^(\*\*|__)[^*_]+(\*\*|__):?$/.test(t)) return true;
+  const plain = t
+    .replace(/^\s*(?:[-*+]|\d+\.)\s+/, "")
+    .replace(/(\*\*|__|\*)/g, "")
+    .trim();
+  const words = plain.split(/\s+/).filter(Boolean).length;
+  return words < 5 && !/[.!?]["')\]]?$/.test(plain);
 }
 
 function escapeRegex(str: string): string {

@@ -2,6 +2,12 @@
 
 All notable changes to AI Topic Explorer will be documented in this file.
 
+## [2026-11-12]
+
+### Fixed (task 7.4 follow-ups)
+- **Theme "in context" excerpts are sentences only** (7.1 #5). `lib/analysis/word-context.ts` drops answer headings (Markdown headings, all-bold lines, and short lines that don't end like a sentence), and no longer splits a line at "vs.", "e.g." or a list number ("### 2. Grid Stress"). Numbered citation links like Grok's `[[1]](url)` are removed from excerpts instead of showing raw
+- **Home share image** says "4 leading AI systems" with four dots (Claude, ChatGPT, Gemini, Grok), matching the results pages' image
+
 ## [2026-11-11]
 
 ### Fixed (task 7.4: fixes from cross-device testing 7.1–7.3)

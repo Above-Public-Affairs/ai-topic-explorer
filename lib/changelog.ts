@@ -10,6 +10,13 @@ export interface ChangelogDay {
 
 export const CHANGELOG: ChangelogDay[] = [
   {
+    date: "Nov 12",
+    changes: [
+      "The \"in context\" pop-up for a theme now shows only full sentences from each AI's answer, without section headings or raw citation links",
+      "The site's link preview image now shows the four AIs it compares",
+    ],
+  },
+  {
     date: "Nov 11",
     changes: [
       "Key Themes no longer shows near-duplicates side by side: \"Technical hurdles\" and \"Technical challenges\" are now one theme, sized by how many AIs raised it",

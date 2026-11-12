@@ -39,8 +39,10 @@ function highlightWord(text: string, word: string): React.ReactNode[] {
 }
 
 // Excerpts are cut from the raw answer Markdown; show them as plain text.
+// Numbered citation links ("[[1]](url)", "[1](url)") are dropped.
 function stripMarkdown(text: string): string {
   return text
+    .replace(/\[\[?\d+\]?\]\([^)]*\)/g, "")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .replace(/(\*\*|__)/g, "")
     .replace(/^\s*(?:[-*+]|#{1,6}|\d+\.)\s+/, "")
