@@ -15,7 +15,27 @@ The app is becoming an internal topic-tracking tool.
 
 **Plan and tracker.** The roadmap is in `PROJECT-PLAN.md`. Work runs from the project
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
-Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search) and 5.1.
+Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search) and 5.1. Phase 7 testing (7.1–7.3) found 20 issues; task 7.4 fixed them (see below).
+
+## Fixes from cross-device testing (task 7.4)
+- Reports: `docs/testing/7.1-desktop.md`, `7.2-iphone-safari.md`, `7.3-android-chrome.md`
+  (screenshots stay on their unmerged branches).
+- Key Themes near-duplicate merge is display-only, in `lib/results/theme-merge.ts`, called from
+  `buildRunView`. Rule: strip topic words, filler and facet nouns (FACETS), fold SYNONYMS; two
+  themes merge when one core holds the other plus at most one word. Tune FACETS/SYNONYMS there;
+  `tests/theme-merge.test.ts` holds the 7.1 examples. The tracker's 4.8 merge is separate.
+- `components/useKeepInView.ts` keeps a toggle in place when content above it collapses.
+- `.hit-area` (globals.css) adds an invisible tap box; tune with `[--hit-x:…] [--hit-y:…]` and
+  keep neighbours from overlapping.
+- Short viewports (≤520px tall, below lg) slim the results header via `.results-mobile-header-*`.
+- Dialog focus return remembers the last pressed control (Safari/iOS don't focus on click).
+- Share: `navigator.share` only on `(pointer: coarse)`; GA `share.method` is `copy_link` or
+  `share_sheet`.
+- Per-result share image: `app/results/[id]/opengraph-image.tsx` (+ `twitter-image.tsx`).
+- Local verification DB: `ate_task74` on localhost (copy of `ate_task52`, Analysis rows
+  `local74dc`, `local74ren`, `local74og`). Production Postgres has no public proxy.
+- Open: the home OG image (`app/opengraph-image.tsx`) still says "5 leading AI systems";
+  7.1 #5 (bare headings as theme excerpts) is unfixed.
 
 ## Privacy policy (task 6.9)
 - The site has no policy page of its own: Above's one policy at
