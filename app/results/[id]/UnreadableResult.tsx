@@ -29,7 +29,7 @@ export default function UnreadableResult({ topic }: { topic: string }) {
           </Link>
         </div>
       </main>
-      <Footer hideChangelog />
+      <Footer />
     </div>
   );
 }

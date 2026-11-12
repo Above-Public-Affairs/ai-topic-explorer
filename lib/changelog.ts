@@ -12,6 +12,13 @@ export const CHANGELOG: ChangelogDay[] = [
   {
     date: "Nov 11",
     changes: [
+      "Key Themes no longer shows near-duplicates side by side: \"Technical hurdles\" and \"Technical challenges\" are now one theme, sized by how many AIs raised it",
+      "Collapsing a long answer or an argument list keeps you where you were, instead of leaving you far down the page",
+      "Shared results links now show a preview image with the topic, in Messages, Slack, X and elsewhere",
+      "On phones, Share opens your phone's share sheet. On a computer it still copies the link",
+      "Each source is listed once, even when the AIs linked it in slightly different ways, and sources from one website are grouped together. Tracking codes are now removed from every link",
+      "Larger tap targets on phones, a slimmer header when your phone is sideways, and the changelog is now in every page's footer",
+      "Closing a pop-up puts you back on the button that opened it, and the bug report box no longer zooms the page on iPhone",
       "Added a privacy policy, linked from the footer, the topic box and the bug report form. It says what happens to the topics you type, what our usage stats record, and what a bug report sends",
       "Usage stats moved to a new, fully set-up Google Analytics property. Sources opened from the Arguments section are now counted too, by website only",
       "Long theme names now wrap instead of being cut off, and on phones the topic at the top shows on up to two lines",

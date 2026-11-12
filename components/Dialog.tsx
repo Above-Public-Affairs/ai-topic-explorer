@@ -2,6 +2,31 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 
+// Safari and iOS don't focus a button when it's clicked or tapped, so at
+// open time document.activeElement is <body> or <main>, not the opener.
+// Remember the last control pressed so focus can go back to it on close.
+let lastPressed: { el: HTMLElement; at: number } | null = null;
+if (typeof document !== "undefined") {
+  document.addEventListener(
+    "pointerdown",
+    (e) => {
+      const el = e.target instanceof Element ? e.target.closest<HTMLElement>("button, a[href], [role='button']") : null;
+      lastPressed = el ? { el, at: Date.now() } : null;
+    },
+    true
+  );
+}
+
+/** The element that opened the dialog: what has focus, or else the control just pressed. */
+function findOpener(): HTMLElement | null {
+  const active = document.activeElement;
+  const focusedControl =
+    active instanceof HTMLElement && active !== document.body && active.tagName !== "MAIN" ? active : null;
+  if (focusedControl) return focusedControl;
+  if (lastPressed && lastPressed.el.isConnected && Date.now() - lastPressed.at < 5000) return lastPressed.el;
+  return null;
+}
+
 interface Props {
   /** id of the element that names the dialog, usually its heading. */
   labelledBy: string;
@@ -26,14 +51,14 @@ export default function Dialog({ labelledBy, onClose, className = "", children }
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const opener = findOpener();
     if (!dialog.open) dialog.showModal();
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previousOverflow;
       if (dialog.open) dialog.close();
-      opener?.focus();
+      opener?.focus({ preventScroll: true });
     };
   }, []);
 

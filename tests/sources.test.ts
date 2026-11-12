@@ -38,3 +38,12 @@ describe("titles made from URLs", () => {
     expect(cleanTitle(null, "https://x.com/269-7ddb60fe-0ff5-4622-91ed-caa6fc34119f", "x.com")).toBe("x.com");
   });
 });
+
+describe("urlKey de-duplication (7.1 testing)", () => {
+  it("treats tracking params, scheme, www, trailing slash and / vs - in the path as the same page", () => {
+    const a = urlKey("https://www.nasa.gov/overview-in-situ-resource-utilization/?utm_source=openai");
+    expect(urlKey("http://nasa.gov/overview/in-situ-resource-utilization")).toBe(a);
+    expect(urlKey("https://example.com/a?b=2&a=1")).toBe(urlKey("https://example.com/a?a=1&b=2"));
+    expect(urlKey("https://example.com/a")).not.toBe(urlKey("https://example.com/b"));
+  });
+});

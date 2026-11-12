@@ -198,11 +198,9 @@ interface FloatingWord {
 // Pre-defined slots spread across the container to guarantee no overlaps.
 // Each slot is a {top%, left%} region. Words are assigned to shuffled slots.
 const SLOTS: { top: number; left: number }[] = [
-  // Top band
+  // Top band (the top-right corner is left for the Pause animation button)
   { top: 3, left: 5 },
   { top: 5, left: 35 },
-  { top: 2, left: 65 },
-  { top: 8, left: 85 },
   // Upper quarter
   { top: 16, left: 10 },
   { top: 18, left: 50 },

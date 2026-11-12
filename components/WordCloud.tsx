@@ -76,7 +76,7 @@ export default function WordCloud({ words, onWordClick }: Props) {
         ))}
       </div>
       <p className="mt-3 text-xs text-(--text-tertiary) text-center">
-        Click any term to see it in context
+        Select any term to see it in context
       </p>
     </div>
   );

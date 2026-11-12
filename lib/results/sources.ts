@@ -20,14 +20,19 @@ export function cleanUrl(url: string): string {
 }
 
 /**
- * A URL reduced to a key for de-duplication: no tracking parameters, no
- * fragment, no `www.`, no trailing slash, lower case.
+ * A URL reduced to a key for de-duplication: no scheme, tracking
+ * parameters, fragment, `www.` or trailing slash; path separators folded;
+ * lower case.
  */
 export function urlKey(url: string): string {
   try {
     const u = new URL(cleanUrl(url));
-    u.hostname = u.hostname.replace(/^www\./, "");
-    return u.toString().replace(/\/$/, "").toLowerCase();
+    const host = u.hostname.replace(/^www\./, "");
+    // "/overview-in-situ-x/" and "/overview/in-situ-x" are the same page in
+    // practice; http and https too.
+    const path = u.pathname.replace(/[/_-]+/g, "-").replace(/-$/, "");
+    u.searchParams.sort();
+    return `${host}${path}${u.search}`.toLowerCase();
   } catch {
     return url.toLowerCase();
   }

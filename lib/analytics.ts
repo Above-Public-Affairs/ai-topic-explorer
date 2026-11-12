@@ -24,8 +24,8 @@ export interface AnalyticsEvents {
   analysis_abandoned: { duration_sec: number; stage: string; ais_answered: number };
   error_shown: { error_type: ErrorType; error_area: "analysis" | "bug_report" };
   results_viewed: { layout: "new" | "old"; ais_answered: number; from_share: boolean };
-  /** GA's recommended `share` event: the share button copied the results link. */
-  share: { method: "copy_link"; content_type: "results"; item_id: string; placement: Placement };
+  /** GA's recommended `share` event: the share button copied the results link, or (on touch screens) the system share sheet sent it. */
+  share: { method: "copy_link" | "share_sheet"; content_type: "results"; item_id: string; placement: Placement };
   /** Someone opened a results link that came from the share button. */
   shared_link_opened: { item_id: string };
   /** A link to a source an AI cited. Domain only, never the full URL. */

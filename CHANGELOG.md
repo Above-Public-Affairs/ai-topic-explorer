@@ -4,6 +4,21 @@ All notable changes to AI Topic Explorer will be documented in this file.
 
 ## [2026-11-11]
 
+### Fixed (task 7.4: fixes from cross-device testing 7.1–7.3)
+Reports in `docs/testing/` (7.1 desktop, 7.2 iPhone-size Safari TP, 7.3 Android Chrome emulation).
+- **"Show less" / "Show fewer" keep the reader in place** (major). Collapsing an answer or an argument list now scrolls by however far its toggle moved, so the button stays under the finger instead of the reader landing thousands of px down (`components/useKeepInView.ts`)
+- **Near-duplicate key themes merge** (major). `lib/results/theme-merge.ts` folds themes whose meaning words (minus topic words, filler and facet nouns like "challenges", "viability"; "commercial" = "economic") match with at most one extra word. Live asteroid run: 12 → 7 themes ("Technical hurdles / progress and hurdles / challenges" and the four economic/commercial ones become one each); water run: "Water supply / Supply expansion" and "Efficiency and conservation / Water efficiency / Agricultural efficiency" merge. Deterministic, display-only; stored themes and the tracker's 4.8 merge are untouched
+- **Sources:** de-duplicated by a looser key (no scheme, `www.`, tracking params or trailing slash; `/` and `-` in the path folded, so NASA's two ISRU URLs are one); grouped by domain across the whole list; Arguments and entity links now drop `?utm_source=openai`
+- **Results pages have share images and topic metadata:** per-result `opengraph-image` / `twitter-image` (topic on the site background), topic-specific `twitter:title`, description and `og:url`
+- **Share** uses `navigator.share` on touch screens (GA `share` `method: share_sheet`), and still copies on desktop and as the fallback. Closing the sheet doesn't copy. The Share label swap no longer changes the button's width
+- **Dialogs return focus to the control that opened them** even when a click or tap didn't focus it (Safari/iOS), without scrolling the page
+- **Tap targets ≥ 40px** on phones via an invisible `.hit-area` box: section nav, header Share / New Topic, theme chips, source titles, Arguments "source", example chips, "How does this work?"
+- **Landscape phones:** the sticky results header drops the AI status row and clamps the topic to one line under 520px tall (129 → 79px at 812×375)
+- Changelog in the footer on results pages; the desktop sidebar footer stacks its links; no double rule or empty band above the mobile footer
+- Bug report textarea is 16px (no iOS focus zoom), has an `id` and `name`, and its counter no longer touches the helper text
+- Topic box has `enterkeyhint="go"` and shows the start of the topic while analyzing
+- "Select any theme/term" instead of Click/Tap; sidebar label "AI answers" instead of "AIs" (rendered "AIS"); floating words no longer sit under the Pause animation button
+
 ### Changed (task 6.8: GA4 property finished)
 - **GA admin steps done and checked (Nov 11).** Key events (`analysis_completed`, `share`, `shared_link_opened`, `bug_report_sent`), all 14 custom dimensions and 4 custom metrics, event retention 14 months, and the stream's history page views and outbound clicks off. Every tracked event was fired on the live site and seen in GA real-time, except `word_clicked` (only on old results without key themes) and `bug_report_sent` (would send a real report). The live site sends only to `G-6WT4RP9NQD`
 - **Privacy policy:** the AI Topic Explorer analytics line now says event data is kept for fourteen months (WP page 61, Josh's call)

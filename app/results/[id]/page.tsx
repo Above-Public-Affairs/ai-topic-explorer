@@ -24,7 +24,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const analysis = await findAnalysis(id);
   if (!analysis) return {};
   const topic = analysis.topic.charAt(0).toUpperCase() + analysis.topic.slice(1);
-  return { title: topic, openGraph: { title: `${topic} – AI Topic Explorer` } };
+  const title = `${topic} – AI Topic Explorer`;
+  const description = `How Claude, ChatGPT, Gemini and Grok answer "${topic}": their full answers side by side, with the sources they cite.`;
+  // The share image comes from opengraph-image.tsx / twitter-image.tsx beside this page.
+  return {
+    title: topic,
+    description,
+    openGraph: { title, description, url: `/results/${id}`, type: "article", siteName: "AI Topic Explorer" },
+    twitter: { card: "summary_large_image", title, description },
+  };
 }
 
 export default async function ResultsPage({ params }: Props) {

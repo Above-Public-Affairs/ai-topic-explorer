@@ -306,6 +306,38 @@ html {
   }
 }
 
+/* Short screens (a phone in landscape): the sticky header gives back reading room */
+@media (max-width: 1023.98px) and (max-height: 520px) {
+  html:has(.results-mobile-header) {
+    scroll-padding-top: 5.5rem;
+  }
+  .results-mobile-header-inner {
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
+  }
+  .results-mobile-header-top {
+    margin-bottom: 0;
+  }
+  .results-mobile-header-topic {
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+  .results-mobile-header-status {
+    display: none;
+  }
+}
+
+/* A larger tap target than the control looks: an invisible box around it.
+   Tune per use with --hit-x / --hit-y (negative = how far it reaches out). */
+.hit-area {
+  position: relative;
+}
+.hit-area::after {
+  content: "";
+  position: absolute;
+  inset: var(--hit-y, -6px) var(--hit-x, -6px);
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

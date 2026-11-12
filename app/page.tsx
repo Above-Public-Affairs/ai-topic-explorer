@@ -306,6 +306,15 @@ export default function Home() {
     [isClient]
   );
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const topicInputRef = useRef<HTMLInputElement>(null);
+  // While a run goes, the locked box shows the start of the topic, not the
+  // end where the caret was ("…beekeeping rules" with "Rooftop" cut off).
+  useEffect(() => {
+    const input = topicInputRef.current;
+    if (!isLoading || !input) return;
+    input.setSelectionRange(0, 0);
+    input.scrollLeft = 0;
+  }, [isLoading]);
   // The analysis in flight, for analytics: when it started, how far it got,
   // and how many AIs have answered. Null when none is running.
   const runRef = useRef<{ startedAt: number; stage: string; answered: number; asked: number } | null>(null);
@@ -593,8 +602,10 @@ export default function Home() {
                 </label>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <input
+                    ref={topicInputRef}
                     id="topic"
                     type="text"
+                    enterKeyHint="go"
                     aria-invalid={error ? true : undefined}
                     aria-describedby={error ? "topic-error" : undefined}
                     value={topic}
@@ -665,7 +676,7 @@ export default function Home() {
                           trackEvent("example_topic_clicked", { topic: example });
                         }}
                         type="button"
-                        className={`pill-interactive px-4 py-2 rounded-full text-sm active:scale-[0.96] ${isClient ? "animate-fade-in" : "invisible"}`}
+                        className={`hit-area [--hit-y:-4px] [--hit-x:-4px] pill-interactive px-4 py-2 rounded-full text-sm active:scale-[0.96] ${isClient ? "animate-fade-in" : "invisible"}`}
                         disabled={isLoading}
                       >
                         {example}
@@ -678,7 +689,7 @@ export default function Home() {
                       trackEvent("modal_opened", { modal: "how_it_works" });
                     }}
                     type="button"
-                    className="mt-3 py-2 text-(--accent-cyan) hover:text-(--accent-violet) transition-colors underline underline-offset-2"
+                    className="hit-area [--hit-y:-4px] [--hit-x:-4px] mt-3 py-2 text-(--accent-cyan) hover:text-(--accent-violet) transition-colors underline underline-offset-2"
                   >
                     How does this work?
                   </button>
@@ -732,7 +743,7 @@ export default function Home() {
                 <p>
                   A separate AI then reads each answer the same way and pulls out its themes, the
                   arguments it makes for and against, the people, organizations, places and laws it
-                  names, and its overall tone. Tap any theme to see the sentences where it appears.
+                  names, and its overall tone. Select any theme to see the sentences where it appears.
                 </p>
               </div>
 

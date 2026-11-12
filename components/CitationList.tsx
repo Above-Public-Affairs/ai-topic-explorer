@@ -8,22 +8,21 @@ interface Props {
   disclaimer?: string;
 }
 
-/** Group consecutive citations that share the same domain. */
+/**
+ * Group citations by domain ("www." ignored). A group sits where its first
+ * citation was, so the most-shared sources still lead.
+ */
 function groupByDomain(
   citations: CombinedCitation[]
 ): { domain: string; items: CombinedCitation[] }[] {
-  const groups: { domain: string; items: CombinedCitation[] }[] = [];
-
+  const groups = new Map<string, { domain: string; items: CombinedCitation[] }>();
   for (const citation of citations) {
-    const last = groups[groups.length - 1];
-    if (last && last.domain === citation.domain) {
-      last.items.push(citation);
-    } else {
-      groups.push({ domain: citation.domain, items: [citation] });
-    }
+    const domain = citation.domain.toLowerCase().replace(/^www\./, "");
+    const group = groups.get(domain) ?? { domain, items: [] };
+    group.items.push(citation);
+    groups.set(domain, group);
   }
-
-  return groups;
+  return [...groups.values()];
 }
 
 export default function CitationList({
@@ -43,15 +42,14 @@ export default function CitationList({
   return (
     <div className="glass-tier-2 rounded-2xl p-6">
       <div className="space-y-5">
-        {groups.map((group, groupIdx) => (
-          // A domain can come back as a later group, so the index keeps keys unique.
-          <div key={`${groupIdx}-${group.domain}`}>
+        {groups.map((group) => (
+          <div key={group.domain}>
             {group.items.length > 1 && (
               <p className="text-[11px] font-medium text-(--text-tertiary) uppercase tracking-wide mb-2">
                 {group.domain}
               </p>
             )}
-            <ul className={`space-y-3 ${group.items.length > 1 ? "border-l-2 border-black/5 pl-4" : ""}`}>
+            <ul className={`space-y-5 ${group.items.length > 1 ? "border-l-2 border-black/5 pl-4" : ""}`}>
               {group.items.map((citation, idx) => (
                 <li key={idx} className="flex flex-wrap items-baseline gap-x-2 gap-y-1 min-w-0">
                   <a
@@ -59,7 +57,7 @@ export default function CitationList({
                     data-source-link="citation_list"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-(--text-primary) underline decoration-black/15 hover:text-(--accent-cyan) hover:decoration-(--accent-cyan)/40 text-sm font-medium leading-snug transition-colors break-words min-w-0"
+                    className="hit-area [--hit-y:-10px] [--hit-x:0px] text-(--text-primary) underline decoration-black/15 hover:text-(--accent-cyan) hover:decoration-(--accent-cyan)/40 text-sm font-medium leading-snug transition-colors break-words min-w-0"
                   >
                     {citation.title}
                     <NewTabNote />

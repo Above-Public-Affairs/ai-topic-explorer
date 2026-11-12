@@ -11,6 +11,7 @@ import type { ProviderErrorKind } from "@/lib/answers/types";
 import { providerErrorLabel } from "@/lib/answers/errors";
 import { domainOf } from "@/lib/extraction/map";
 import { cleanTitle, cleanUrl, orderByFirstLink, stripSearchPreamble, urlKey } from "@/lib/results/sources";
+import { groupNearDuplicates } from "@/lib/results/theme-merge";
 
 /** Order the AIs are shown in. */
 export const PROVIDER_ORDER: Provider[] = ["claude", "openai", "gemini", "grok"];
@@ -197,8 +198,20 @@ export function buildRunView(run: RunRows): RunView {
       themes.set(key, entry);
     }
   }
-  const themeList = [...themes.values()]
-    .map((t) => ({ ...t, score: t.providers.size + t.weight }))
+  // Then near-duplicates ("Technical hurdles", "Technical challenges") fold
+  // into the best-scoring one, so the cloud shows distinct ideas.
+  const score = (t: { providers: Set<Provider>; weight: number }) => t.providers.size + t.weight;
+  const ranked = [...themes.values()].sort((a, b) => score(b) - score(a));
+  const themeList = groupNearDuplicates(ranked, (t) => t.label, run.topic)
+    .map(([lead, ...rest]) => {
+      const merged = { label: lead.label, providers: new Set(lead.providers), weight: lead.weight, sentiments: [...lead.sentiments] };
+      for (const t of rest) {
+        for (const p of t.providers) merged.providers.add(p);
+        merged.weight += t.weight;
+        merged.sentiments.push(...t.sentiments);
+      }
+      return { ...merged, score: score(merged) };
+    })
     .sort((a, b) => b.score - a.score)
     .slice(0, MAX_THEMES);
   const topScore = themeList[0]?.score ?? 1;
@@ -227,9 +240,9 @@ export function buildRunView(run: RunRows): RunView {
       const existing = side.get(key);
       if (existing) {
         if (!existing.providers.includes(provider)) existing.providers.push(provider);
-        existing.sourceUrl ??= a.sourceUrl;
+        existing.sourceUrl ??= a.sourceUrl ? cleanUrl(a.sourceUrl) : null;
       } else {
-        side.set(key, { text: a.text, providers: [provider], sourceUrl: a.sourceUrl, rank, first: provider });
+        side.set(key, { text: a.text, providers: [provider], sourceUrl: a.sourceUrl ? cleanUrl(a.sourceUrl) : null, rank, first: provider });
       }
     }
   }
@@ -251,7 +264,7 @@ export function buildRunView(run: RunRows): RunView {
       const entry = entities.get(key) ?? { name: e.canonical?.name ?? e.name, type: e.type, providers: [], mentions: 0 };
       if (!entry.providers.includes(provider)) entry.providers.push(provider);
       entry.mentions += e.mentions || 1;
-      if (!entry.url && e.url) entry.url = e.url;
+      if (!entry.url && e.url) entry.url = cleanUrl(e.url);
       entities.set(key, entry);
     }
   }

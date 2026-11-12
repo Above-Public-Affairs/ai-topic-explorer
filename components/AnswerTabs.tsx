@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import AnswerProse from "@/components/AnswerProse";
 import { PROVIDER_LABELS } from "@/lib/providers";
 import { trackEvent } from "@/lib/analytics";
+import { useKeepInView } from "@/components/useKeepInView";
 import type { AnswerView } from "@/lib/results/run-view";
 
 const TONE_STYLES: Record<string, string> = {
@@ -45,6 +46,8 @@ function AnswerPanel({ answer }: { answer: AnswerView }) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [overflows, setOverflows] = useState(false);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const keepToggle = useKeepInView(toggleRef);
 
   useEffect(() => {
     const el = bodyRef.current;
@@ -98,9 +101,12 @@ function AnswerPanel({ answer }: { answer: AnswerView }) {
       </div>
       {overflows && (
         <button
+          ref={toggleRef}
           type="button"
           onClick={() => {
             if (!expanded) trackEvent("answer_expanded", { provider: answer.provider });
+            // Collapsing: keep this button where it was, not thousands of pixels up.
+            else keepToggle.hold();
             setExpanded((v) => !v);
           }}
           aria-expanded={expanded}
@@ -127,7 +133,7 @@ function AnswerPanel({ answer }: { answer: AnswerView }) {
                     data-source-link="answer_sources"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-medium text-(--text-primary) underline decoration-black/15 underline-offset-2 hover:text-(--accent-cyan) hover:decoration-(--accent-cyan)/40 transition-colors break-words text-pretty"
+                    className="hit-area [--hit-y:-12px] [--hit-x:0px] font-medium text-(--text-primary) underline decoration-black/15 underline-offset-2 hover:text-(--accent-cyan) hover:decoration-(--accent-cyan)/40 transition-colors break-words text-pretty"
                   >
                     {s.title}
                     <span className="sr-only"> (opens in a new tab)</span>

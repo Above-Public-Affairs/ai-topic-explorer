@@ -110,17 +110,19 @@ export default function BugReportButton() {
             ) : (
               <>
                 <textarea
+                  id="bug-report-description"
+                  name="description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="What happened? What did you expect?"
                   maxLength={2000}
                   rows={4}
-                  className="w-full px-4 py-3 text-sm rounded-xl bg-white/80 border border-black/12 text-(--text-primary) placeholder-(--text-tertiary) focus:outline-none focus-visible:border-(--accent-cyan) focus-visible:ring-2 focus-visible:ring-(--accent-cyan) focus-visible:ring-offset-2 focus-visible:ring-offset-white focus:bg-white/90 backdrop-blur-xl transition-[background-color,border-color,box-shadow] duration-200 resize-none"
+                  className="w-full px-4 py-3 text-base rounded-xl bg-white/80 border border-black/12 text-(--text-primary) placeholder-(--text-tertiary) focus:outline-none focus-visible:border-(--accent-cyan) focus-visible:ring-2 focus-visible:ring-(--accent-cyan) focus-visible:ring-offset-2 focus-visible:ring-offset-white focus:bg-white/90 backdrop-blur-xl transition-[background-color,border-color,box-shadow] duration-200 resize-none"
                   disabled={status === "submitting"}
                   aria-label="Bug description"
                 />
-                <div className="flex items-center justify-between mt-1 mb-4">
-                  <p className="text-xs text-(--text-tertiary)">
+                <div className="flex items-start justify-between gap-4 mt-1 mb-4">
+                  <p className="text-xs text-(--text-tertiary) text-pretty">
                     Page URL and browser info included automatically.{" "}
                     <a
                       href={PRIVACY_POLICY_URL}
@@ -132,7 +134,7 @@ export default function BugReportButton() {
                       <span className="sr-only"> (opens in a new tab)</span>
                     </a>
                   </p>
-                  <span className="text-xs text-(--text-tertiary)">
+                  <span className="shrink-0 text-xs tabular-nums text-(--text-tertiary)">
                     {description.length}/2000
                   </span>
                 </div>

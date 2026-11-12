@@ -57,9 +57,23 @@ export default function ResultsShell({
   }, [analysisId, layout, aisAnswered]);
 
   const handleShare = async (placement: "header" | "sidebar") => {
-    trackEvent("share", { method: "copy_link", content_type: "results", item_id: analysisId, placement });
     // Tagged so a visit from a shared link can be told apart in analytics.
     const url = `${window.location.origin}/results/${analysisId}?ref=${SHARE_REF}`;
+    // On phones and tablets, the system share sheet (Messages, Mail, AirDrop…).
+    // Desktop keeps the one-click copy people expect from "Share results".
+    const shareData = { title: `${displayTopic(topic)} – AI Topic Explorer`, url };
+    const touch = window.matchMedia("(pointer: coarse)").matches;
+    if (touch && typeof navigator.share === "function" && (navigator.canShare?.(shareData) ?? true)) {
+      try {
+        await navigator.share(shareData);
+        trackEvent("share", { method: "share_sheet", content_type: "results", item_id: analysisId, placement });
+        return;
+      } catch (err) {
+        // Closing the sheet isn't a failure, and shouldn't copy behind the person's back.
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      }
+    }
+    trackEvent("share", { method: "copy_link", content_type: "results", item_id: analysisId, placement });
     try {
       await navigator.clipboard.writeText(url);
     } catch {
@@ -77,25 +91,28 @@ export default function ResultsShell({
   return (
     <div className="min-h-screen flex flex-col">
       {/* ── Mobile header (visible below lg) ── */}
+      {/* On short screens (a phone in landscape) it slims down: one-line topic, no AI status row. */}
       <header className="results-mobile-header lg:hidden sticky top-0 z-40 bg-(--bg-base)/85 backdrop-blur-xl border-b border-black/6">
-        <div className="px-4 py-3">
+        <div className="results-mobile-header-inner px-4 py-3">
           {/* Topic + actions */}
-          <div className="flex items-center justify-between gap-3 mb-2">
-            <p className="text-base font-bold text-(--text-primary) line-clamp-2 text-pretty min-w-0">
+          <div className="results-mobile-header-top flex items-center justify-between gap-3 mb-2">
+            <p className="results-mobile-header-topic text-base font-bold text-(--text-primary) line-clamp-2 text-pretty min-w-0">
               {displayTopic(topic)}
             </p>
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => handleShare("header")}
-                className="pill-interactive px-3.5 py-2 rounded-full text-xs font-medium active:scale-[0.96]"
+                className="hit-area [--hit-x:-4px] pill-interactive inline-grid px-3.5 py-2 rounded-full text-xs font-medium active:scale-[0.96]"
               >
-                {copied ? "Copied" : "Share"}
+                {/* Both labels share one cell, so the button keeps its width and the topic doesn't rewrap. */}
+                <span className={`col-start-1 row-start-1 ${copied ? "invisible" : ""}`}>Share</span>
+                <span className={`col-start-1 row-start-1 ${copied ? "" : "invisible"}`}>Copied</span>
               </button>
               <Link
                 href="/"
                 onClick={() => trackEvent("new_topic_clicked", { placement: "header" })}
-                className="btn-primary px-3.5 py-2 rounded-full text-xs active:scale-[0.96]"
+                className="hit-area [--hit-x:-4px] btn-primary px-3.5 py-2 rounded-full text-xs active:scale-[0.96]"
               >
                 New Topic
               </Link>
@@ -103,7 +120,9 @@ export default function ResultsShell({
           </div>
 
           {/* Provider status */}
-          <ProgressTracker providers={providerStatuses} layout="horizontal" />
+          <div className="results-mobile-header-status">
+            <ProgressTracker providers={providerStatuses} layout="horizontal" />
+          </div>
 
           {/* Section jump links */}
           <nav aria-label="Sections" className="flex flex-wrap gap-x-4 mt-1 -mb-1 text-xs">
@@ -111,7 +130,7 @@ export default function ResultsShell({
               <a
                 key={s.id}
                 href={`#${s.id}`}
-                className="py-2 text-(--text-secondary) hover:text-(--accent-cyan) transition-colors"
+                className="hit-area [--hit-x:-8px] py-2 text-(--text-secondary) hover:text-(--accent-cyan) transition-colors"
               >
                 {s.label}
               </a>
@@ -139,8 +158,9 @@ export default function ResultsShell({
 
           {/* Sources */}
           <div className="mb-6">
+            {/* Spelled "AI answers" so the uppercase style can't turn it into "AIS". */}
             <p className="text-xs font-semibold text-(--text-secondary) uppercase tracking-wider mb-3">
-              AIs
+              AI answers
             </p>
             <ProgressTracker providers={providerStatuses} layout="vertical" />
           </div>
@@ -180,7 +200,7 @@ export default function ResultsShell({
               onClick={() => handleShare("sidebar")}
               className="pill-interactive w-full px-4 py-2.5 rounded-xl text-sm font-medium text-center active:scale-[0.96]"
             >
-              {copied ? "Link copied!" : "Share results"}
+              {copied ? "Link copied" : "Share results"}
             </button>
             <Link
               href="/"
@@ -191,11 +211,11 @@ export default function ResultsShell({
             </Link>
           </div>
 
-          <Footer hideChangelog />
+          <Footer variant="sidebar" />
         </aside>
 
-        {/* Main content. Extra bottom room on mobile so the floating bug button never covers the last line. */}
-        <main id="content" tabIndex={-1} className="flex-1 pt-6 pb-24 lg:py-8 px-4 sm:px-8 lg:px-12 min-w-0 overflow-hidden break-words outline-none">
+        {/* Main content. On mobile the footer follows, so the floating bug button never covers the last line. */}
+        <main id="content" tabIndex={-1} className="flex-1 pt-6 pb-8 lg:py-8 px-4 sm:px-8 lg:px-12 min-w-0 overflow-hidden break-words outline-none">
           <div className="max-w-4xl mx-auto">
             {children}
           </div>
@@ -203,8 +223,8 @@ export default function ResultsShell({
       </div>
 
       {/* Mobile footer */}
-      <div className="lg:hidden border-t border-black/6 px-4 py-4">
-        <Footer hideChangelog />
+      <div className="lg:hidden pb-12">
+        <Footer />
       </div>
 
       <span role="status" className="sr-only">{copied ? "Link copied" : ""}</span>

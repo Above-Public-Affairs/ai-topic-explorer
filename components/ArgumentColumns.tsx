@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useKeepInView } from "@/components/useKeepInView";
 import { PROVIDER_COLORS, PROVIDER_LABELS } from "@/lib/providers";
 import type { ArgumentView } from "@/lib/results/run-view";
 import NewTabNote from "@/components/NewTabNote";
@@ -21,6 +22,8 @@ function ProviderBadges({ providers }: { providers: ArgumentView["providers"] })
 
 function Column({ title, hint, items, accent }: { title: string; hint: string; items: ArgumentView[]; accent: string }) {
   const [showAll, setShowAll] = useState(false);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const keepToggle = useKeepInView(toggleRef);
   const shown = showAll ? items : items.slice(0, INITIAL);
   return (
     <div className="min-w-0">
@@ -42,7 +45,7 @@ function Column({ title, hint, items, accent }: { title: string; hint: string; i
                   target="_blank"
                   rel="noopener noreferrer"
                   data-source-link="argument_list"
-                  className="ml-1.5 -my-2 inline-block py-2 text-xs text-(--text-tertiary) underline decoration-black/15 underline-offset-2 hover:text-(--accent-cyan)"
+                  className="ml-1.5 -my-3 inline-block py-3 text-xs text-(--text-tertiary) underline decoration-black/15 underline-offset-2 hover:text-(--accent-cyan)"
                 >
                   source
                   <NewTabNote />
@@ -56,8 +59,13 @@ function Column({ title, hint, items, accent }: { title: string; hint: string; i
       )}
       {items.length > INITIAL && (
         <button
+          ref={toggleRef}
           type="button"
-          onClick={() => setShowAll((v) => !v)}
+          onClick={() => {
+            // Collapsing: keep this button where it was, not far above the screen.
+            if (showAll) keepToggle.hold();
+            setShowAll((v) => !v);
+          }}
           aria-expanded={showAll}
           className="mt-2 inline-flex min-h-10 items-center text-sm font-medium text-(--accent-cyan) hover:text-(--text-primary) transition-[color,scale] duration-150 active:scale-[0.96]"
         >

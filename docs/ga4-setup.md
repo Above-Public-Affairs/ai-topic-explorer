@@ -14,7 +14,7 @@ The public site sends to GA4 property **G-6WT4RP9NQD** (set as `NEXT_PUBLIC_GA_M
 | `analysis_abandoned` | Tab closed or left mid-analysis | `duration_sec`, `stage`, `ais_answered` |
 | `error_shown` | An error message shown to the visitor | `error_type`, `error_area` (`analysis` or `bug_report`) |
 | `results_viewed` | A results page opens | `layout` (`new` or `old`), `ais_answered`, `from_share` |
-| `share` | Share button copies the link | `method`, `content_type`, `item_id`, `placement` |
+| `share` | Share button copies the link (`method: copy_link`), or on a touch screen sends it through the system share sheet (`method: share_sheet`) | `method`, `content_type`, `item_id`, `placement` |
 | `shared_link_opened` | Someone opens a link copied with Share (`?ref=share`) | `item_id` |
 | `source_link_opened` | A cited source is opened | `source_domain` (domain only), `link_area` (`answer_inline`, `answer_sources`, `citation_list`, `argument_list`) |
 | `modal_opened` | How it works, changelog, bug report | `modal` |
