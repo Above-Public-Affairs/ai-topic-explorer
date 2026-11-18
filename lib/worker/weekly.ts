@@ -14,11 +14,14 @@
  *   the rest are skipped. Both count what this week's earlier weekly runs
  *   spent (task 4.9), so a run stopped by a deploy and retried, or a re-run by
  *   hand, can't spend the caps twice.
- * - Once a previous snapshot exists, the new one's comparison against it goes
- *   on Run.stats.comparison, then afterSnapshot() makes its alerts (5.2).
+ * - Once an earlier snapshot exists, the new one is compared with its
+ *   baselines (the most recent snapshot and the last two weekly ones; a
+ *   change must hold against all of them, lib/snapshots/baselines.ts). The
+ *   result goes on Run.stats.comparison, then afterSnapshot() makes its
+ *   alerts (5.2).
  */
-import { Prisma, type PrismaClient, type RunStatus } from "@/app/generated/prisma/client";
-import { compareRuns, runSnapshot, type RunSnapshotOptions, type RunSnapshotResult, type SnapshotStats } from "@/lib/snapshots";
+import type { PrismaClient, RunStatus } from "@/app/generated/prisma/client";
+import { compareRuns, compareWithBaselines, runSnapshot, type RunSnapshotOptions, type RunSnapshotResult, type SnapshotStats } from "@/lib/snapshots";
 import { afterSnapshot } from "@/lib/alerts";
 import { spentSoFar } from "./active-runs";
 
@@ -78,6 +81,8 @@ export interface ItemOutcome {
   stoppedAtCapUsd?: number;
   comparedWith?: string;
   swings?: number;
+  /** Earlier snapshots the swings held against (see lib/snapshots/baselines.ts). */
+  baselines?: number;
   error?: unknown;
 }
 
@@ -187,23 +192,19 @@ export async function runWeekly(db: PrismaClient, options: WeeklyOptions = {}): 
       spent += result.costUsd;
       const outcome = summarize(item, result, calls, failedCalls);
 
-      // Compare against the previous snapshot of this item, when there is one.
-      const previous = await db.run.findFirst({
-        where: { watchItemId: item.id, id: { not: result.runId }, status: { in: ["complete", "partial"] }, stats: { not: Prisma.AnyNull }, startedAt: { lt: itemStarted } },
-        orderBy: { startedAt: "desc" },
-        select: { id: true, stats: true },
-      });
+      // Compare against this item's earlier snapshots, when there are any.
       let stats: SnapshotStats = result.stats;
-      if (previous?.stats) {
-        try {
-          const comparison = await compare(db, previous.id, result.runId);
-          stats = { ...stats, comparison: { againstRunId: previous.id, ...comparison } };
-          outcome.comparedWith = previous.id;
+      try {
+        const comparison = await compareWithBaselines(db, item.id, result.runId, { before: itemStarted, compare });
+        if (comparison) {
+          stats = { ...stats, comparison };
+          outcome.comparedWith = comparison.againstRunId;
           outcome.swings = comparison.swings.length;
-        } catch (err) {
-          outcome.error = err;
-          log(`${item.name}: comparison against ${previous.id} failed: ${String(err)}`);
+          outcome.baselines = comparison.confirmedAgainst.length;
         }
+      } catch (err) {
+        outcome.error = err;
+        log(`${item.name}: comparison failed: ${String(err)}`);
       }
       const note = `weekly worker: ${calls} calls, ${failedCalls} failed${result.stats.stoppedAtCapUsd ? `, stopped at $${result.stats.stoppedAtCapUsd} cap` : ""}`;
       await db.run.update({ where: { id: result.runId }, data: { stats: JSON.parse(JSON.stringify(stats)), note } });
@@ -258,7 +259,7 @@ export function summaryLine(o: ItemOutcome): string {
     `${o.failedCalls} failed`,
     `$${(o.costUsd ?? 0).toFixed(2)}`,
     `${o.held} held / ${o.noisy} noisy`,
-    o.comparedWith ? `${o.swings} swings vs ${o.comparedWith}` : "first snapshot, nothing to compare",
+    o.comparedWith ? `${o.swings} swings vs ${o.comparedWith}${(o.baselines ?? 1) > 1 ? ` (held against ${o.baselines} snapshots)` : ""}` : "first snapshot, nothing to compare",
     ...(o.stoppedAtCapUsd ? [`STOPPED at $${o.stoppedAtCapUsd} cap`] : []),
   ].join(", ");
 }

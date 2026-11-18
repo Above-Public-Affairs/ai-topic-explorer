@@ -3,3 +3,4 @@ export * from "./agreement";
 export * from "./noise";
 export * from "./compare";
 export * from "./run";
+export * from "./baselines";
