@@ -63,8 +63,11 @@ export function plainChange(input: PlainInput): Plain {
     who = `${aiName(ms.provider)}'s new model`;
     singular = true;
   } else if (s.scope === "all") {
-    who = input.providers.length === 1 ? aiName(input.providers[0]) : "The AIs";
-    singular = input.providers.length === 1;
+    // The numbers are all four AIs pooled, so the subject is always "The AIs"
+    // (A-21 said "Claude now mentions…" over pooled shares). One AI that moved
+    // on its own is named after the numbers instead: ", led by Claude".
+    who = "The AIs";
+    singular = false;
   } else {
     const ps = input.providers.length ? input.providers : [s.scope];
     who = providerList(ps);
@@ -73,17 +76,29 @@ export function plainChange(input: PlainInput): Plain {
   const act = action(s.metric, s.key, s.label, singular);
   const up = s.change > 0;
   const since = ms ? "with the old one" : `on ${input.beforeDate}`;
-  const from = plainShare(s.before, false);
   // "Gemini's new model now cites…" says "new" twice.
   const now = ms ? "" : " now";
+  const led = !ms && s.scope === "all" && input.providers.length === 1 ? `, led by ${aiName(input.providers[0])}` : "";
+  // Both shares can round to the same "N in 10" (A-22: 5% and 15% were both
+  // "about 1 in 10", so the headline read as no change). Say the counts then.
+  const sameWords = plainShare(s.before, false) === plainShare(s.after, false);
+  const [to, from] = sameWords
+    ? [countOf(s.countAfter, s.after), countOf(s.countBefore, s.before, false)]
+    : [plainShare(s.after), plainShare(s.before, false)];
   const headline =
     s.after <= 0
-      ? `${who} no longer ${act}; ${ms ? "the old model did" : singular ? "it did" : "they did"} in ${plainShare(s.before)}${ms ? "" : ` ${since}`}.`
+      ? `${who} no longer ${act}; ${ms ? "the old model did" : singular ? "it did" : "they did"} in ${plainShare(s.before)}${ms ? "" : ` ${since}`}${led}.`
       : s.before <= 0
-        ? `${who}${now} ${act} in ${plainShare(s.after)}, up from none ${since}.`
-        : `${who}${now} ${act} in ${plainShare(s.after)}, ${up ? "up" : "down"} from ${from} ${since}.`;
+        ? `${who}${now} ${act} in ${plainShare(s.after)}, up from none ${since}${led}.`
+        : `${who}${now} ${act} in ${to}, ${up ? "up" : "down"} from ${from} ${since}${led}.`;
   const short = `${who} ${act} ${up ? "more" : "less"}${ms ? " (model change)" : ""}`;
   return { headline, short };
+}
+
+/** "14 of 93 answers": the count and the total it came from (total = count ÷ share). */
+function countOf(count: number, share: number, withNoun = true): string {
+  const total = Math.round(count / share);
+  return `${count} of ${total}${withNoun ? " answers" : ""}`;
 }
 
 /** Plain words for a model change: why this isn't news about the world. */
