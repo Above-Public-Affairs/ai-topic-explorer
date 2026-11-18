@@ -197,6 +197,21 @@ describe("plain words", () => {
     const grok = swing({ key: "critical", metric: "tone", label: "critical", scope: "grok", before: 0.2, after: 0.6 });
     expect(plainChange({ swing: grok, providers: ["grok"], beforeDate: "Nov 9" }).headline).toBe("Grok now takes a critical tone in 6 in 10 answers, up from 2 in 10 on Nov 9.");
   });
+
+  it("names pooled numbers as the AIs, not the one AI that moved (A-21)", () => {
+    const abbott = { ...swing({ key: "c:abbott", label: "Greg Abbott", before: 0.19, after: 0.1 }), countBefore: 18, countAfter: 10 };
+    expect(plainChange({ swing: abbott, providers: ["claude"], beforeDate: "Nov 15, 2026" })).toEqual({
+      headline: "The AIs now mention Greg Abbott in 1 in 10 answers, down from about 2 in 10 on Nov 15, 2026, led by Claude.",
+      short: "The AIs mention Greg Abbott less",
+    });
+  });
+
+  it("says counts when both shares round to the same N in 10 (A-22)", () => {
+    const tribune = { ...swing({ key: "c:tribune", label: "Texas Tribune", before: 5 / 96, after: 14 / 96 }), countBefore: 5, countAfter: 14 };
+    expect(plainChange({ swing: tribune, providers: ["claude", "gemini"], beforeDate: "Nov 15, 2026" }).headline).toBe(
+      "The AIs now mention Texas Tribune in 14 of 96 answers, up from 5 of 96 on Nov 15, 2026."
+    );
+  });
 });
 
 describe("no invented numbers", () => {
