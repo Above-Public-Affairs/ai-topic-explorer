@@ -1,6 +1,6 @@
 # Session Handoff — AI Topic Explorer
 
-**Last Updated:** November 12, 2026
+**Last Updated:** November 18, 2026
 
 ## Where we are
 Live in production (beta) on Railway with four providers: Claude, ChatGPT, Gemini
@@ -16,6 +16,17 @@ The app is becoming an internal topic-tracking tool.
 **Plan and tracker.** The roadmap is in `PROJECT-PLAN.md`. Work runs from the project
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
 Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search) and 5.1. Phase 7 testing (7.1–7.3) found 20 issues; task 7.4 fixed them (see below).
+
+**Latest (Nov 18): multi-baseline comparisons.** `compareWithBaselines()`
+(`lib/snapshots/baselines.ts`) is used by the weekly worker and the event watcher: a new
+snapshot is compared with the item's most recent snapshot and its last two weekly ones, and
+only changes found against all of them are kept (numbers are against the most recent).
+Event baselines must start before the event; model-switch runs are never baselines.
+`Run.stats.comparison` adds `confirmedAgainst` and `unconfirmed`. Gotchas: the `*.db.test.ts`
+files share one database and interfere when run in parallel; use `--no-file-parallelism`.
+`model-watcher.db.test.ts` fails on a fresh test database (it needs the model list seeded),
+before and after this change. The connector's `compare_snapshots` tool still compares a
+single pair.
 
 ## Fixes from cross-device testing (task 7.4)
 - Reports: `docs/testing/7.1-desktop.md`, `7.2-iphone-safari.md`, `7.3-android-chrome.md`

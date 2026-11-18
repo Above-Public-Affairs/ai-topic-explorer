@@ -264,6 +264,16 @@ Snapshots can run before that.
   watch item and list the changes beyond the band (rose, fell, new, gone), over the locked
   questions both asked, biggest relative to its band first. Alerts (5.2) and the monthly
   report (5.3) build on it.
+- **Baselines (Nov 18, 2026).** The weekly worker and the event watcher compare a new
+  snapshot with up to three earlier ones of the item (`compareWithBaselines()`,
+  `lib/snapshots/baselines.ts`): the most recent complete or partial snapshot (the primary)
+  and the last two weekly ones. A change counts only if it's beyond the band, in the same
+  direction, against every baseline, so one odd snapshot can't fake a change or hide one.
+  Its numbers, and the alert's "before" side, stay those against the primary. Baselines
+  must start before the new snapshot, or for an event snapshot before the event, so one
+  that may already show the event is never used. Model-switch runs are never baselines.
+  `Run.stats.comparison` gains `confirmedAgainst` (run IDs) and `unconfirmed` (swings
+  dropped). No extra AI calls.
 - **Repeats: 3 (task 4.3 proof, 2026-11-09).** Two snapshots of Data centers in Texas, 5
   minutes apart, 3 repeats each: 128 calls each, none failed, **$4.28 and $4.69** (answers,
   extractions and the fresh set). Recomputing the first from only 2 of its repeats:
@@ -351,7 +361,8 @@ Snapshots can run before that.
     each snapshot capped at what's left, up to `WEEKLY_ITEM_CAP_USD` (default **$6**).
     Below $1 left, the remaining items are skipped.
   - Each snapshot stores its agreement and noise band (4.3) and, once a previous snapshot
-    of the item exists, its comparison against it on `Run.stats.comparison`. Nothing is
+    of the item exists, its comparison against its baselines (see "Baselines" in 4C) on
+    `Run.stats.comparison`. Nothing is
     sent; alerts are 5B.
   - Env comes from Railway references to the web service (`DATABASE_URL`, the four AI
     keys); migrations stay with the web service only.
@@ -416,7 +427,8 @@ Snapshots can run before that.
       **2 event snapshots per item per week** (Monday 00:00 UTC); the rest are `ignored` with
       the reason in `Event.note`. No approval step.
     - **Snapshots:** due slots run `runSnapshot()` with Run kind `event`, linked through
-      `Event.runId`, compared with the item's previous snapshot (`Run.stats.comparison`).
+      `Event.runId`, compared with the item's snapshots from before the event (the most
+      recent and the last two weekly ones; see "Baselines" in 4C) on `Run.stats.comparison`.
       Deferred if a snapshot of the item is already running. A failed one is retried up to 3
       times in all.
     - **Caps:** `EVENT_SCAN_CAP_USD` (default **$1**, the day's scan and the week's

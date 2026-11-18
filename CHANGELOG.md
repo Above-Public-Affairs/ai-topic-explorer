@@ -2,6 +2,14 @@
 
 All notable changes to AI Topic Explorer will be documented in this file.
 
+## [2026-11-18]
+
+### Changed (snapshot comparisons use several baselines)
+- Weekly and event snapshots are compared with up to three earlier snapshots of the item instead of one: the most recent snapshot and the last two weekly ones (`compareWithBaselines()`, `lib/snapshots/baselines.ts`). A change counts, and can become an alert, only if it's beyond the noise band in the same direction against every one of them, so a single odd snapshot can no longer fake a change or hide one. Alert numbers and quotes are still against the most recent snapshot
+- An event snapshot's baselines must have started before the event, not just before the snapshot, so a weekly snapshot taken between the event and its snapshot (which may already show the event) is no longer the "before" side
+- Model-switch runs are no longer used as a baseline
+- `Run.stats.comparison` adds `confirmedAgainst` (the baseline run IDs) and `unconfirmed` (changes dropped because another baseline didn't confirm them). Worker logs say "held against N snapshots". No schema change, no extra AI calls
+
 ## [2026-11-12]
 
 ### Changed (task 8.2: alerts and the monthly report switched on)

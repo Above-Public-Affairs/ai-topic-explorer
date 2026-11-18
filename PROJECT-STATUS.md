@@ -1,8 +1,14 @@
 # AI Topic Explorer - Project Status
 
-**Last Updated:** November 12, 2026
+**Last Updated:** November 18, 2026
 
 ## Current Status: Live in production (beta), new direction planned
+
+**Multi-baseline comparisons (Nov 18):** weekly and event snapshots are compared with up
+to three earlier snapshots of the item (the most recent and the last two weekly ones), and a
+change counts, or becomes an alert, only if it holds in the same direction against all of
+them. An event snapshot's baselines come from before the event. See "Baselines" in
+`PROJECT-PLAN.md` §4C.
 
 **Task 8.2 (alerts and monthly report on, Nov 12):** sending is on in production, to Josh
 only. `ALERTS_ENABLED=true` on the three snapshot crons (which also got SendGrid variables,

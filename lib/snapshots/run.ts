@@ -30,8 +30,13 @@ export interface SnapshotStats {
   labels: Labels;
   /** Set when the snapshot was stopped at its spending cap. */
   stoppedAtCapUsd?: number;
-  /** Changes beyond the noise band since the item's previous snapshot; set by the weekly worker (4.4). */
-  comparison?: Comparison & { againstRunId: string };
+  /**
+   * Changes beyond the noise band against the item's earlier snapshots, set by
+   * the weekly worker and the event watcher (see baselines.ts). Swing numbers
+   * are against `againstRunId`; `confirmedAgainst` and `unconfirmed` are absent
+   * on comparisons made before Nov 18, 2026, which used one baseline.
+   */
+  comparison?: Comparison & { againstRunId: string; confirmedAgainst?: string[]; unconfirmed?: number };
 }
 
 export interface RunSnapshotOptions {

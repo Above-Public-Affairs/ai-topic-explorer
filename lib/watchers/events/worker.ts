@@ -14,7 +14,9 @@
  *    the same item within 24h. At most 2 event snapshots per item per week;
  *    the rest are logged as ignored with the reason. No approval needed.
  * 4. Run due snapshots (Run kind `event`, linked to its events), compared with
- *    the item's previous snapshot. Each slot gets EVENT_SNAPSHOT_CAP_USD once,
+ *    the item's snapshots from before the event: the most recent one and the
+ *    last two weekly ones (a change must hold against all of them,
+ *    lib/snapshots/baselines.ts). Each slot gets EVENT_SNAPSHOT_CAP_USD once,
  *    across all its attempts, and all event snapshots started in a UTC day
  *    share EVENT_RUN_CAP_USD. Both are read from the stored runs, so the runs
  *    Railway starts on each deploy can't spend them again (task 6.6).
@@ -23,8 +25,8 @@
  * on each deploy repeats nothing. Each stage's failures are caught, logged and
  * returned for error reporting; one failing never stops the others.
  */
-import { Prisma, type EventCategory, type PrismaClient } from "@/app/generated/prisma/client";
-import { compareRuns, runSnapshot, type RunSnapshotOptions, type RunSnapshotResult, type SnapshotStats } from "@/lib/snapshots";
+import type { EventCategory, PrismaClient } from "@/app/generated/prisma/client";
+import { compareRuns, compareWithBaselines, runSnapshot, type RunSnapshotOptions, type RunSnapshotResult, type SnapshotStats } from "@/lib/snapshots";
 import { STALE_RUNNING_MS, weekStart } from "@/lib/worker/weekly";
 import { afterSnapshot } from "@/lib/alerts";
 import { claimJob, finishJob } from "./jobs";
@@ -116,6 +118,8 @@ export interface SnapshotOutcome {
   costUsd?: number;
   swings?: number;
   comparedWith?: string;
+  /** Earlier snapshots the swings held against (see lib/snapshots/baselines.ts). */
+  baselines?: number;
 }
 
 export interface EventWatcherResult {
@@ -527,21 +531,20 @@ async function runDueSnapshots(
       });
       await db.event.updateMany({ where: { id: { in: events.map((e) => e.id) } }, data: { runId: result.runId } });
       const outcome: SnapshotOutcome = { ...base, outcome: "ran", runId: result.runId, status: result.pipeline.status, costUsd: result.costUsd };
-      const previous = await db.run.findFirst({
-        where: { watchItemId, id: { not: result.runId }, status: { in: ["complete", "partial"] }, stats: { not: Prisma.AnyNull }, startedAt: { lt: started } },
-        orderBy: { startedAt: "desc" },
-        select: { id: true },
-      });
+      // Baselines are snapshots from before the earliest event in the slot, so
+      // one that may already show the event's effect is never compared with.
+      const eventAt = new Date(Math.min(...events.map((e) => e.occurredAt.getTime()), started.getTime()));
       let stats: SnapshotStats = result.stats;
-      if (previous) {
-        try {
-          const comparison = await compare(db, previous.id, result.runId);
-          stats = { ...stats, comparison: { againstRunId: previous.id, ...comparison } };
-          outcome.comparedWith = previous.id;
+      try {
+        const comparison = await compareWithBaselines(db, watchItemId, result.runId, { before: eventAt, compare });
+        if (comparison) {
+          stats = { ...stats, comparison };
+          outcome.comparedWith = comparison.againstRunId;
           outcome.swings = comparison.swings.length;
-        } catch (err) {
-          errors.push({ stage: "snapshot", message: `comparison of ${result.runId} against ${previous.id} failed: ${String(err)}`, error: err, context: { runId: result.runId } });
+          outcome.baselines = comparison.confirmedAgainst.length;
         }
+      } catch (err) {
+        errors.push({ stage: "snapshot", message: `comparison of ${result.runId} with its baselines failed: ${String(err)}`, error: err, context: { runId: result.runId } });
       }
       await db.run.update({ where: { id: result.runId }, data: { stats: JSON.parse(JSON.stringify(stats)) } });
       await (options.alerts ?? afterSnapshot)(db, result.runId, { log: (l) => log(`  ${base.name}: ${l}`) });
@@ -554,7 +557,7 @@ async function runDueSnapshots(
         });
       }
       out.push(outcome);
-      log(`  ${base.name}: event snapshot ${result.pipeline.status} (run ${result.runId}), $${result.costUsd.toFixed(2)}${outcome.comparedWith ? `, ${outcome.swings} swings vs ${outcome.comparedWith}` : ""}`);
+      log(`  ${base.name}: event snapshot ${result.pipeline.status} (run ${result.runId}), $${result.costUsd.toFixed(2)}${outcome.comparedWith ? `, ${outcome.swings} swings vs ${outcome.comparedWith}${(outcome.baselines ?? 1) > 1 ? ` (held against ${outcome.baselines} snapshots)` : ""}` : ""}`);
     } catch (err) {
       const failedRun = await db.run.findFirst({ where: { watchItemId, kind: "event", startedAt: { gte: started } }, orderBy: { startedAt: "desc" }, select: { id: true } });
       if (failedRun) {
