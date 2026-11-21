@@ -233,7 +233,7 @@ export async function runModelWatcher(db: PrismaClient, options: ModelWatcherOpt
         out = await check(provider, choiceFromRecord(current));
         paid = out.costUsd;
         budget.check += out.costUsd;
-        decision = await decide(provider, current, out.report, { fetchPage: options.fetchPage, modelExists: options.modelExists, hasPrices: options.hasPrices });
+        decision = await decide(provider, current, out.report, { fetchPage: options.fetchPage, modelExists: options.modelExists, hasPrices: options.hasPrices, now });
       } catch (err) {
         await finishJob(db, key, "failed", { costUsd: earlierCheckUsd + paid, note: String(err) }).catch(() => {});
         throw err;
@@ -244,8 +244,8 @@ export async function runModelWatcher(db: PrismaClient, options: ModelWatcherOpt
       if (decision.verdict === "unchanged") {
         // Refresh the confirmation only; the note and guess flag stay as they were.
         await db.modelRegistry.update({ where: { id: current.id }, data: { confirmedAt: now } });
-        outcomes.push({ ...base, outcome: "unchanged" });
-        log(`${provider}: unchanged, ${current.model} ($${out.costUsd.toFixed(4)}, ${out.searches} searches)`);
+        outcomes.push({ ...base, outcome: "unchanged", ...(decision.declined ? { reason: decision.declined } : {}) });
+        log(`${provider}: unchanged, ${current.model}${decision.declined ? ` (held back: ${decision.declined})` : ""} ($${out.costUsd.toFixed(4)}, ${out.searches} searches)`);
         continue;
       }
       if (decision.verdict === "unclear") {

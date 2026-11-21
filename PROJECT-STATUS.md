@@ -1,8 +1,15 @@
 # AI Topic Explorer - Project Status
 
-**Last Updated:** November 18, 2026
+**Last Updated:** November 21, 2026
 
 ## Current Status: Live in production (beta), new direction planned
+
+**Error triage (Nov 21):** both event snapshots on Nov 21 (Data centers in Texas, Renewables
+in Texas) finished partial because Grok's calls failed: 8 of 24 locked answers in the first,
+none in the second. Most likely the xAI account ran out of credits or hit its spending limit
+(not confirmed; check console.x.ai). Partial warnings now name the failing AI and error kind.
+The model watcher flagged Gemini 4 Hydrogen as a possible new free default; Josh kept
+Flash-Lite, and that report is held back through Dec 19.
 
 **Multi-baseline comparisons (Nov 18):** weekly and event snapshots are compared with up
 to three earlier snapshots of the item (the most recent and the last two weekly ones), and a

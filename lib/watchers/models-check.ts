@@ -271,8 +271,59 @@ export const hasPrices: HasPrices = (provider, modelId) => {
   }
 };
 
+/**
+ * Switches Josh looked at and turned down. The check keeps citing the same
+ * page, so without this it would warn every day. Only the same model cited
+ * from one of the listed pages is held back, and only through `until`:
+ * evidence on any other page, or the check after that date, goes through the
+ * normal rules, so a real change still surfaces.
+ */
+export interface DeclinedSwitch {
+  provider: ProviderId;
+  modelId: string;
+  /** Pages this was turned down for; the query string and fragment are ignored. */
+  urls: string[];
+  /** YYYY-MM-DD the decision was made. */
+  decided: string;
+  /** Last day (UTC, inclusive) it's held back; the next day's check looks again. */
+  until: string;
+  reason: string;
+}
+
+export const DECLINED_SWITCHES: DeclinedSwitch[] = [
+  {
+    provider: "gemini",
+    modelId: "gemini-4-hydrogen",
+    urls: ["https://support.google.com/gemini/answer/18648722"],
+    decided: "2026-11-21",
+    until: "2026-12-19",
+    reason:
+      "the free Gemini app's default is Auto, which routes between Hydrogen and a fast, lightweight model, and no Google page says free chats use Hydrogen alone; " +
+      "Hydrogen also costs 3-5x Flash-Lite per answer. Flash-Lite kept",
+  },
+];
+
+/** A page's address without its query string or fragment, so `?hl=en` variants match. */
+function pageKey(url: string): string | null {
+  try {
+    const u = new URL(url);
+    return `${u.hostname.toLowerCase()}${u.pathname.replace(/\/+$/, "")}`;
+  } catch {
+    return null;
+  }
+}
+
+/** The declined switch covering this model cited from this page today, if any. */
+export function declinedSwitch(provider: ProviderId, modelId: string, url: string, now: Date, list: DeclinedSwitch[] = DECLINED_SWITCHES): DeclinedSwitch | null {
+  const day = now.toISOString().slice(0, 10);
+  const page = pageKey(url);
+  return (
+    list.find((d) => d.provider === provider && d.modelId === modelId && day <= d.until && d.urls.some((u) => pageKey(u) === page)) ?? null
+  );
+}
+
 export type Decision =
-  | { verdict: "unchanged"; sourceUrl: string | null }
+  | { verdict: "unchanged"; sourceUrl: string | null; /** Why a reported change was held back (DECLINED_SWITCHES). */ declined?: string }
   | { verdict: "changed"; modelId: string; isGuess: boolean; sourceUrl: string; quote: string; consumerName: string; effectiveDate: string | null }
   | { verdict: "unclear"; reason: string };
 
@@ -284,7 +335,7 @@ export async function decide(
   provider: ProviderId,
   current: Pick<ModelChoice, "model" | "sourceUrl">,
   report: DefaultReport,
-  deps: { fetchPage?: PageFetcher; modelExists?: ModelExists; hasPrices?: HasPrices; signal?: AbortSignal } = {}
+  deps: { fetchPage?: PageFetcher; modelExists?: ModelExists; hasPrices?: HasPrices; declined?: DeclinedSwitch[]; now?: Date; signal?: AbortSignal } = {}
 ): Promise<Decision> {
   const official = report.evidenceUrl && isOfficialUrl(provider, report.evidenceUrl) ? report.evidenceUrl : null;
   if (report.sameAsCurrent || !report.apiModelId || report.apiModelId === current.model) {
@@ -292,6 +343,10 @@ export async function decide(
   }
   const id = report.apiModelId;
   if (!official) return { verdict: "unclear", reason: `reported ${id} but cited no official page (${report.evidenceUrl || "none"})` };
+  const declined = declinedSwitch(provider, id, official, deps.now ?? new Date(), deps.declined);
+  if (declined) {
+    return { verdict: "unchanged", sourceUrl: current.sourceUrl, declined: `${id} from ${official} turned down ${declined.decided} until ${declined.until}: ${declined.reason}` };
+  }
   if (!report.evidenceQuote) return { verdict: "unclear", reason: `reported ${id} but quoted nothing from ${official}` };
   if (isFlagship(provider, id)) return { verdict: "unclear", reason: `reported ${id}, a flagship tier; the free default is never the flagship` };
   if (isOlderVersion(id, current.model)) {

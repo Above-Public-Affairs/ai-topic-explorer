@@ -1,6 +1,6 @@
 # Session Handoff — AI Topic Explorer
 
-**Last Updated:** November 18, 2026
+**Last Updated:** November 21, 2026
 
 ## Where we are
 Live in production (beta) on Railway with four providers: Claude, ChatGPT, Gemini
@@ -17,7 +17,19 @@ The app is becoming an internal topic-tracking tool.
 tracker (https://claude.ai/artifact/Hm5BrTX5Tb8hTxaZBw6FCS) and the "AI Topic
 Explorer — master" chat. Done: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2 (no X Search) and 5.1. Phase 7 testing (7.1–7.3) found 20 issues; task 7.4 fixed them (see below).
 
-**Latest (Nov 18): multi-baseline comparisons.** `compareWithBaselines()`
+**Latest (Nov 21): error triage.** The Nov 21 event snapshots finished partial because
+Grok's calls failed partway through the first and entirely in the second; the likely cause is
+xAI credits or the spending limit (unconfirmed: check console.x.ai, or read `Answer.errorKind`
+/ `errorMessage` for runs `cmwqf50ok000501qnp74kja2f` and `cmwqf9o4t03j801qnuftg3q51`).
+Partial warnings from the event and weekly workers now name the failing AI, the count and the
+error kind (`lib/pipeline/failures.ts`). The model watcher's Gemini 4 Hydrogen report is held
+back through Dec 19 (`DECLINED_SWITCHES` in `lib/watchers/models-check.ts`); Josh kept
+Flash-Lite because free Gemini's Auto mode routes between Hydrogen and a lighter model.
+Gotcha: xAI doesn't document the status or text it returns when credits run out, so
+`lib/answers/errors.ts` may file it as `rate_limited`; the next partial warning will show the
+real message.
+
+**Nov 18: multi-baseline comparisons.** `compareWithBaselines()`
 (`lib/snapshots/baselines.ts`) is used by the weekly worker and the event watcher: a new
 snapshot is compared with the item's most recent snapshot and its last two weekly ones, and
 only changes found against all of them are kept (numbers are against the most recent).
@@ -164,6 +176,9 @@ single pair.
   doesn't confirm, so it's checked again on the next run (about $0.01).
 - A new default with no price in `lib/answers/prices.ts` is held as unclear: add its
   prices and the next run switches. The switch run asks the old model first, while it's served.
+- A switch Josh turns down goes in `DECLINED_SWITCHES` (model, page, `until` date): that
+  model cited from that page is logged as "held back" instead of reported, until the date.
+  Gemini 4 Hydrogen is there through Dec 19, 2026.
 - Switch runs: `Run.kind = model_switch`, one per watch item, `Run.stats.modelSwitch`
   {eventId, old/new registryId, model, answered, failed}; answers carry `modelRegistryId`.
   `Event.runId` holds only the first run (one-to-one column), so find the rest by

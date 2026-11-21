@@ -23,6 +23,7 @@
 import type { PrismaClient, RunStatus } from "@/app/generated/prisma/client";
 import { compareRuns, compareWithBaselines, runSnapshot, type RunSnapshotOptions, type RunSnapshotResult, type SnapshotStats } from "@/lib/snapshots";
 import { afterSnapshot } from "@/lib/alerts";
+import { summarizeFailures, type FailureSummary } from "@/lib/pipeline/failures";
 import { spentSoFar } from "./active-runs";
 
 export const DEFAULT_RUN_CAP_USD = 15;
@@ -75,6 +76,8 @@ export interface ItemOutcome {
   questions?: number;
   calls?: number;
   failedCalls?: number;
+  /** Which AIs' calls failed and why, when any did (lib/pipeline/failures.ts). */
+  failures?: FailureSummary;
   costUsd?: number;
   held?: number;
   noisy?: number;
@@ -233,7 +236,9 @@ export async function runWeekly(db: PrismaClient, options: WeeklyOptions = {}): 
 
 function summarize(item: { id: string; name: string }, result: RunSnapshotResult, calls: number, failedCalls: number): ItemOutcome {
   const totals = Object.values(result.stats.agreement.totals);
+  const failures = summarizeFailures(result.pipeline.answers);
   return {
+    ...(failures.headline ? { failures } : {}),
     watchItemId: item.id,
     name: item.name,
     outcome: "ran",
@@ -261,5 +266,6 @@ export function summaryLine(o: ItemOutcome): string {
     `${o.held} held / ${o.noisy} noisy`,
     o.comparedWith ? `${o.swings} swings vs ${o.comparedWith}${(o.baselines ?? 1) > 1 ? ` (held against ${o.baselines} snapshots)` : ""}` : "first snapshot, nothing to compare",
     ...(o.stoppedAtCapUsd ? [`STOPPED at $${o.stoppedAtCapUsd} cap`] : []),
+    ...(o.failures ? [o.failures.headline] : []),
   ].join(", ");
 }

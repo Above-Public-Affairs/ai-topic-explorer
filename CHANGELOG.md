@@ -2,6 +2,12 @@
 
 All notable changes to AI Topic Explorer will be documented in this file.
 
+## [2026-11-21]
+
+### Changed (triage of the Nov 21 error digest)
+- **Partial snapshot warnings say why.** When an event or weekly snapshot finishes partial, the error report now names which AI's calls failed, how many, and the error kind, e.g. "Grok 24 of 32 calls failed (rate_limited)", with the provider's own message and any failed extractions in the context (`summarizeFailures()`, `lib/pipeline/failures.ts`). Before, it said only "finished partial", and the Error Reporter filed the Nov 10 OpenAI credit outage and the Nov 21 Grok outage as one error
+- **Model watcher: turned-down switches stay quiet.** Gemini 4 Hydrogen, cited from Google's "About Gemini models" help page, is held back through Dec 19, 2026: free Gemini's default is Auto, which routes between Hydrogen and a lightweight model, and no Google page says free chats use Hydrogen alone. Flash-Lite stays (Josh). The same model on any other page, or the Dec 20 check, goes through the normal rules (`DECLINED_SWITCHES`, `lib/watchers/models-check.ts`). The daily log says when a report was held back
+
 ## [2026-11-18]
 
 ### Changed (snapshot comparisons use several baselines)
