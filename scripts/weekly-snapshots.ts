@@ -52,10 +52,17 @@ async function main(): Promise<number> {
       reportError({
         category: "snapshot_error",
         level: "warning",
-        message: `Weekly snapshot for ${item.name} finished ${item.status}${item.stoppedAtCapUsd ? ` (stopped at $${item.stoppedAtCapUsd} cap)` : ""}${item.error ? `; comparison failed: ${String(item.error)}` : ""}`,
+        message: `Weekly snapshot for ${item.name} finished ${item.status}${item.stoppedAtCapUsd ? ` (stopped at $${item.stoppedAtCapUsd} cap)` : ""}${item.failures ? `: ${item.failures.headline}` : ""}${item.error ? `; comparison failed: ${String(item.error)}` : ""}`,
         rawError: item.error,
         operation: "worker:weekly-snapshots",
-        context: { watchItemId: item.watchItemId, runId: item.runId, calls: item.calls, failedCalls: item.failedCalls, costUsd: item.costUsd },
+        context: {
+          watchItemId: item.watchItemId,
+          runId: item.runId,
+          calls: item.calls,
+          failedCalls: item.failedCalls,
+          costUsd: item.costUsd,
+          ...(item.failures ? { failures: item.failures.providers, extractionFailed: item.failures.extractionFailed, extractionSample: item.failures.extractionSample } : {}),
+        },
       });
     } else if (item.outcome === "skipped" && item.reason?.startsWith("run spending cap")) {
       reportError({

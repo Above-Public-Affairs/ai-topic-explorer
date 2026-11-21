@@ -29,6 +29,7 @@ import type { EventCategory, PrismaClient } from "@/app/generated/prisma/client"
 import { compareRuns, compareWithBaselines, runSnapshot, type RunSnapshotOptions, type RunSnapshotResult, type SnapshotStats } from "@/lib/snapshots";
 import { STALE_RUNNING_MS, weekStart } from "@/lib/worker/weekly";
 import { afterSnapshot } from "@/lib/alerts";
+import { summarizeFailures } from "@/lib/pipeline/failures";
 import { claimJob, finishJob } from "./jobs";
 import { spentSoFar } from "@/lib/worker/active-runs";
 import {
@@ -549,15 +550,22 @@ async function runDueSnapshots(
       await db.run.update({ where: { id: result.runId }, data: { stats: JSON.parse(JSON.stringify(stats)) } });
       await (options.alerts ?? afterSnapshot)(db, result.runId, { log: (l) => log(`  ${base.name}: ${l}`) });
       await finishJob(db, key, "complete", { costUsd: result.costUsd, stats: { runId: result.runId, status: result.pipeline.status, swings: outcome.swings } });
+      const failures = summarizeFailures(result.pipeline.answers);
       if (result.pipeline.status !== "complete" || result.stats.stoppedAtCapUsd) {
         errors.push({
           stage: "snapshot",
-          message: `Event snapshot for ${base.name} finished ${result.pipeline.status}${result.stats.stoppedAtCapUsd ? ` (stopped at $${result.stats.stoppedAtCapUsd} cap)` : ""}`,
-          context: { runId: result.runId, costUsd: result.costUsd, level: "warning" },
+          message: `Event snapshot for ${base.name} finished ${result.pipeline.status}${result.stats.stoppedAtCapUsd ? ` (stopped at $${result.stats.stoppedAtCapUsd} cap)` : ""}${failures.headline ? `: ${failures.headline}` : ""}`,
+          context: {
+            runId: result.runId,
+            costUsd: result.costUsd,
+            level: "warning",
+            failures: failures.providers,
+            ...(failures.extractionFailed ? { extractionFailed: failures.extractionFailed, extractionSample: failures.extractionSample } : {}),
+          },
         });
       }
       out.push(outcome);
-      log(`  ${base.name}: event snapshot ${result.pipeline.status} (run ${result.runId}), $${result.costUsd.toFixed(2)}${outcome.comparedWith ? `, ${outcome.swings} swings vs ${outcome.comparedWith}${(outcome.baselines ?? 1) > 1 ? ` (held against ${outcome.baselines} snapshots)` : ""}` : ""}`);
+      log(`  ${base.name}: event snapshot ${result.pipeline.status} (run ${result.runId}), $${result.costUsd.toFixed(2)}${outcome.comparedWith ? `, ${outcome.swings} swings vs ${outcome.comparedWith}${(outcome.baselines ?? 1) > 1 ? ` (held against ${outcome.baselines} snapshots)` : ""}` : ""}${failures.headline ? `; ${failures.headline}` : ""}`);
     } catch (err) {
       const failedRun = await db.run.findFirst({ where: { watchItemId, kind: "event", startedAt: { gte: started } }, orderBy: { startedAt: "desc" }, select: { id: true } });
       if (failedRun) {

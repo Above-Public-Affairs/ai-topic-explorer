@@ -105,6 +105,39 @@ describe("decide", () => {
   });
 });
 
+describe("declined switches", () => {
+  const hydrogen = report({
+    consumerName: "Gemini 4 Hydrogen",
+    apiModelId: "gemini-4-hydrogen",
+    evidenceUrl: "https://support.google.com/gemini/answer/18648722?hl=en&co=GENIE.Platform%3DAndroid",
+    evidenceQuote: "When you use Auto, Gemini will select Hydrogen or a fast, lightweight model",
+  });
+  const flashLite = { model: "gemini-3.5-flash-lite", sourceUrl: "https://gemini.google/release-notes/" };
+  // Would pass every other check, so only the declined rule can hold it back.
+  const passes = { fetchPage: async () => `<p>${hydrogen.evidenceQuote}</p>`, modelExists: async () => true, hasPrices: () => true };
+
+  it("holds back Hydrogen cited from the help page Josh turned down (Nov 21, 2026)", async () => {
+    const d = await decide("gemini", flashLite, hydrogen, { ...passes, now: new Date("2026-11-22T13:00:00Z") });
+    expect(d).toMatchObject({ verdict: "unchanged", sourceUrl: flashLite.sourceUrl });
+    expect(d.verdict === "unchanged" && d.declined).toMatch(/gemini-4-hydrogen .* turned down 2026-11-21 until 2026-12-19/);
+  });
+
+  it("looks again after the recheck date", async () => {
+    const d = await decide("gemini", flashLite, hydrogen, { ...passes, now: new Date("2026-12-20T13:00:00Z") });
+    expect(d.verdict).toBe("changed");
+  });
+
+  it("lets the same model through when a different page says it", async () => {
+    const d = await decide("gemini", flashLite, { ...hydrogen, evidenceUrl: "https://gemini.google/release-notes/" }, { ...passes, now: new Date("2026-11-22T13:00:00Z") });
+    expect(d.verdict).toBe("changed");
+  });
+
+  it("covers only that model", async () => {
+    const d = await decide("gemini", flashLite, { ...hydrogen, apiModelId: "gemini-4-helium" }, { ...passes, hasPrices: () => false, now: new Date("2026-11-22T13:00:00Z") });
+    expect(d.verdict).toBe("unclear");
+  });
+});
+
 /** Just enough of Prisma for the check paths that don't switch (a switch goes through saveModel; see the .db test). */
 function fakeDb(rows: RegistryRecord[]) {
   const updates: { id: string; confirmedAt: Date }[] = [];
